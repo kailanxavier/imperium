@@ -1,0 +1,8 @@
+add_subdirectory(core)
+add_subdirectory(creature)
+add_subdirectory(fwk)
+add_subdirectory(gfx)
+add_subdirectory(net)
+add_subdirectory(physics)
+add_subdirectory(script)
+add_subdirectory(audio)

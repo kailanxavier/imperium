@@ -32,7 +32,9 @@ bld/
 [Oo]bj/
 [Oo]ut/
 [Ll]og/
+!log/
 [Ll]ogs/
+build/
 
 # Build results on 'Bin' directories
 **/[Bb]in/*
