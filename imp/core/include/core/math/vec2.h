@@ -1,4 +1,5 @@
 #pragma once
+
 #include <cmath>
 #include <cassert>
 #include <type_traits>
@@ -8,7 +9,7 @@ namespace imp::math
 	template <typename T>
 	struct Vec2
 	{
-		static_assert( std::is_floating_point_v<T>, "Vec2<T> requires float type" );
+		static_assert( std::is_integral_v<T> || std::is_floating_point_v<T>, "Vec2<T> requires a number type" );
 
 		T x, y;
 
@@ -16,7 +17,7 @@ namespace imp::math
 		constexpr explicit Vec2(T scalar) noexcept : x(scalar), y(scalar) {}
 		constexpr Vec2(T x, T y) noexcept : x(x), y(y) {}
 
-		// Conversion between Vec2<float> and Vec2<double>
+		// Converstion between different types
 		template <typename U>
 		constexpr explicit Vec2(const Vec2<U>& other) noexcept
 			: x(static_cast<T>( other.x )), y(static_cast<T>( other.y )) {}
@@ -105,7 +106,7 @@ namespace imp::math
 		return lengthSq(b - a);
 	}
 
-	// Returns angle between two vectors in radians
+	// Returns angle between two vector 2s in radians
 	template <typename T>
 	[[nodiscard]] inline T angleBetween(const Vec2<T>& a, const Vec2<T>& b) noexcept
 	{
