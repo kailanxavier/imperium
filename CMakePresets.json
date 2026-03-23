@@ -30,6 +30,17 @@
         "CMAKE_CXX_STANDARD": "20",
         "IMP_GFX_BACKEND": "DX11"
       }
+    },
+    {
+      "name": "mac-debug",
+      "displayName": "MacOS Debug",
+      "binaryDir": "${sourceDir}/build/mac-debug",
+      "cacheVariables": {
+        "CMAKE_OSX_ARCHITECTURES": "arm64",
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_CXX_STANDARD": "20",
+        "IMP_GFX_BACKEND": "VULKAN"
+      }
     }
   ],
   "buildPresets": [
@@ -40,6 +51,10 @@
     {
       "name": "windows-release",
       "configurePreset": "windows-release"
+    },
+    {
+      "name": "mac-debug",
+      "configurePreset": "mac-debug"
     }
   ]
 }
