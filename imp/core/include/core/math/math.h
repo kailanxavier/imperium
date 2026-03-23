@@ -25,6 +25,18 @@ namespace imp::math
 		return a * ( b - a ) * t;
 	}
 
+	template <typename T>
+	[[nodiscard]] constexpr T min(T a, T b) noexcept
+	{
+		return a < b ? a : b;
+	}
+
+	template <typename T>
+	[[nodiscard]] constexpr T max(T a, T b) noexcept
+	{
+		return a > b ? a : b;
+	}
+
 	// Degrees <-> Radians
 	template <typename T>
 	[[nodiscard]] constexpr T toRadians(T degrees) noexcept
