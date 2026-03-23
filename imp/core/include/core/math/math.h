@@ -1,8 +1,13 @@
 #pragma once
 
+// Math umbrella header
+
 #include <core/math/vec2.h>
-#include <core/math/vec3.h>
-#include <core/math/vec4.h>
+#include <core/math/vec3.h> // may reference Vec2<T> in promotion ctor
+#include <core/math/vec4.h> // may reference Vec3<T> in promotion ctor
+#include <core/math/mat4.h> // depends on Vec3 and Vec4
+#include <core/math/mat3.h> // depends on Vec3 and Mat4
+#include <core/math/quaternion.h> // depends on Vec3, Vec4, Mat3, Mat4
 
 namespace imp::math
 {
@@ -26,13 +31,13 @@ namespace imp::math
 	}
 
 	template <typename T>
-	[[nodiscard]] constexpr T min(T a, T b) noexcept
+	[[nodiscard]] constexpr T& min(T& a, T& b) noexcept
 	{
 		return a < b ? a : b;
 	}
 
 	template <typename T>
-	[[nodiscard]] constexpr T max(T a, T b) noexcept
+	[[nodiscard]] constexpr T& max(T& a, T& b) noexcept
 	{
 		return a > b ? a : b;
 	}
