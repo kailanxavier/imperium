@@ -124,9 +124,9 @@ namespace imp::math
 		return { r.x, r.y, r.z };
 	}
 
-	// Transform a directon (w = 0)
+	// Transform a direction (w = 0)
 	template <typename T>
-	[[nodiscard]] constexpr Vec3<T> transformPoint(const Mat4<T>& m, const Vec3<T> d) noexcept
+	[[nodiscard]] constexpr Vec3<T> transformDirection(const Mat4<T>& m, const Vec3<T> d) noexcept
 	{
 		const Vec4<T> r = m * Vec4<T>{ d.x, d.y, d.z, T(0) };
 		return { r.x, r.y, r.z };
