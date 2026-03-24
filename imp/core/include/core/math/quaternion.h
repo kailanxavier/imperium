@@ -160,4 +160,140 @@ namespace imp::math
             p.w * q.w - p.x * q.x - p.y * q.y - p.z * q.z,
         };
     }
+
+    // Core operations
+    template <typename T>
+    [[nodiscard]] constexpr T dot(const Quaternion<T>& a, const Quaternion<T>& b) noexcept
+    {
+        return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w;
+    }
+
+    template <typename T>
+    [[nodiscard]] inline T length(const Quaternion<T>& q) noexcept
+    {
+        return std::sqrt(dot(q, q));
+    }
+
+    template <typename T>
+    [[nodiscard]] inline Quaternion<T> normalise(const Quaternion<T>& q) noexcept
+    {
+        const T len = length(q);
+        assert(len > T(0) && "Normalised called on a zero-length Quaternion");
+        return q * (T(1) / len);
+    }
+
+    // Conjugate: same rotation axis, negated angle - also the inverse for unit quaternion
+    template <typename T>
+    [[nodiscard]] constexpr Quaternion<T> conjugate(const Quaternion<T>& q) noexcept
+    {
+        return { -q.x, -q.y, -q.z, q.w };
+    }
+
+    // Inverse: valid for non-unit quaternions too (divide conjugate by squared length)
+    template <typename T>
+    [[nodiscard]] inline Quaternion<T> inverse(const Quaternion<T>& q) noexcept
+    {
+        const T lenSq = dot(q, q);
+        assert(lenSq > T(0) && "Inverse called on zero-length Quaternion");
+        const T inv = T(1) / lenSq;
+        return { -q.x * inv, -q.y * inv, -q.z * inv, q.w * inv };
+    }
+
+    // Rotation application
+    // Rotate a vector by a unit quaternion: v' = q * v * q^{-1}
+    template <typename T>
+    [[nodiscard]] constexpr Vec3<T> rotate(const Quaternion<T>& q, const Vec3<T>& v) noexcept
+    {
+        // Efficient sandwich product via t = 2 * (q.xyz * v)
+        const Vec3<T> qv = { q.x, q.y, q.z };
+        const Vec3<T> t = cross(qv, v) * T(2);
+        return v + t * q.w + cross(qv, t);
+    }
+
+    // Conversion - to matrix
+    template <typename T>
+    [[nodiscard]] constexpr Mat3<T> toMat3(const Quaternion<T>& q) noexcept
+    {
+        const T xx = q.x * q.x, yy = q.y * q.y, zz = q.z * q.z;
+        const T xy = q.x * q.y, xz = q.x * q.z, yz = q.y * q.z;
+        const T wx = q.w * q.x, wy = q.w * q.y, wz = q.w * q.z;
+
+        return Mat3<T>
+        {
+            Vec3<T> { T(1) - T(2) * (yy+zz), T(2) * (xy + wz), T(2) * (xz - wy) },
+            Vec3<T> { T(2) * (xy - wz), T(1) - T(2) * (xx + zz), T(2) * (yz + wx) },
+            Vec3<T> { T(2) * (xz + wy), T(2) * (wz - wx), T(1) - T(2) * (xx + yy) },
+        };
+    }
+
+    template <typename T>
+    [[nodiscard]] constexpr Mat4<T> toMat4(const Quaternion<T>& q) noexcept
+    {
+        return toMat4(toMat3(q));
+    }
+
+    // Conversion - To Euler (YXZ, radians)
+    template <typename T>
+    struct EulerAngles { T pitch, yaw, roll; };
+
+    template <typename T>
+    [[nodiscard]] inline EulerAngles<T> toEuler(const Quaternion<T>& q) noexcept
+    {
+        EulerAngles<T> e;
+
+        // Pitch (X)
+        const T sinp = T(2) * (q.w * q.x + q.y * q.z);
+        const T cosp = T(1) - T(2) * (q.x * q.x + q.y * q.y);
+        e.pitch = std::atan2(sinp, cosp);
+
+        // Yaw (Y)
+        const T siny = T(2) * (q.w * q.y - q.z * q.x);
+        e.yaw = std::abs(siny) >= T(1)
+            ? std::copysign(T(3.14159265358979323846) * T(0.5), siny)
+            : std::asin(siny);
+
+        // Roll (Z)
+        const T sinr = T(2) * (q.w * q.z + q.x * q.y);
+        const T cosr = T(1) - T(2) * (q.y * q.y + q.z * q.z);
+        e.roll = std::atan2(sinr, cosr);
+
+        return e;
+    }
+
+    // Interpolation
+    // Normalised linear interpolation - fast, slight speed variation
+    template <typename T>
+    [[nodiscard]] inline Quaternion<T> nlerp(const Quaternion<T>& a, const Quaternion<T>& b, T t) noexcept
+    {
+        // Ensure shortest path
+        const Quaternion<T> b2 = dot(a, b) < T(0) ? -b : b;
+        return normalise(a + (b2 - a) * t);
+    }
+
+    // Spherical linear interpolation - constant angular velocity
+    template <typename T>
+    [[nodiscard]] inline Quaternion<T> slerp(const Quaternion<T>& a, Quaternion<T>& b, T t) noexcept
+    {
+        constexpr T kEpsilon = T(1e-6);
+
+        T cosAngle = dot(a, b);
+        Quaternion<T> b2 = b;
+
+        if (cosAngle < T(0)) { cosAngle = -cosAngle; b2 = -b; }
+        if (cosAngle > T(1) - kEpsilon)
+        {
+            return nlerp(a, b2, t); // nearly identical - fallback to nlerp
+        }
+
+        const T angle = std::acos(cosAngle);
+        const T sinAngle = std::sin(angle);
+
+        return a * (std::sin((T(1) - t) * angle) / sinAngle)
+            + b2 * (std::sin(t * angle) / sinAngle);
+    }
+
+    // Type defs
+
+    using Quaternionf = Quaternion<float>;
+    using Quaterniond = Quaternion<double>;
 }
