@@ -12,7 +12,7 @@ namespace imp::math
     template <typename T>
     struct Mat3
     {
-        static_assert(std::is_floating_point<T>, "Mat<T> requires a floating-point type");
+        static_assert(std::is_floating_point_v<T>, "Mat<T> requires a floating-point type");
 
         Vec3<T> col[3];
 
