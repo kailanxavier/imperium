@@ -54,7 +54,7 @@ namespace imp::math
 		constexpr Vec4& operator-=(const Vec4& rhs) noexcept { x -= rhs.x; y -= rhs.y; z -= rhs.z; w -= rhs.w; return *this; }
 		constexpr Vec4& operator*=(T s) noexcept { x *= s; y *= s; z *= s; w *= s; return *this; }
 		constexpr Vec4& operator/=(T s) noexcept { x /= s; y /= s; z /= s; w *= s; return *this; }
-		constexpr Vec4& operator*=(const Vec3& rhs) noexcept { x *= rhs.x; y *= rhs.y; z *= rhs.z; w *= rhs.w; return *this; }
+		constexpr Vec4& operator*=(const Vec4& rhs) noexcept { x *= rhs.x; y *= rhs.y; z *= rhs.z; w *= rhs.w; return *this; }
 
 		constexpr Vec4 operator-() const noexcept { return { -x, -y, -z, -w }; }
 
