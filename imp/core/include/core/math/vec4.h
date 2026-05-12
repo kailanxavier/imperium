@@ -3,6 +3,7 @@
 #include <cmath>
 #include <cassert>
 #include <type_traits>
+#include <core/math/vec3.h>
 
 namespace imp::math
 {
@@ -16,6 +17,7 @@ namespace imp::math
 		constexpr Vec4() noexcept : x(T(0)), y(T(0)), z(T(0)), w(T(0)) {}
 		constexpr explicit Vec4(T scalar) noexcept : x(scalar), y(scalar), z(scalar), w(scalar) {}
 		constexpr Vec4(T x, T y, T z, T w) noexcept : x(x), y(y), z(z), w(w) {}
+		constexpr explicit Vec4(Vec3<T> xyz) noexcept : x(xyz.x), y(xyz.y), z(xyz.z), w(T(0)) {}
 
 		// Promotion from Vec3 - w defaults to 0 (direction) or 1 (point)
 		template <typename U>
@@ -53,7 +55,7 @@ namespace imp::math
 		constexpr Vec4& operator+=(const Vec4& rhs) noexcept { x += rhs.x; y += rhs.y; z += rhs.z; w += rhs.w; return *this; }
 		constexpr Vec4& operator-=(const Vec4& rhs) noexcept { x -= rhs.x; y -= rhs.y; z -= rhs.z; w -= rhs.w; return *this; }
 		constexpr Vec4& operator*=(T s) noexcept { x *= s; y *= s; z *= s; w *= s; return *this; }
-		constexpr Vec4& operator/=(T s) noexcept { x /= s; y /= s; z /= s; w *= s; return *this; }
+		constexpr Vec4& operator/=(T s) noexcept { x /= s; y /= s; z /= s; w /= s; return *this; }
 		constexpr Vec4& operator*=(const Vec4& rhs) noexcept { x *= rhs.x; y *= rhs.y; z *= rhs.z; w *= rhs.w; return *this; }
 
 		constexpr Vec4 operator-() const noexcept { return { -x, -y, -z, -w }; }
@@ -116,6 +118,16 @@ namespace imp::math
 		const T d = dot(normalise(a), normalise(b));
 		// clamp to guard against floating-point drift beyond [-1, 1]
 		return std::acos(d < T(-1) ? T(-1) : ( d > T(1) ? T(1) : d ));
+	}
+
+	// Homogenous helpers
+
+	// Perspective divide: returns xyz / w, where w is not zero.
+	template <typename T>
+	[[nodiscard]] constexpr Vec3<T> perspectiveDivide(const Vec4<T>& v) noexcept
+	{
+		assert(v.w != T(0) && "Perspective divide called with w == 0");
+		return { v.x / v.w, v.y / v.w, v.z / v.w };
 	}
 
 	// Interpolation

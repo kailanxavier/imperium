@@ -24,7 +24,7 @@ endif()
 add_executable(imp_math_tests
     test_vec2.cpp
     test_vec3.cpp
-    #test_vec4.cpp
+    test_vec4.cpp
     #test_mat.cpp
     #test_quaternion.cpp
 )
