@@ -28,13 +28,13 @@ inline bool nearEq(double a, double b, double eps = kEpsD) { return std::abs(a -
 
 #define EXPECT_MAT3_NEAR(a, b, eps) \
     for (int _c = 0; _c < 3; ++_c) \
-        for (int _r; _r < 3; ++_r) \
+        for (int _r = 0; _r < 3; ++_r) \
             EXPECT_TRUE(nearEq((a)(_r, _c), (b)(_r, _c), eps)) \
                 << " [" << _r << "][" << _c << "]: " << (a)(_r, _c) << " vs " << (b)(_r, _c)
 
 #define EXPECT_MAT4_NEAR(a, b, eps) \
     for (int _c = 0; _c < 4; ++_c) \
-        for (int _r; _r < 4; ++_r) \
+        for (int _r = 0; _r < 4; ++_r) \
             EXPECT_TRUE(nearEq((a)(_r, _c), (b)(_r, _c), eps)) \
                 << " [" << _r << "][" << _c << "]: " << (a)(_r, _c) << " vs " << (b)(_r, _c)
 

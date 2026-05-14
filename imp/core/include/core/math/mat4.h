@@ -105,7 +105,7 @@ namespace imp::math
 	}
 
 	template <typename T>
-	[[nodiscard]] constexpr Vec4<T> operator*(const Mat4<T>& m, const const Vec4<T>& v) noexcept
+	[[nodiscard]] constexpr Vec4<T> operator*(const Mat4<T>& m, const Vec4<T>& v) noexcept
 	{
 		return
 		{
@@ -138,10 +138,10 @@ namespace imp::math
 	{
 		return
 		{
-			Vec4<T> { m(0, 0), m(0, 1), m(0, 2), m(0, 3) },
-			Vec4<T> { m(1, 0), m(1, 1), m(1, 2), m(1, 3) },
-			Vec4<T> { m(2, 0), m(2, 1), m(2, 2), m(2, 3) },
-			Vec4<T> { m(3, 0), m(3, 1), m(3, 2), m(3, 3) },
+			Vec4<T> { m(0, 0), m(1, 0), m(2, 0), m(3, 0) },
+			Vec4<T> { m(0, 1), m(1, 1), m(2, 1), m(3, 1) },
+			Vec4<T> { m(0, 2), m(1, 2), m(2, 2), m(3, 2) },
+			Vec4<T> { m(0, 3), m(1, 3), m(2, 3), m(3, 3) },
 		};
 	}
 
@@ -161,7 +161,7 @@ namespace imp::math
 		const T c00 = ( m11 * ( m22 * m33 - m23 * m32 ) - m12 * ( m21 * m33 - m23 * m31 ) + m13 * ( m21 * m32 - m22 * m31 ) );
 		const T c01 = -( m10 * ( m22 * m33 - m23 * m32 ) - m12 * ( m20 * m33 - m23 * m30 ) + m13 * ( m20 * m32 - m22 * m30 ) );
 		const T c02 = ( m10 * ( m21 * m33 - m23 * m31 ) - m11 * ( m20 * m33 - m23 * m30 ) + m13 * ( m20 * m31 - m21 * m30 ) );
-		const T c03 = -( m10 * ( m21 * m32 - m22 * m31 ) - m11 * ( m20 * m32 - m22 * m30 ) + m13 * ( m20 * m31 - m21 * m30 ) );
+		const T c03 = -( m10 * ( m21 * m32 - m22 * m31 ) - m11 * ( m20 * m32 - m22 * m30 ) + m12 * ( m20 * m31 - m21 * m30 ) );
 
 		const T det = m00 * c00 + m01 * c01 + m02 * c02 + m03 * c03;
 		assert(det != T(0) && "Mat4::inverse - singular matrix");
@@ -186,10 +186,10 @@ namespace imp::math
 		// Adjugate is the transpose of the cofactor matrix
 		return Mat4<T>
 		{
-			Vec4<T>{ c00* invDet, c10* invDet, c20* invDet, c30* invDet },
-				Vec4<T>{ c01* invDet, c11* invDet, c21* invDet, c31* invDet },
-				Vec4<T>{ c02* invDet, c12* invDet, c22* invDet, c32* invDet },
-				Vec4<T>{ c03* invDet, c13* invDet, c23* invDet, c33* invDet },
+			Vec4<T>{ c00* invDet, c01* invDet, c02* invDet, c03* invDet },
+				Vec4<T>{ c10* invDet, c11* invDet, c12* invDet, c13* invDet },
+				Vec4<T>{ c20* invDet, c21* invDet, c22* invDet, c23* invDet },
+				Vec4<T>{ c30* invDet, c31* invDet, c32* invDet, c33* invDet },
 		};
 	}
 
@@ -199,14 +199,14 @@ namespace imp::math
 	[[nodiscard]] constexpr Mat4<T> inverseRigidbody(const Mat4<T>& m) noexcept
 	{
 		// Upper-left 3x3 is orthonormal -> its inverse is its transpose.
-		// New translation = (R^T * t)
+		// New translation = -(R^T * t)
 		const Vec3<T> t = { m(0, 3), m(1, 3), m(2, 3) };
 		return Mat4<T>
 		{
-			Vec4<T>{ m(0, 0), m(0, 1), m(0, 2), -( m(0, 0) * t.x + m(0, 1) * t.y + m(0, 2) * t.z ) },
-				Vec4<T>{ m(1, 0), m(1, 1), m(1, 2), -( m(1, 0) * t.x + m(1, 1) * t.y + m(1, 2) * t.z ) },
-				Vec4<T>{ m(2, 0), m(2, 1), m(2, 2), -( m(2, 0) * t.x + m(2, 1) * t.y + m(2, 2) * t.z ) },
-				Vec4<T>{ T(0), T(0), T(0), T(1) },
+			Vec4<T>{ m(0,0), m(0,1), m(0,2), -(m(0,0)*t.x + m(0,1)*t.y + m(0,2)*t.z) },
+			Vec4<T>{ m(0,1), m(1,1), m(1,2), -(m(1,0)*t.x + m(1,1)*t.y + m(1,2)*t.z) },
+			Vec4<T>{ m(2,0), m(2,1), m(2,2), -(m(2,0)*t.x + m(2,1)*t.y + m(2,2)*t.z) },
+			Vec4<T>{ T(0),   T(0),   T(0),   T(1) },
 		};
 	}
 
@@ -225,9 +225,9 @@ namespace imp::math
 	[[nodiscard]] constexpr Mat4<T> makeScale(const Vec3<T>& s) noexcept
 	{
 		Mat4<T> m;
-		m(0, 3) = s.x;
-		m(1, 3) = s.y;
-		m(2, 3) = s.z;
+		m(0, 0) = s.x;
+		m(1, 1) = s.y;
+		m(2, 2) = s.z;
 		return m;
 	}
 
@@ -248,10 +248,10 @@ namespace imp::math
 		const T x = axis.x, y = axis.y, z = axis.z;
 
 		return Mat4<T>{
-			Vec4<T>{ t*x*x+c, t*x*y+s*z, t*x*z-s*y, T(0) },
-			Vec4<T>{ t*x*y-s*z, t*y*y+c, t*y*z+s*x, T(0) },
-			Vec4<T>{ t*x*z+s*y, t*y*z-s*x, t*z*z+c, T(0) },
-			Vec4<T>{ T(0), T(0), T(0), T(1) },
+			Vec4<T>{ t*x*x+c,   t*x*y-s*z, t*x*z+s*y, T(0) },
+			Vec4<T>{ t*x*y+s*z, t*y*y+c,   t*y*z-s*x, T(0) },
+			Vec4<T>{ t*x*z-s*y, t*y*z+s*x, t*z*z+c,   T(0) },
+			Vec4<T>{ T(0),      T(0),      T(0),      T(1)  },
 		};
 	}
 
@@ -285,10 +285,10 @@ namespace imp::math
 
 		return Mat4<T>
 		{
-			Vec4<T> { r.x, r.y, r.z, -dot(r, eye) },
-			Vec4<T> { u.x, u.y, u.z, -dot(u, eye) },
-			Vec4<T> { f.x, f.y, f.z, -dot(f, eye) },
-			Vec4<T> { T(0), T(0), T(0), T(1) },
+			Vec4<T>{ r.x, u.x, f.x, T(0) },
+			Vec4<T>{ r.y, u.y, f.y, T(0) },
+			Vec4<T>{ r.z, u.z, f.z, T(0) },
+			Vec4<T>{ -dot(r,eye), -dot(u,eye), -dot(f,eye), T(1) },
 		};
 	}
 
@@ -296,10 +296,10 @@ namespace imp::math
 	// All produce depth in [0, 1] -> DirectX and Vulkan but not OpenGL's [-1, 1]
 
 	/// @brief Left-handed perspective projection.
-	/// @param fovY - vertical field of view in radians
-	/// @param aspect - width / height
-	/// @param zNear - near clip plane (>0)
-	/// @param zFar - far clip plane (>zNear)
+	/// @param fovY vertical field of view in radians
+	/// @param aspect width / height
+	/// @param zNear near clip plane (>0)
+	/// @param zFar far clip plane (>zNear)
 	/// @return Mat4
 	template <typename T>
 	[[nodiscard]] inline Mat4<T> makePerspectiveLH(T fovY, T aspect, T zNear, T zFar) noexcept
@@ -315,10 +315,28 @@ namespace imp::math
 
 		Mat4<T> m(T(0));
 		m(0, 0) = xScale;
-		m(1, 1) = xScale;
+		m(1, 1) = yScale;
 		m(2, 2) = zFar / zRange; // Maps [zNear, zFar] -> [0, 1]
-		m(2, 3) = T(1); // w_clip = z_view (LH: positive z goes into screen)
-		m(3, 2) = -( zNear * zFar ) / zRange;
+		m(2, 3) = -( zNear * zFar ) / zRange;
+		m(3, 2) = T(1); // w_clip = z_view (LH: positive z goes into screen)
+		return m;
+	}
+
+	template <typename T>
+	[[nodiscard]] constexpr Mat4<T> makeOrthographicLH(T width, T height, T zNear, T zFar) noexcept
+	{
+		assert(width > T(0));
+		assert(height > T(0));
+		assert(zNear < zFar);
+
+		const T zRange = zFar - zNear;
+
+		Mat4<T> m(T(0));
+		m(0, 0) = T(2) / width;
+		m(1, 1) = T(2) / height;
+		m(2, 2) = T(1) / zRange;
+		m(2, 3) = -zNear / zRange;
+		m(3, 3) = T(1);
 		return m;
 	}
 
