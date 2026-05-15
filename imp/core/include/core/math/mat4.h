@@ -192,10 +192,10 @@ namespace imp::math
 		// Adjugate is the transpose of the cofactor matrix
 		return Mat4<T>
 		{
-			Vec4<T>{ c00* invDet, c10* invDet, c20* invDet, c30* invDet },
-			Vec4<T>{ c01* invDet, c11* invDet, c21* invDet, c31* invDet },
-			Vec4<T>{ c02* invDet, c12* invDet, c22* invDet, c32* invDet },
-			Vec4<T>{ c03* invDet, c13* invDet, c23* invDet, c33* invDet },
+			Vec4<T>{ c00* invDet, c01* invDet, c02* invDet, c03* invDet },
+			Vec4<T>{ c10* invDet, c11* invDet, c12* invDet, c13* invDet },
+			Vec4<T>{ c20* invDet, c21* invDet, c22* invDet, c23* invDet },
+			Vec4<T>{ c30* invDet, c31* invDet, c32* invDet, c33* invDet },
 		};
 	}
 
@@ -212,9 +212,9 @@ namespace imp::math
 
 		return Mat4<T>
 		{
-			Vec4<T>{ m(0, 0), m(1, 0), m(2, 0), T(0) },
-			Vec4<T>{ m(0, 1), m(1, 1), m(2, 1), T(0) },
-			Vec4<T>{ m(0, 2), m(1, 2), m(2, 2), T(0) },
+			Vec4<T>{ m(0, 0), m(0, 1), m(0, 2), T(0) },
+			Vec4<T>{ m(1, 0), m(1, 1), m(1, 2), T(0) },
+			Vec4<T>{ m(2, 0), m(2, 1), m(2, 2), T(0) },
 			Vec4<T>{ -tx,	  -ty,	   -tz,	    T(1) },
 		};
 	}
@@ -326,9 +326,9 @@ namespace imp::math
 		Mat4<T> m(T(0));
 		m(0, 0) = xScale;
 		m(1, 1) = yScale;
-		m(2, 2) = zFar / zRange; // Maps [zNear, zFar] -> [0, 1]
-		m(2, 3) = T(1); // w_clip = z_view (LH: positive z goes into screen)
-		m(3, 2) = -( zNear * zFar ) / zRange;
+		m(2, 2) = zFar / zRange;
+		m(3, 2) = T(1);
+		m(2, 3) = -( zNear * zFar ) / zRange;
 		return m;
 	}
 

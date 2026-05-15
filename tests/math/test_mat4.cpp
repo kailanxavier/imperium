@@ -81,15 +81,15 @@ TEST(Mat4, RotationXBy90DegreesTransformsYToZ)
     float angle = kPif * 0.5f;
     Mat4f r = makeRotationX(angle);
     Vec3f v = transformDirection(r, Vec3f(0, 1, 0));
-    EXPECT_VEC3_NEAR(v, Vec3f({0, 0, -1}), kEpsFF);
+    EXPECT_VEC3_NEAR(v, Vec3f({0, 0, 1}), kEpsFF);
 }
 
-TEST(Mat4, RotationYBy90DegreesTransformsZToNegX)
+TEST(Mat4, RotationYBy90DegreesTransformsZToX)
 {
     float angle = kPif * 0.5f;
     Mat4f r = makeRotationY(angle);
     Vec3f v = transformDirection(r, Vec3f(0, 0, 1));
-    EXPECT_VEC3_NEAR(v, Vec3f(-1, 0, 0), kEpsFF);
+    EXPECT_VEC3_NEAR(v, Vec3f(1, 0, 0), kEpsFF);
 }
 
 TEST(Mat4, RotationAxisAngleKnownResult)
@@ -119,13 +119,13 @@ TEST(Mat4, InverseTimesOriginalIsIdentity)
     EXPECT_MAT4_NEAR(result, Mat4f::identity(), kEpsFF);
 }
 
-// TEST(Mat4, InverseRigidMatchesFullInverseForRigidbody)
-// {
-//     Mat4f m = makeTranslation(Vec3f(3, -1, 2)) * makeRotationAxis(normalise(Vec3f(1, 1, 0)), 0.9f);
-//     Mat4f full = inverse(m);
-//     Mat4f rigid = inverseRigidbody(m);
-//     EXPECT_MAT4_NEAR(full, rigid, kEpsFF);
-// }
+TEST(Mat4, InverseRigidMatchesFullInverseForRigidbody)
+{
+    Mat4f m = makeTranslation(Vec3f(3, -1, 2)) * makeRotationAxis(normalise(Vec3f(1, 1, 0)), 0.9f);
+    Mat4f full = inverse(m);
+    Mat4f rigid = inverseRigidbody(m);
+    EXPECT_MAT4_NEAR(full, rigid, kEpsFF);
+}
 
 // View matrix
 TEST(Mat4, LookAtTransformsEyeToOrigin)
@@ -199,5 +199,5 @@ TEST(Mat4, TRSDecompositionRoundTrip)
     Mat4f trs = makeTranslation(translation) * rotation * makeScale(scale);
 
     Vec3f result = transformPoint(trs, Vec3f(1, 0, 0));
-    EXPECT_VEC3_NEAR(result, Vec3f(1.f, 2.f, 5.f), kEpsFF);
+    EXPECT_VEC3_NEAR(result, Vec3f(1.f, 2.f, 1.f), kEpsFF);
 }
