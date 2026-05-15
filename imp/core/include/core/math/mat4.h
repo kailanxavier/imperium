@@ -78,7 +78,8 @@ namespace imp::math
 		// Comparison
 		[[nodiscard]] constexpr bool operator==(const Mat4& rhs) const noexcept
 		{
-			return col[0] == rhs.col[0] && col[1] == rhs.col[1] && col[2] == rhs.col[2] && col[3] == rhs.col[3];
+			return col[0] == rhs.col[0] && col[1] == rhs.col[1] &&
+				   col[2] == rhs.col[2] && col[3] == rhs.col[3];
 		}
 		[[nodiscard]] constexpr bool operator!=(const Mat4& rhs) const noexcept
 		{
@@ -86,11 +87,13 @@ namespace imp::math
 		}
 	};
 
+	// Multiplication
+	// Matrix * Matrix
 	template <typename T>
 	[[nodiscard]] constexpr Mat4<T> operator*(const Mat4<T>& a, const Mat4<T>& b) noexcept
 	{
 		Mat4<T> r;
-		for (int c = 0; c < 4; c++)
+		for (int c = 0; c < 4; ++c)
 		{
 			r.col[c] =
 			{
@@ -104,6 +107,7 @@ namespace imp::math
 		return r;
 	}
 
+	// Matrix * column-vector
 	template <typename T>
 	[[nodiscard]] constexpr Vec4<T> operator*(const Mat4<T>& m, const Vec4<T>& v) noexcept
 	{
@@ -152,44 +156,46 @@ namespace imp::math
 	template <typename T>
 	[[nodiscard]] inline Mat4<T> inverse(const Mat4<T>& m) noexcept
 	{
-		// Notation: mRC (row, column)
+		// Read all 16 elements once, named by (row, col)
 		const T m00 = m(0, 0), m01 = m(0, 1), m02 = m(0, 2), m03 = m(0, 3);
 		const T m10 = m(1, 0), m11 = m(1, 1), m12 = m(1, 2), m13 = m(1, 3);
 		const T m20 = m(2, 0), m21 = m(2, 1), m22 = m(2, 2), m23 = m(2, 3);
 		const T m30 = m(3, 0), m31 = m(3, 1), m32 = m(3, 2), m33 = m(3, 3);
 
-		const T c00 = ( m11 * ( m22 * m33 - m23 * m32 ) - m12 * ( m21 * m33 - m23 * m31 ) + m13 * ( m21 * m32 - m22 * m31 ) );
-		const T c01 = -( m10 * ( m22 * m33 - m23 * m32 ) - m12 * ( m20 * m33 - m23 * m30 ) + m13 * ( m20 * m32 - m22 * m30 ) );
-		const T c02 = ( m10 * ( m21 * m33 - m23 * m31 ) - m11 * ( m20 * m33 - m23 * m30 ) + m13 * ( m20 * m31 - m21 * m30 ) );
-		const T c03 = -( m10 * ( m21 * m32 - m22 * m31 ) - m11 * ( m20 * m32 - m22 * m30 ) + m12 * ( m20 * m31 - m21 * m30 ) );
+		// Cofactors along row 0, needed for det and first output column
+		const T c00 = ( m11*( m22*m33 - m23*m32 ) - m12*( m21*m33 - m23*m31 ) + m13*( m21*m32 - m22*m31 ) );
+		const T c01 = -( m10*( m22*m33 - m23*m32 ) - m12*( m20*m33 - m23*m30 ) + m13*( m20*m32 - m22*m30 ) );
+		const T c02 = ( m10*( m21*m33 - m23*m31 ) - m11*( m20*m33 - m23*m30 ) + m13*( m20*m31 - m21*m30 ) );
+		const T c03 = -( m10*( m21*m32 - m22*m31 ) - m11*( m20*m32 - m22*m30 ) + m12*( m20*m31 - m21*m30 ) );
 
-		const T det = m00 * c00 + m01 * c01 + m02 * c02 + m03 * c03;
+		const T det = m00*c00 + m01*c01 + m02*c02 + m03*c03;
 		assert(det != T(0) && "Mat4::inverse - singular matrix");
 
 		const T invDet = T(1) / det;
 
-		const T c10 = -( m01 * ( m22 * m33 - m23 * m32 ) - m02 * ( m21 * m33 - m23 * m31 ) + m03 * ( m21 * m32 - m22 * m31 ) );
-		const T c11 = ( m00 * ( m22 * m33 - m23 * m32 ) - m02 * ( m20 * m33 - m23 * m30 ) + m03 * ( m20 * m32 - m22 * m30 ) );
-		const T c12 = -( m00 * ( m21 * m33 - m23 * m31 ) - m01 * ( m20 * m33 - m23 * m30 ) + m03 * ( m20 * m31 - m21 * m30 ) );
-		const T c13 = ( m00 * ( m21 * m32 - m22 * m31 ) - m01 * ( m20 * m32 - m22 * m30 ) + m02 * ( m20 * m31 - m21 * m30 ) );
+		// Remaining cofactors
+		const T c10 = -( m01*(m22*m33 - m23*m32) - m02*(m21*m33 - m23*m31) + m03*(m21*m32 - m22*m31) );
+		const T c11 =  ( m00*(m22*m33 - m23*m32) - m02*(m20*m33 - m23*m30) + m03*(m20*m32 - m22*m30) );
+		const T c12 = -( m00*(m21*m33 - m23*m31) - m01*(m20*m33 - m23*m30) + m03*(m20*m31 - m21*m30) );
+		const T c13 =  ( m00*(m21*m32 - m22*m31) - m01*(m20*m32 - m22*m30) + m02*(m20*m31 - m21*m30) );
 
-		const T c20 = ( m01 * ( m12 * m33 - m13 * m32 ) - m02 * ( m11 * m33 - m13 * m31 ) + m03 * ( m11 * m32 - m12 * m31 ) );
-		const T c21 = -( m00 * ( m12 * m33 - m13 * m32 ) - m02 * ( m10 * m33 - m13 * m30 ) + m03 * ( m10 * m32 - m12 * m30 ) );
-		const T c22 = ( m00 * ( m11 * m33 - m13 * m31 ) - m01 * ( m10 * m33 - m13 * m30 ) + m03 * ( m10 * m31 - m11 * m30 ) );
-		const T c23 = -( m00 * ( m11 * m32 - m12 * m31 ) - m01 * ( m10 * m32 - m12 * m30 ) + m02 * ( m10 * m31 - m11 * m30 ) );
+		const T c20 =  ( m01*(m12*m33 - m13*m32) - m02*(m11*m33 - m13*m31) + m03*(m11*m32 - m12*m31) );
+		const T c21 = -( m00*(m12*m33 - m13*m32) - m02*(m10*m33 - m13*m30) + m03*(m10*m32 - m12*m30) );
+		const T c22 =  ( m00*(m11*m33 - m13*m31) - m01*(m10*m33 - m13*m30) + m03*(m10*m31 - m11*m30) );
+		const T c23 = -( m00*(m11*m32 - m12*m31) - m01*(m10*m32 - m12*m30) + m02*(m10*m31 - m11*m30) );
 
-		const T c30 = -( m01 * ( m12 * m23 - m13 * m22 ) - m02 * ( m11 * m23 - m13 * m21 ) + m03 * ( m11 * m22 - m12 * m21 ) );
-		const T c31 = ( m00 * ( m12 * m23 - m13 * m22 ) - m02 * ( m10 * m23 - m13 * m20 ) + m03 * ( m10 * m22 - m12 * m20 ) );
-		const T c32 = -( m00 * ( m11 * m23 - m13 * m21 ) - m01 * ( m10 * m23 - m13 * m20 ) + m03 * ( m10 * m21 - m11 * m20 ) );
-		const T c33 = ( m00 * ( m11 * m22 - m12 * m21 ) - m01 * ( m10 * m22 - m12 * m20 ) + m02 * ( m10 * m21 - m11 * m20 ) );
+		const T c30 = -( m01*(m12*m23 - m13*m22) - m02*(m11*m23 - m13*m21) + m03*(m11*m22 - m12*m21) );
+		const T c31 =  ( m00*(m12*m23 - m13*m22) - m02*(m10*m23 - m13*m20) + m03*(m10*m22 - m12*m20) );
+		const T c32 = -( m00*(m11*m23 - m13*m21) - m01*(m10*m23 - m13*m20) + m03*(m10*m21 - m11*m20) );
+		const T c33 =  ( m00*(m11*m22 - m12*m21) - m01*(m10*m22 - m12*m20) + m02*(m10*m21 - m11*m20) );
 
 		// Adjugate is the transpose of the cofactor matrix
 		return Mat4<T>
 		{
 			Vec4<T>{ c00* invDet, c01* invDet, c02* invDet, c03* invDet },
-				Vec4<T>{ c10* invDet, c11* invDet, c12* invDet, c13* invDet },
-				Vec4<T>{ c20* invDet, c21* invDet, c22* invDet, c23* invDet },
-				Vec4<T>{ c30* invDet, c31* invDet, c32* invDet, c33* invDet },
+			Vec4<T>{ c10* invDet, c11* invDet, c12* invDet, c13* invDet },
+			Vec4<T>{ c20* invDet, c21* invDet, c22* invDet, c23* invDet },
+			Vec4<T>{ c30* invDet, c31* invDet, c32* invDet, c33* invDet },
 		};
 	}
 
@@ -198,15 +204,18 @@ namespace imp::math
 	template <typename T>
 	[[nodiscard]] constexpr Mat4<T> inverseRigidbody(const Mat4<T>& m) noexcept
 	{
-		// Upper-left 3x3 is orthonormal -> its inverse is its transpose.
-		// New translation = -(R^T * t)
 		const Vec3<T> t = { m(0, 3), m(1, 3), m(2, 3) };
+
+		const T tx = m(0, 0)*t.x + m(1, 0)*t.y + m(2, 0)*t.z;
+		const T ty = m(0, 1)*t.x + m(1, 1)*t.y + m(2, 1)*t.z;
+		const T tz = m(0, 2)*t.x + m(1, 2)*t.y + m(2, 2)*t.z;
+
 		return Mat4<T>
 		{
-			Vec4<T>{ m(0,0), m(0,1), m(0,2), -(m(0,0)*t.x + m(0,1)*t.y + m(0,2)*t.z) },
-			Vec4<T>{ m(0,1), m(1,1), m(1,2), -(m(1,0)*t.x + m(1,1)*t.y + m(1,2)*t.z) },
-			Vec4<T>{ m(2,0), m(2,1), m(2,2), -(m(2,0)*t.x + m(2,1)*t.y + m(2,2)*t.z) },
-			Vec4<T>{ T(0),   T(0),   T(0),   T(1) },
+			Vec4<T>{ m(0, 0), m(0, 1), m(0, 2), T(0) },
+			Vec4<T>{ m(1, 0), m(1, 1), m(1, 2), T(0) },
+			Vec4<T>{ m(2, 0), m(2, 1), m(2, 2), T(0) },
+			Vec4<T>{ -tx,	  -ty,	   -tz,	    T(1) },
 		};
 	}
 
@@ -247,11 +256,12 @@ namespace imp::math
 		const T t = T(1) - c;
 		const T x = axis.x, y = axis.y, z = axis.z;
 
-		return Mat4<T>{
-			Vec4<T>{ t*x*x+c,   t*x*y-s*z, t*x*z+s*y, T(0) },
-			Vec4<T>{ t*x*y+s*z, t*y*y+c,   t*y*z-s*x, T(0) },
-			Vec4<T>{ t*x*z-s*y, t*y*z+s*x, t*z*z+c,   T(0) },
-			Vec4<T>{ T(0),      T(0),      T(0),      T(1)  },
+		return Mat4<T>
+		{
+			Vec4<T>{ t*x*x + c,    t*x*y + s*z,  t*x*z - s*y,  T(0) },
+			Vec4<T>{ t*x*y - s*z,  t*y*y + c,    t*y*z + s*x,  T(0) },
+			Vec4<T>{ t*x*z + s*y,  t*y*z - s*x,  t*z*z + c,    T(0) },
+			Vec4<T>{ T(0),          T(0),          T(0),       T(1) },
 		};
 	}
 
@@ -277,7 +287,7 @@ namespace imp::math
 
 	// Left-handed lookAt. eye looks toward target; up defines the up direction.
 	template <typename T>
-	[[nodiscard]] inline Mat4<T> makeLookAtLH(const Vec3<T>& eye, const Vec3<T> target, const Vec3<T>& up) noexcept
+	[[nodiscard]] inline Mat4<T> makeLookAtLH(const Vec3<T>& eye, const Vec3<T>& target, const Vec3<T>& up) noexcept
 	{
 		const Vec3<T> f = normalise(target - eye); // +Z forward
 		const Vec3<T> r = normalise(cross(up, f)); // right
@@ -304,11 +314,11 @@ namespace imp::math
 	template <typename T>
 	[[nodiscard]] inline Mat4<T> makePerspectiveLH(T fovY, T aspect, T zNear, T zFar) noexcept
 	{
-		assert(aspect > T(0));
-		assert(zFar > zNear);
-		assert(zNear > T(0));
+		assert(aspect > T(0) && "aspect must be positive");
+		assert(zNear > T(0) && "zNear must be positive");
+		assert(zFar > zNear && "zFar must be greater than zNear");
 
-		const T tanHalfFov = std::tan(fovY / T(2));
+		const T tanHalfFov = std::tan(fovY * T(0.5));
 		const T yScale = T(1) / tanHalfFov;
 		const T xScale = yScale / aspect;
 		const T zRange = zFar - zNear;
@@ -316,18 +326,18 @@ namespace imp::math
 		Mat4<T> m(T(0));
 		m(0, 0) = xScale;
 		m(1, 1) = yScale;
-		m(2, 2) = zFar / zRange; // Maps [zNear, zFar] -> [0, 1]
+		m(2, 2) = zFar / zRange;
+		m(3, 2) = T(1);
 		m(2, 3) = -( zNear * zFar ) / zRange;
-		m(3, 2) = T(1); // w_clip = z_view (LH: positive z goes into screen)
 		return m;
 	}
 
 	template <typename T>
 	[[nodiscard]] constexpr Mat4<T> makeOrthographicLH(T width, T height, T zNear, T zFar) noexcept
 	{
-		assert(width > T(0));
-		assert(height > T(0));
-		assert(zNear < zFar);
+		assert(width > T(0) && "width must be positive");
+		assert(height > T(0) && "height must be positive");
+		assert(zFar > zNear && "zFar must be greater than zNear");
 
 		const T zRange = zFar - zNear;
 
@@ -335,7 +345,7 @@ namespace imp::math
 		m(0, 0) = T(2) / width;
 		m(1, 1) = T(2) / height;
 		m(2, 2) = T(1) / zRange;
-		m(2, 3) = -zNear / zRange;
+		m(3, 2) = -zNear / zRange;
 		m(3, 3) = T(1);
 		return m;
 	}
@@ -344,6 +354,10 @@ namespace imp::math
 	template <typename T>
 	[[nodiscard]] constexpr Mat4<T> makeOrthographicOffcentreLH(T left, T right, T bottom, T top, T zNear, T zFar) noexcept
 	{
+		assert(right > left && "right must be greater than left");
+		assert(top > bottom && "top must be greater than bottom");
+		assert(zFar > zNear && "zFar must be greater than zNear");
+
 		const T rml = right - left;
 		const T tmb = top - bottom;
 		const T zRange = zFar - zNear;
@@ -354,7 +368,7 @@ namespace imp::math
 		m(2, 2) = T(1) / zRange;
 		m(0, 3) = -( right + left ) / rml;
 		m(1, 3) = -( top + bottom ) / tmb;
-		m(2, 3) = -zNear / zRange;
+		m(3, 2) = -zNear / zRange;
 		m(3, 3) = T(1);
 		return m;
 	}

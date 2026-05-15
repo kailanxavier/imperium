@@ -138,16 +138,16 @@ namespace imp::math
     };
 
     template <typename T>
-    [[nodiscard]] constexpr Quaternion<T> operator+(Quaternion<T> a, const Quaternion<T>& b) noexcept { return a += b; }
+    [[nodiscard]] constexpr Quaternion<T> operator+(Quaternion<T> a, const Quaternion<T>& b) noexcept { return a + b; }
 
     template <typename T>
-    [[nodiscard]] constexpr Quaternion<T> operator-(Quaternion<T> a, const Quaternion<T>& b) noexcept { return a -= b; }
+    [[nodiscard]] constexpr Quaternion<T> operator-(Quaternion<T> a, const Quaternion<T>& b) noexcept { return a - b; }
 
     template <typename T>
-    [[nodiscard]] constexpr Quaternion<T> operator*(Quaternion<T> q, T s) noexcept { return q *= s; }
+    [[nodiscard]] constexpr Quaternion<T> operator*(Quaternion<T> q, T s) noexcept { return q * s; }
 
     template <typename T>
-    [[nodiscard]] constexpr Quaternion<T> operator*(T s, Quaternion<T> q) noexcept { return q *= s; }
+    [[nodiscard]] constexpr Quaternion<T> operator*(T s, Quaternion<T> q) noexcept { return q * s; }
 
     // Hamilton product: p * q - applies q's rotation first, then p's
     template <typename T>
@@ -272,7 +272,7 @@ namespace imp::math
 
     // Spherical linear interpolation - constant angular velocity
     template <typename T>
-    [[nodiscard]] inline Quaternion<T> slerp(const Quaternion<T>& a, Quaternion<T>& b, T t) noexcept
+    [[nodiscard]] inline Quaternion<T> slerp(const Quaternion<T>& a, const Quaternion<T>& b, T t) noexcept
     {
         constexpr T kEpsilon = T(1e-6);
 
