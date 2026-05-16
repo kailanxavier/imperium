@@ -27,7 +27,7 @@ add_executable(imp_math_tests
     test_vec4.cpp
     test_mat3.cpp
     test_mat4.cpp
-    #test_quaternion.cpp
+    test_quaternion.cpp
 )
 
 target_include_directories(imp_math_tests PRIVATE
