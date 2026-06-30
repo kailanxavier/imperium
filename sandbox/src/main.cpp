@@ -2,6 +2,8 @@
 #include <core/core.h>
 #include <iostream>
 
+#include <fmt/core.h>
+
 int main()
 {
 	imp::log::Logger::get().initialise();
