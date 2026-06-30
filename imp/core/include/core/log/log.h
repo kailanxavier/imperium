@@ -45,7 +45,7 @@ namespace imp::log
 		virtual void write(const LogEntry& entry) = 0;
 		virtual void flush() {}
 
-		static const char* ToString(LogLevel level)
+		[[nodiscard]] static const char* toString(LogLevel level) noexcept
 		{
 			switch (level)
 			{
@@ -65,8 +65,8 @@ namespace imp::log
 	public:
 		static Logger& get();
 
-		void initialise(const std::string& logFilePath = "engine.log");
-		void shutdown();
+		void initialise(const std::string& logFilePath = "engine.log") noexcept;
+		void shutdown() noexcept;
 
 		// Sink management
 		void addSink(std::shared_ptr<ILogSink> sink);
