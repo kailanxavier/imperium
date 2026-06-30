@@ -11,6 +11,8 @@
 
 namespace imp::math
 {
+	#define PI 3.14159265358979323846
+
 	// Scalar utilities
 	template <typename T>
 	[[nodiscard]] constexpr T clamp(T v, T lo, T hi) noexcept
@@ -46,18 +48,18 @@ namespace imp::math
 	template <typename T>
 	[[nodiscard]] constexpr T toRadians(T degrees) noexcept
 	{
-		constexpr T kDegToRad = T(3.14159265358979323846) / T(180);
+		constexpr T kDegToRad = T(PI) / T(180);
 		return degrees * kDegToRad;
 	}
 
 	template <typename T>
 	[[nodiscard]] constexpr T toDegrees(T radians) noexcept
 	{
-		constexpr T kRadToDeg = T(180) / T(3.14159265358979323846);
+		constexpr T kRadToDeg = T(180) / T(PI);
 		return radians * kRadToDeg;
 	}
 
 	// PI float and PI double
-	inline constexpr float kPif = 3.14159265358979323846f;
-	inline constexpr double kPid = 3.14159265358979323846;
+	inline constexpr float kPif = static_cast<float>(PI);
+	inline constexpr double kPid = PI;
 }

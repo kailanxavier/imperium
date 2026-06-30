@@ -35,16 +35,16 @@ namespace imp::math
         [[nodiscard]] static inline Quaternion fromEuler(T pitch, T yaw, T roll) noexcept
         {
             const T hp = pitch * T(0.5), hy = yaw * T(0.5), hr = roll * T(0.5);
-            const T cp = std::cos(hp), sp = std::sin(hp);
+            const T cx = std::cos(hp), sx = std::sin(hp);
             const T cy = std::cos(hy), sy = std::sin(hy);
-            const T cr = std::cos(hr), sr = std::sin(hr);
+            const T cz = std::cos(hr), sz = std::sin(hr);
 
             return
             {
-                cy*sp*cr + sy*cp*sr,
-                sy*cp*cr - cy*sp*sr,
-                cy*cp*sr - sy*sp*cr,
-                cy*cp*cr + sy*sp*sr,
+                sx*cy*cz - cx*sy*sz,
+                cx*sy*cz + sx*cy*sz,
+                cx*cy*sz - sx*sy*cz,
+                cx*cy*cz + sx*sy*sz,
             };
         }
 

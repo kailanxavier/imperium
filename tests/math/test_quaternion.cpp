@@ -185,3 +185,55 @@ TEST(Quaternion, EulerRoundTripForNonGimbalAngles)
     EXPECT_NEAR(ey, yaw, kEpsFF);
     EXPECT_NEAR(er, roll, kEpsFF);
 }
+
+TEST(Quaternion, GimbalLockAtPlusMinus90DegreesPitch)
+{
+    Quaternionf q = Quaternionf::fromEuler(kPif * 0.5f, 0.3f, 0.f);
+    EXPECT_NEAR(length(q), 1.f, kEpsF); // must still be a unit quaternion
+}
+
+// Interpolation
+TEST(Quaternion, NlerpAtEndpointReturnsInputs)
+{
+    Quaternionf a = Quaternionf::fromAxisAngle(Vec3f(0, 1, 0), 0.f);
+    Quaternionf b = Quaternionf::fromAxisAngle(Vec3f(0, 1, 0), 1.f);
+    EXPECT_QUAT_NEAR(nlerp(a, b, 0.f), a, kEpsFF);
+    EXPECT_QUAT_NEAR(nlerp(a, b, 1.f), b, kEpsFF);
+}
+
+TEST(Quaternion, NlerpResultIsUnitQuaternion)
+{
+    Quaternionf a = Quaternionf::fromAxisAngle(Vec3f(1, 0, 0), 0.2f);
+    Quaternionf b = Quaternionf::fromAxisAngle(Vec3f(0, 1, 0), 1.5f);
+    EXPECT_NEAR(length(nlerp(a, b, 0.5f)), 1.f, kEpsF);
+}
+
+TEST(Quaternion, SlerpAtEndpointsReturnInputs)
+{
+    Quaternionf a = Quaternionf::fromAxisAngle(Vec3f(0, 1, 0), 0.f);
+    Quaternionf b = Quaternionf::fromAxisAngle(Vec3f(0, 1, 0), 1.f);
+    EXPECT_QUAT_NEAR(slerp(a, b, 0.f), a, kEpsFF);
+    EXPECT_QUAT_NEAR(slerp(a, b, 1.f), b, kEpsFF);
+}
+
+TEST(Quaternion, SlerpTakesShortestPath)
+{
+    // Supplying q and -q should give the same rotation at t = 0.5
+    Quaternionf q = Quaternionf::fromAxisAngle(Vec3f(0, 1, 0), 0.5f);
+    Quaternionf m1 = slerp(q, -q, 0.5f);
+    Quaternionf m2 = slerp(-q, q, 0.5f);
+
+    // Both sides should be near identity
+    EXPECT_NEAR(length(m1), 1.f, kEpsFF);
+    EXPECT_NEAR(length(m2), 1.f, kEpsFF);
+}
+
+// Whimsical test
+TEST(Quaternion, SlerpFallsBackGracefullyForNearlyIdenticalInputs)
+{
+    Quaternionf a = Quaternionf::fromAxisAngle(Vec3f(0, 1, 0), 0.f);
+    Quaternionf b = Quaternionf::fromAxisAngle(Vec3f(0, 1, 0), 1e-8f);
+
+    Quaternionf r = slerp(a, b, 0.5f);
+    EXPECT_NEAR(length(r), 1.f, kEpsFF);
+}
