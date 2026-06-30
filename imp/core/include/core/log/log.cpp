@@ -50,9 +50,44 @@ namespace imp::log
 		m_sinks.erase(std::remove(m_sinks.begin(), m_sinks.end(), sink), m_sinks.end());
 	}
 
+	void Logger::setGlobalLevel(LogLevel level)
+	{
+		std::lock_guard<std::mutex> lock(m_queueMutex);
+		m_globalLevel = level;
+	}
+
+	void Logger::setCategoryFilter(const std::string& category, LogLevel level)
+	{
+		std::lock_guard<std::mutex> lock(m_queueMutex);
+		m_categoryFilters[category] = level;
+	}
+
+	void Logger::removeCategoryFilter(const std::string& category)
+	{
+		std::lock_guard<std::mutex> lock(m_queueMutex);
+		m_categoryFilters.erase(category);
+	}
+
+	bool Logger::checkFilter(LogLevel level, std::string_view category)
+	{
+		// Called from log(), meaning m_queueMutex is already locked
+		if (level < m_globalLevel)
+			return false;
+
+		auto it = m_categoryFilters.find(std::string(category));
+		if (it != m_categoryFilters.end())
+			return level >= it->second;
+
+		return true;
+	}
+
 	void Logger::log(LogLevel level, std::string_view category, std::string_view message, std::string_view file, int line)
 	{
-		LogEntry entry
+		std::lock_guard<std::mutex> lock(m_queueMutex);
+		if (!checkFilter(level, category))
+			return;
+
+		m_messageQueue.push(LogEntry
 		{
 			std::chrono::system_clock::now(),
 			level,
@@ -60,12 +95,7 @@ namespace imp::log
 			std::string(message),
 			std::string(file),
 			line
-		};
-
-		{
-			std::lock_guard<std::mutex> lock(m_queueMutex);
-			m_messageQueue.push(std::move(entry));
-		}
+		});
 
 		m_queueCV.notify_one();
 	}
@@ -75,10 +105,7 @@ namespace imp::log
 		while (m_running)
 		{
 			std::unique_lock<std::mutex> lock(m_queueMutex);
-			m_queueCV.wait(lock, [this]
-				{
-					return !m_messageQueue.empty() || !m_running;
-				});
+			m_queueCV.wait(lock, [this] { return !m_messageQueue.empty() || !m_running; });
 
 			// Swap the whole queue to minimise lock time
 			std::queue<LogEntry> localQueue;
@@ -107,5 +134,23 @@ namespace imp::log
 				sink->write(remaining.front());
 			remaining.pop();
 		}
+	}
+
+	std::string Logger::formattedTimestamp(const std::chrono::system_clock::time_point& tp)
+	{
+		using namespace std::chrono;
+		auto ms = duration_cast<milliseconds>( tp.time_since_epoch() ) % 1000;
+		auto timer = system_clock::to_time_t(tp);
+		std::tm bt;
+#ifdef _WIN32
+		localtime_s(&bt, &timer);
+#else
+		localtime_r(&timer, &bt);
+#endif
+		// Build string
+		std::ostringstream oss;
+		oss << std::put_time(&bt, "%Y-%m-%d %H:%M:%S");
+		oss << '.' << std::setfill('0') << std::setw(3) << ms.count();
+		return oss.str();
 	}
 }

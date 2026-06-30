@@ -13,6 +13,8 @@
 #include <cstdio>
 #include <iostream>
 
+#include "fmt/core.h"
+
 namespace imp::log 
 {
 	enum class LogLevel
@@ -50,7 +52,7 @@ namespace imp::log
 			case LogLevel::Trace:	return "TRACE";
 			case LogLevel::Debug:	return "DEBUG";
 			case LogLevel::Info:	return "INFO";
-			case LogLevel::Warning: return "WARN";
+			case LogLevel::Warning: return "WARNING";
 			case LogLevel::Error:	return "ERROR";
 			case LogLevel::Fatal:	return "FATAL";
 			default:				return "UNKNOWN :(";
@@ -66,10 +68,30 @@ namespace imp::log
 		void initialise(const std::string& logFilePath = "engine.log");
 		void shutdown();
 
+		// Sink management
 		void addSink(std::shared_ptr<ILogSink> sink);
 		void removeSink(std::shared_ptr<ILogSink> sink);
 
+		// Filtering
+		void setGlobalLevel(LogLevel level);
+		void setCategoryFilter(const std::string& category, LogLevel level);
+		void removeCategoryFilter(const std::string& category);
+
+		// Core logging
 		void log(LogLevel level, std::string_view category, std::string_view message, std::string_view file = "", int line = 0);
+
+		template <typename... Args>
+		void logFormat(LogLevel level, std::string_view category, std::string_view file,
+			int line, fmt::format_string<Args...> fmt, Args&&... args)
+		{
+			// Filter early for performance
+			if (!checkFilter(level, category)) return;
+
+			std::string msg = fmt::format(fmt, std::forward<Args>(args)...);
+			log(level, category, msg, file, line);
+		}
+
+		static std::string formattedTimestamp(const std::chrono::system_clock::time_point& tp);
 
 	private:
 		Logger() = default;
@@ -78,6 +100,7 @@ namespace imp::log
 		Logger& operator=(const Logger&) = delete;
 
 		void processQueue();
+		bool checkFilter(LogLevel level, std::string_view category);
 
 		std::vector<std::shared_ptr<ILogSink>> m_sinks;
 		std::queue<LogEntry> m_messageQueue;
@@ -85,13 +108,17 @@ namespace imp::log
 		std::condition_variable m_queueCV;
 		std::atomic<bool> m_running{ false };
 		std::thread m_workerThread;
+
+		LogLevel m_globalLevel = LogLevel::Trace;
+		std::unordered_map<std::string, LogLevel> m_categoryFilters;
 	};
 
 	// Convenience macros
-	#define LOG_TRACE(cat, msg) imp::log::Logger::get().log(imp::log::LogLevel::Trace, cat, msg, __FILE__, __LINE__)
-	#define LOG_DEBUG(cat, msg) imp::log::Logger::get().log(imp::log::LogLevel::Debug, cat, msg, __FILE__, __LINE__)
-	#define LOG_INFO(cat, msg) imp::log::Logger::get().log(imp::log::LogLevel::Info, cat, msg, __FILE__, __LINE__)
-	#define LOG_WARN(cat, msg) imp::log::Logger::get().log(imp::log::LogLevel::Warning, cat, msg, __FILE__, __LINE__)
-	#define LOG_ERROR(cat, msg) imp::log::Logger::get().log(imp::log::LogLevel::Error, cat, msg, __FILE__, __LINE__)
-	#define LOG_FATAL(cat, msg) imp::log::Logger::get().log(imp::log::LogLevel::Fatal, cat, msg, __FILE__, __LINE__)
+	// Syntax is ([category], [text]: {}{}, var1, var2) - and the actual values of the vars replace the {}
+	#define LOG_TRACE(cat, fmt, ...) imp::log::Logger::get().logFormat(imp::log::LogLevel::Trace, cat, __FILE__, __LINE__, fmt, ##__VA_ARGS__)
+	#define LOG_DEBUG(cat, fmt, ...) imp::log::Logger::get().logFormat(imp::log::LogLevel::Debug, cat, __FILE__, __LINE__, fmt, ##__VA_ARGS__)
+	#define LOG_INFO(cat, fmt, ...) imp::log::Logger::get().logFormat(imp::log::LogLevel::Info, cat, __FILE__, __LINE__, fmt, ##__VA_ARGS__)
+	#define LOG_WARN(cat, fmt, ...) imp::log::Logger::get().logFormat(imp::log::LogLevel::Warning, cat, __FILE__, __LINE__, fmt, ##__VA_ARGS__)
+	#define LOG_ERROR(cat, fmt, ...) imp::log::Logger::get().logFormat(imp::log::LogLevel::Error, cat, __FILE__, __LINE__, fmt, ##__VA_ARGS__)
+	#define LOG_FATAL(cat, fmt, ...) imp::log::Logger::get().logFormat(imp::log::LogLevel::Fatal, cat, __FILE__, __LINE__, fmt, ##__VA_ARGS__)
 }
