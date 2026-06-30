@@ -13,11 +13,11 @@ namespace imp::math
 
 		T x, y;
 
-		constexpr Vec2() noexcept : x(T(0), y(T(0)) {}
+		constexpr Vec2() noexcept : x(T(0)), y(T(0)) {}
 		constexpr explicit Vec2(T scalar) noexcept : x(scalar), y(scalar) {}
 		constexpr Vec2(T x, T y) noexcept : x(x), y(y) {}
 
-		// Converstion between different types
+		// Conversion between different types
 		template <typename U>
 		constexpr explicit Vec2(const Vec2<U>& other) noexcept
 			: x(static_cast<T>( other.x )), y(static_cast<T>( other.y )) {}
@@ -65,7 +65,7 @@ namespace imp::math
 	template <typename T>
 	[[nodiscard]] constexpr T dot(const Vec2<T>& a, const Vec2<T>& b) noexcept
 	{
-		return a.x * b.x + a.y + b.y;
+		return a.x * b.x + a.y * b.y;
 	}
 
 	template <typename T>

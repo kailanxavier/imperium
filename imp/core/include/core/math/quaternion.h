@@ -7,7 +7,6 @@
 
 #include <cmath>
 #include <cassert>
-#include <iterator>
 #include <type_traits>
 
 namespace imp::math
@@ -24,68 +23,74 @@ namespace imp::math
         constexpr Quaternion(T x, T y, T z, T w) noexcept : x(x), y(y), z(z), w(w) {}
 
         // Build from a normalised axis and an angle (radians)
-        static inline Quaternion fromAxisAngle(const Vec3<T>& axis, T angle) noexcept
+        [[nodiscard]] static inline Quaternion fromAxisAngle(const Vec3<T>& axis, T angle) noexcept
         {
+            const Vec3<T> a = normalise(axis);
+
             const T half = angle * T(0.5);
             const T s = std::sin(half);
-            return { axis.x * s, axis.y * s, axis.z * s, std::cos(half) };
+            return { a.x * s, a.y * s, a.z * s, std::cos(half) };
         }
 
-        // Build from Euler angles (radians) applied in YXZ order (yaw-pitch-roll)
-        // yaw = about Y, pitch = about X, roll = about Z.
-        static inline Quaternion fromEuler(T pitch, T yaw, T roll) noexcept
+        [[nodiscard]] static inline Quaternion fromEuler(T pitch, T yaw, T roll) noexcept
         {
             const T hp = pitch * T(0.5), hy = yaw * T(0.5), hr = roll * T(0.5);
-            const T cp = std::cos(hp), sp = std::sin(hp);
-            const T cy = std::cos(cy), sy = std::sin(cy);
-            const T cr = std::cos(cr), sr = std::sin(cr);
+            const T cx = std::cos(hp), sx = std::sin(hp);
+            const T cy = std::cos(hy), sy = std::sin(hy);
+            const T cz = std::cos(hr), sz = std::sin(hr);
 
-            return {
-                cy*sp*cr + sy*cp*sr,
-                sy*cp*cr - cy*sp*sr,
-                cy*cp*sr - sy*sp*cr,
-                cy*cp*cr + sy*sp*sr,
+            return
+            {
+                sx*cy*cz - cx*sy*sz,
+                cx*sy*cz + sx*cy*sz,
+                cx*cy*sz - sx*sy*cz,
+                cx*cy*cz + sx*sy*sz,
             };
         }
 
         // Build from a column-major rotation matrix (must be pure rotation, no scale)
-        static inline Quaternion fromMat3(const Mat3<T>& m) noexcept
+        [[nodiscard]] static inline Quaternion fromMat3(const Mat3<T>& m) noexcept
         {
-            // Shepperd's method
-            const T trace = m(0, 0) + m(1, 1) + m(2, 2);
+            const T trace = m(0,0) + m(1,1) + m(2,2);
             Quaternion q;
+
             if (trace > T(0))
             {
-                const T s = std::sqrt(trace + T(1)) * T(2);
+                // w is largest
+                const T s = std::sqrt(trace + T(1)) * T(2);   // s = 4w
                 q.w = T(0.25) * s;
-                q.x = (m(2, 1) - m(1,2)) / s;
-                q.y = (m(0, 2) - m(2,0)) / s;
-                q.z = (m(1, 0) - m(0,1)) / s;
+                q.x = (m(2,1) - m(1,2)) / s;
+                q.y = (m(0,2) - m(2,0)) / s;
+                q.z = (m(1,0) - m(0,1)) / s;
             }
-            else if (m(0, 0) > m(1, 1) && m(0, 0) > m(2, 2))
+            else if (m(0,0) > m(1,1) && m(0,0) > m(2,2))
             {
-                const T s = std::sqrt(T(1) + m(0, 0) - m(1, 1) - m(2, 2)) * T(2);
-                q.w = (m(2, 1) - m(1,2)) / s;
+                // x is largest
+                const T s = std::sqrt(T(1) + m(0,0) - m(1,1) - m(2,2)) * T(2);   // s = 4x
+                q.w = (m(2,1) - m(1,2)) / s;
                 q.x = T(0.25) * s;
-                q.y = (m(0, 1) + m(1, 0)) / s;
-                q.z = (m(0, 2) + m(2, 0)) / s;
+                q.y = (m(0,1) + m(1,0)) / s;
+                q.z = (m(0,2) + m(2,0)) / s;
             }
-            else if (m(1, 1) > m(2, 2))
+            else if (m(1,1) > m(2,2))
             {
-                const T s = std::sqrt(T(1) + m(1, 1) - m(0, 0) - m(2, 2)) * T(2);
-                q.w = (m(0, 2) - m(2, 0)) / s;
-                q.x = (m(0, 1) + m(1, 0)) / s;
+                // y is largest
+                const T s = std::sqrt(T(1) + m(1,1) - m(0,0) - m(2,2)) * T(2);   // s = 4y
+                q.w = (m(0,2) - m(2,0)) / s;
+                q.x = (m(0,1) + m(1,0)) / s;
                 q.y = T(0.25) * s;
-                q.z = (m(1, 2) + m(2, 1)) / s;
+                q.z = (m(1,2) + m(2,1)) / s;
             }
             else
-                {
-                const T s = std::sqrt(T(1) + m(2, 2) - m(0, 0) - m(1, 1)) * T(2);
-                q.w = (m(1, 0) - m(0, 1)) / s;
-                q.x = (m(0, 2) + m(2, 0)) / s;
-                q.y = (m(1, 2) + m(2, 1)) / s;
+            {
+                // z is largest
+                const T s = std::sqrt(T(1) + m(2,2) - m(0,0) - m(1,1)) * T(2);   // s = 4z
+                q.w = (m(1,0) - m(0,1)) / s;
+                q.x = (m(0,2) + m(2,0)) / s;
+                q.y = (m(1,2) + m(2,1)) / s;
                 q.z = T(0.25) * s;
             }
+
             return q;
         }
 
@@ -115,8 +120,8 @@ namespace imp::math
         // Member arithmetic
         constexpr Quaternion operator-() const noexcept { return {-x, -y, -z, -w}; }
 
-        constexpr Quaternion& operator+=(const Quaternion& rhs) const noexcept { x+=rhs.x; y+=rhs.y; z+=rhs.z; w+=rhs.w; return *this; }
-        constexpr Quaternion& operator-=(const Quaternion& rhs) const noexcept { x-=rhs.x; y-=rhs.y; z-=rhs.z; w-=rhs.w; return *this;}
+        constexpr Quaternion& operator+=(const Quaternion& rhs) noexcept { x+=rhs.x; y+=rhs.y; z+=rhs.z; w+=rhs.w; return *this; }
+        constexpr Quaternion& operator-=(const Quaternion& rhs) noexcept { x-=rhs.x; y-=rhs.y; z-=rhs.z; w-=rhs.w; return *this;}
         constexpr Quaternion& operator*=(T s) noexcept { x*=s; y*=s; z*=s; w*=s; return *this; }
 
         // Hamilton product (compose rotations): q *= r means first r then q
@@ -127,7 +132,7 @@ namespace imp::math
         }
 
         // Comparison
-        [[nodiscard]] constexpr bool operator==(const Quaternion& rhs) noexcept
+        [[nodiscard]] constexpr bool operator==(const Quaternion& rhs) const noexcept
         {
             return x == rhs.x && y == rhs.y && z == rhs.z && w == rhs.w;
         }
@@ -138,16 +143,16 @@ namespace imp::math
     };
 
     template <typename T>
-    [[nodiscard]] constexpr Quaternion<T> operator+(Quaternion<T> a, const Quaternion<T>& b) noexcept { return a += b; }
+    [[nodiscard]] constexpr Quaternion<T> operator+(Quaternion<T> a, const Quaternion<T>& b) noexcept { a += b; return a; }
 
     template <typename T>
-    [[nodiscard]] constexpr Quaternion<T> operator-(Quaternion<T> a, const Quaternion<T>& b) noexcept { return a -= b; }
+    [[nodiscard]] constexpr Quaternion<T> operator-(Quaternion<T> a, const Quaternion<T>& b) noexcept { a -= b; return a; }
 
     template <typename T>
-    [[nodiscard]] constexpr Quaternion<T> operator*(Quaternion<T> q, T s) noexcept { return q *= s; }
+    [[nodiscard]] constexpr Quaternion<T> operator*(Quaternion<T> q, T s) noexcept { q *= s; return q; }
 
     template <typename T>
-    [[nodiscard]] constexpr Quaternion<T> operator*(T s, Quaternion<T> q) noexcept { return q *= s; }
+    [[nodiscard]] constexpr Quaternion<T> operator*(T s, Quaternion<T> q) noexcept { q *= s; return q; }
 
     // Hamilton product: p * q - applies q's rotation first, then p's
     template <typename T>
@@ -222,7 +227,7 @@ namespace imp::math
         {
             Vec3<T> { T(1) - T(2) * (yy+zz), T(2) * (xy + wz), T(2) * (xz - wy) },
             Vec3<T> { T(2) * (xy - wz), T(1) - T(2) * (xx + zz), T(2) * (yz + wx) },
-            Vec3<T> { T(2) * (xz + wy), T(2) * (wz - wx), T(1) - T(2) * (xx + yy) },
+            Vec3<T> { T(2) * (xz + wy), T(2) * (yz - wx), T(1) - T(2) * (xx + yy) },
         };
     }
 
@@ -241,20 +246,19 @@ namespace imp::math
     {
         EulerAngles<T> e;
 
-        // Pitch (X)
-        const T sinp = T(2) * (q.w * q.x + q.y * q.z);
-        const T cosp = T(1) - T(2) * (q.x * q.x + q.y * q.y);
+        // Pitch  (X-axis)
+        const T sinp = T(2) * (q.w*q.x + q.y*q.z);
+        const T cosp = T(1) - T(2) * (q.x*q.x + q.y*q.y);
         e.pitch = std::atan2(sinp, cosp);
 
-        // Yaw (Y)
-        const T siny = T(2) * (q.w * q.y - q.z * q.x);
-        e.yaw = std::abs(siny) >= T(1)
-            ? std::copysign(T(3.14159265358979323846) * T(0.5), siny)
-            : std::asin(siny);
+        // Yaw  (Y-axis)
+        const T siny = T(2) * (q.w*q.y - q.z*q.x);
+        const T clampedSiny = siny < T(-1) ? T(-1) : (siny > T(1) ? T(1) : siny);
+        e.yaw = std::asin(clampedSiny);
 
-        // Roll (Z)
-        const T sinr = T(2) * (q.w * q.z + q.x * q.y);
-        const T cosr = T(1) - T(2) * (q.y * q.y + q.z * q.z);
+        // Roll  (Z-axis)
+        const T sinr = T(2) * (q.w*q.z + q.x*q.y);
+        const T cosr = T(1) - T(2) * (q.y*q.y + q.z*q.z);
         e.roll = std::atan2(sinr, cosr);
 
         return e;
@@ -272,7 +276,7 @@ namespace imp::math
 
     // Spherical linear interpolation - constant angular velocity
     template <typename T>
-    [[nodiscard]] inline Quaternion<T> slerp(const Quaternion<T>& a, Quaternion<T>& b, T t) noexcept
+    [[nodiscard]] inline Quaternion<T> slerp(const Quaternion<T>& a, const Quaternion<T>& b, T t) noexcept
     {
         constexpr T kEpsilon = T(1e-6);
 

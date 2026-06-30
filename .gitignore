@@ -423,3 +423,5 @@ FodyWeavers.xsd
 
 /CMakeFiles
 /.cmake
+
+.DS_Store

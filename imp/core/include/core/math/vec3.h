@@ -3,6 +3,7 @@
 #include <cmath>
 #include <cassert>
 #include <type_traits>
+#include <core/math/vec2.h>
 
 namespace imp::math
 {
@@ -16,6 +17,8 @@ namespace imp::math
 		constexpr Vec3() noexcept : x(T(0)), y(T(0)), z(T(0)) {}
 		constexpr explicit Vec3(T scalar) noexcept : x(scalar), y(scalar), z(scalar) {}
 		constexpr Vec3(T x, T y, T z) noexcept : x(x), y(y), z(z) {}
+		constexpr explicit Vec3(Vec2<T> v) noexcept : x(v.x), y(v.y), z(T(0)) {}
+		constexpr explicit Vec3(Vec2<T> v, T z) noexcept : x(v.x), y(v.y), z(z) {}
 
 		// Conversion between different types
 		template <typename U>
@@ -43,7 +46,7 @@ namespace imp::math
 		[[nodiscard]] static constexpr Vec3 unitZ() noexcept { return { T(0), T(0), T(1) }; }
 		[[nodiscard]] static constexpr Vec3 up() noexcept { return unitY(); }
 		[[nodiscard]] static constexpr Vec3 right() noexcept { return unitX(); }
-		[[nodiscard]] static constexpr Vec3 forward() noexcept { return unitZ(); }
+		[[nodiscard]] static constexpr Vec3 forward() noexcept { return -unitZ(); }
 
 		// Member arithmetic
 		constexpr Vec3& operator+=(const Vec3& rhs) noexcept { x += rhs.x; y += rhs.y; z += rhs.z; return *this; }
@@ -52,7 +55,7 @@ namespace imp::math
 		constexpr Vec3& operator/=(T s) noexcept { x /= s; y /= s; z /= s; return *this; }
 		constexpr Vec3& operator*=(const Vec3& rhs) noexcept { x *= rhs.x; y *= rhs.y; z *= rhs.z; return *this; }
 
-		constexpr Vec3 operator-() const noexcept { return { -x, -y, z }; }
+		constexpr Vec3 operator-() const noexcept { return { -x, -y, -z }; }
 
 		[[nodiscard]] constexpr bool operator==(const Vec3& rhs) const noexcept { return x == rhs.x && y == rhs.y && z == rhs.z; }
 		[[nodiscard]] constexpr bool operator!=(const Vec3& rhs) const noexcept { return !( *this == rhs ); }

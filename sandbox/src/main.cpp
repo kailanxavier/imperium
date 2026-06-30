@@ -1,6 +1,5 @@
 #include <core/log/log.h>
 #include <core/core.h>
-#include <fwk/fwk.h>
 #include <iostream>
 
 int main()
