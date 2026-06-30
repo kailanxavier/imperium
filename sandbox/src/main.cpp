@@ -1,5 +1,6 @@
 #include <core/log/log.h>
 #include <core/core.h>
+#include <core/math/math.h>
 #include <iostream>
 
 int main()
@@ -13,7 +14,9 @@ int main()
 
 	// Logging with formatting
 	LOG_DEBUG("Sandbox", "A piano has {} keys", 88);
-	LOG_DEBUG("Math", "Vec3f: ({}, {}, {})", 1.f, 2.f, 3.f);
+
+	imp::math::Vec3f a(1, 2, 3);
+	LOG_DEBUG("Math", "Vec3f: ({}, {}, {})", a.x, a.y, a.z);
 
 	while (true);
 
