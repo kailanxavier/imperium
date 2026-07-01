@@ -12,8 +12,8 @@
       },
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_CXX_STANDARD": "20",
-        "IMP_GFX_BACKEND": "DX11"
+        "CMAKE_CXX_STANDARD": "23",
+        "IMP_GFX_BACKEND": "VULKAN"
       }
     },
     {
@@ -27,7 +27,7 @@
       },
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
-        "CMAKE_CXX_STANDARD": "20",
+        "CMAKE_CXX_STANDARD": "23",
         "IMP_GFX_BACKEND": "DX11"
       }
     },
@@ -38,7 +38,7 @@
       "cacheVariables": {
         "CMAKE_OSX_ARCHITECTURES": "arm64",
         "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_CXX_STANDARD": "20",
+        "CMAKE_CXX_STANDARD": "23",
         "IMP_GFX_BACKEND": "VULKAN"
       }
     }

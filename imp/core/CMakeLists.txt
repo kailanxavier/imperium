@@ -22,7 +22,7 @@ endif()
 
 add_library(imp_core STATIC
 	src/core.cpp
- "include/core/math/vec2.h" "include/core/math/vec3.h" "include/core/math/vec4.h" "include/core/math/mat4.h" "include/core/math/mat3.h" "include/core/math/math.h" "include/core/log/log.cpp" "include/core/log/console_sink.h" "include/core/log/file_sink.h"   "include/core/memory/iallocator.h" "include/core/memory/allocator_types.h" "include/core/memory/allocator_utils.h" "include/core/memory/heap_allocator.h" "include/core/memory/linear_allocator.h" "include/core/memory/stack_allocator.h" "include/core/memory/pool_allocator.h")
+ "include/core/math/vec2.h" "include/core/math/vec3.h" "include/core/math/vec4.h" "include/core/math/mat4.h" "include/core/math/mat3.h" "include/core/math/math.h" "include/core/log/log.cpp" "include/core/log/console_sink.h" "include/core/log/file_sink.h"   "include/core/memory/iallocator.h" "include/core/memory/allocator_types.h" "include/core/memory/allocator_utils.h" "include/core/memory/heap_allocator.h" "include/core/memory/linear_allocator.h" "include/core/memory/stack_allocator.h" "include/core/memory/pool_allocator.h" "include/core/fs/vfs.h" "include/core/fs/vfs.cpp")
 
 target_include_directories(imp_core
 	PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
