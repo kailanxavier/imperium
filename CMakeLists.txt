@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.25)
 project(Imperium VERSION 0.1.0 LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
@@ -13,7 +13,7 @@ add_library(imperium_compile_options INTERFACE
         tests/math/math_test_helper.h)
 target_compile_options(imperium_compile_options INTERFACE
     $<$<CXX_COMPILER_ID:MSVC>:
-        /W4 /WX /MP /permissive- /Zc:__cplusplus /wd4201
+        /W4 /WX /MP /permissive- /Zc:__cplusplus /wd4201 /Zc:preprocessor
     >
     $<$<CXX_COMPILER_ID:GNU,Clang>:
         -Wall -Wextra -Werror -Wpedantic

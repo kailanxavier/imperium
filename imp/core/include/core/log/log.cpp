@@ -12,7 +12,7 @@ namespace imp::log
 		return instance;
 	}
 
-	void Logger::initialise(const std::string& logFilePath)
+	void Logger::initialise(const std::string& logFilePath) noexcept
 	{
 		if (m_running.exchange(true)) return;
 
@@ -24,7 +24,7 @@ namespace imp::log
 		m_workerThread = std::thread(&Logger::processQueue, this);
 	}
 
-	void Logger::shutdown()
+	void Logger::shutdown() noexcept
 	{
 		if (!m_running.exchange(false)) return;
 
