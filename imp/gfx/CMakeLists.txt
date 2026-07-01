@@ -2,13 +2,10 @@ add_library(imp_gfx STATIC
 	src/gfx.cpp
 )
 
+
 target_include_directories(imp_gfx
 	PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
 	PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
-)
-
-target_link_directories(imp_gfx
-	PUBLIC imp_core
 )
 
 if(IMP_GFX_BACKEND STREQUAL "DX11")
@@ -25,6 +22,14 @@ elseif(IMP_GFX_BACKEND STREQUAL "VULKAN")
 	target_compile_definitions(imp_gfx PUBLIC IMP_GFX_VULKAN)
 	target_sources(imp_gfx PRIVATE src/backend/vulkan/vk_device.cpp)
 	find_package(Vulkan REQUIRED)
-	target_link_libraries(imp_gfx PRIVATE Vulkan::Vulkan)
+
+	target_link_libraries(imp_gfx PUBLIC Vulkan::Vulkan)
 
 endif()
+
+target_link_libraries(imp_gfx
+	PUBLIC 
+		imp_core
+		imp_fwk
+)
+

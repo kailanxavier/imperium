@@ -1,7 +1,10 @@
-#include <core/log/log.h>
 #include <core/core.h>
-#include <core/math/math.h>
-#include <core/memory/allocator.h>
+#include <core/log/log.h>
+
+#include <fwk/window.h>
+#include <fwk/gfx_device.h>
+#include <gfx/vk_device.h>
+
 #include <iostream>
 
 int main()
@@ -10,12 +13,58 @@ int main()
 
 	LOG_INFO("Sandbox", "App starting...");
 
-	imp::memory::HeapAllocator heap("main_heap");
-	imp::math::Vec3f* p = IMP_NEW(imp::math::Vec3f, heap, imp::memory::MemTag::Renderer, 1.f, 2.f, 3.f);
+	imp::fwk::Window window;
+	imp::fwk::WindowDesc windowDesc;
+	windowDesc.title = "Sandbox";
+	windowDesc.width = 1280;
+	windowDesc.height = 720;
 
-	LOG_INFO("Memory", "Created pointer to Vec3: ({}, {}, {})", p->x, p->y, p->z);
+	if (!window.create(windowDesc))
+	{
+		LOG_ERROR("Sandbox", "Failed to create window");
+		return 1;
+	}
 
-	IMP_DELETE(imp::math::Vec3f, heap, p, imp::memory::MemTag::Renderer);
+	std::unique_ptr<imp::fwk::IGfxDevice> gfx = std::make_unique<imp::gfx::vulkan::VulkanDevice>();
+
+	imp::fwk::GfxDeviceDesc gfxDesc;
+	gfxDesc.window = &window;
+	gfxDesc.appName = "Sandbox";
+
+#ifndef NDEBUG
+	gfxDesc.enableValidation = true;
+#endif
+
+	if (!gfx->initialise(gfxDesc))
+	{
+		LOG_FATAL("Sandbox", "Failed to initialise {} device", gfx->getApiName());
+		window.destroy();
+		return 1;
+	}
+
+	window.attachGfxDevice(gfx.get());
+
+	LOG_INFO("Sandbox", "Running with {} device, window ({}, {})",
+		gfx->getApiName(), window.width(), window.height());
+
+	while (!window.shouldClose())
+	{
+		window.pollEvents();
+
+		if (window.isMinimised())
+			continue; // skip rendering while minimised
+
+		gfx->beginFrame();
+
+		// render calls go here
+
+		gfx->endFrame();
+	}
+
+	window.detachGfxDevice();
+	gfx->shutdown();
+	window.destroy();
+
 
 	imp::log::Logger::get().shutdown();
 
