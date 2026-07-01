@@ -18,7 +18,7 @@ namespace imp::memory
 			return ::_aligned_malloc(rounded, alignment);
 #else
 			if (alignment < sizeof(void*))
-				return ::malloc(rounded)
+				return ::malloc(rounded);
 
 			void* ptr = nullptr;
 			if (::posix_memalign(&ptr, alignment, rounded) != 0)

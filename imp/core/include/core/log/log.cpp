@@ -1,6 +1,8 @@
 #include "log.h"
 
 // Sink interface implementations
+#include <iomanip>
+
 #include "console_sink.h"
 #include "file_sink.h"
 

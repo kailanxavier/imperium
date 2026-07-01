@@ -11,11 +11,16 @@ namespace imp::log
 	public:
 		explicit FileSink(const std::string& p) : m_path(p)
 		{
+#ifdef _WIN32
 			auto err = fopen_s(&m_file, m_path.c_str(), "a");
 			if (err != 0)
 				m_file = nullptr;
+#else
+			m_file = fopen(m_path.c_str(), "a");
+#endif
+
 		}
-		~FileSink()
+		~FileSink() override
 		{
 			if (m_file)
 				std::fclose(m_file);
