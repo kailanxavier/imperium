@@ -24,7 +24,7 @@ namespace imp::memory
 			size_t alignment = kMinAlignment, 
 			MemTag tag = MemTag::Untagged) noexcept = 0;
 
-		[[nodiscard]] virtual void free(
+		virtual void free(
 			void* ptr, 
 			size_t bytes,
 			MemTag tag = MemTag::Untagged) noexcept = 0;

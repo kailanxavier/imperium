@@ -17,8 +17,6 @@ int main()
 
 	IMP_DELETE(imp::math::Vec3f, heap, p, imp::memory::MemTag::Renderer);
 
-	while (true);
-
 	imp::log::Logger::get().shutdown();
 
 	return 0;
