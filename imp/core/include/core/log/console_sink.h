@@ -21,7 +21,7 @@ namespace imp::log
 
 			// Build sink log string
 			stream
-				<< "[" << ToString(e.level) << "] "
+				<< "[" << toString(e.level) << "] "
 				<< "[" << e.category << "] "
 				<< e.message << " "
 				<< "(" << e.file << ":" << e.line << ")"

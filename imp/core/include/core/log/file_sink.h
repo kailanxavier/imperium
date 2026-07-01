@@ -25,7 +25,7 @@ namespace imp::log
 		{
 			if (!m_file) return;
 			std::fprintf(m_file, "[%s] [%s] %s (%s:%d) [%s]\n",
-				ToString(e.level),
+				toString(e.level),
 				e.category.c_str(),
 				e.message.c_str(),
 				e.file.c_str(),

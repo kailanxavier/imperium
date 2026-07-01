@@ -10,6 +10,10 @@ namespace imp::memory
 	class StackAllocator final : public IAllocator
 	{
 	public:
+
+		#pragma warning(push)
+		#pragma warning(disable : 4324)
+
 		struct alignas( kMinAlignment ) Header
 		{
 			uint32_t prevOffset;
