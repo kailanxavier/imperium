@@ -23,7 +23,7 @@ elseif(IMP_GFX_BACKEND STREQUAL "VULKAN")
 	target_sources(imp_gfx PRIVATE src/backend/vulkan/vk_device.cpp)
 	find_package(Vulkan REQUIRED)
 
-	target_link_libraries(imp_gfx PUBLIC Vulkan::Vulkan)
+	target_link_libraries(imp_gfx PRIVATE Vulkan::Vulkan)
 
 endif()
 

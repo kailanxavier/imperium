@@ -5,6 +5,7 @@
 #include <vulkan/vulkan.h>
 
 #include <core/memory/int_types.h>
+
 #include <optional>
 #include <vector>
 
@@ -36,20 +37,20 @@ namespace imp::gfx::vulkan
 		void beginFrame() override;
 		void endFrame() override;
 
-		fwk::GfxApi getApi() const override { return fwk::GfxApi::Vulkan; }
-		const char* getApiName() const override { return "Vulkan"; }
+		[[nodiscard]] fwk::GfxApi getApi() const override { return fwk::GfxApi::Vulkan; }
+		[[nodiscard]] const char* getApiName() const override { return "Vulkan"; }
 
 		// Exposed for later pieces (swapchain module, renderer) that will
 		// need the raw helpers. Kept here rather than made private so this
 		// device can act as the shared context other Vulkan-side classes
 		// build on, without everything being crammed into one file.
-		VkInstance getInstance() const { return m_instance; }
-		VkPhysicalDevice getPhysicalDevice() const { return m_physicalDevice; }
-		VkDevice getDevice() const { return m_device; }
-		VkSurfaceKHR getSurface() const { return m_surface; }
-		VkQueue getGraphicsQueue() const { return m_graphicsQueue; }
-		VkQueue getPresentQueue() const { return m_presentQueue; }
-		const QueueFamilyIndices& getQueueFamilies() const { return m_queueFamilies; }
+		[[nodiscard]] VkInstance getInstance() const { return m_instance; }
+		[[nodiscard]] VkPhysicalDevice getPhysicalDevice() const { return m_physicalDevice; }
+		[[nodiscard]] VkDevice getDevice() const { return m_device; }
+		[[nodiscard]] VkSurfaceKHR getSurface() const { return m_surface; }
+		[[nodiscard]] VkQueue getGraphicsQueue() const { return m_graphicsQueue; }
+		[[nodiscard]] VkQueue getPresentQueue() const { return m_presentQueue; }
+		[[nodiscard]] const QueueFamilyIndices& getQueueFamilies() const { return m_queueFamilies; }
 
 	private:
 		bool createInstance(const fwk::GfxDeviceDesc& desc);
@@ -59,8 +60,8 @@ namespace imp::gfx::vulkan
 		bool createLogicalDevice();
 
 		QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device) const;
-		bool isDeviceSuitable(VkPhysicalDevice device) const;
-		std::vector<const char*> getRequiredInstanceExtensions(bool wantValidation) const;
+		[[nodiscard]] bool isDeviceSuitable(VkPhysicalDevice device) const;
+		[[nodiscard]] std::vector<const char*> getRequiredInstanceExtensions(bool wantValidation) const;
 
 		VkInstance m_instance = VK_NULL_HANDLE;
 		VkDebugUtilsMessengerEXT m_debugMessenger = VK_NULL_HANDLE;
