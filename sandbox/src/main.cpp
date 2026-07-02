@@ -3,7 +3,7 @@
 
 #include <fwk/window.h>
 #include <fwk/gfx_device.h>
-#include <gfx/vk_device.h>
+#include <gfx/gfx.h>
 
 #include <iostream>
 
@@ -25,7 +25,7 @@ int main()
 		return 1;
 	}
 
-	std::unique_ptr<imp::fwk::IGfxDevice> gfx = std::make_unique<imp::gfx::vulkan::VulkanDevice>();
+	std::unique_ptr<imp::fwk::IGfxDevice> gfx = imp::gfx::createDevice();
 
 	imp::fwk::GfxDeviceDesc gfxDesc;
 	gfxDesc.window = &window;
