@@ -5,6 +5,8 @@
 #include <vulkan/vulkan.h>
 #include <core/memory/int_types.h>
 
+#include "vk_config.h"
+
 #include <vector>
 
 namespace imp::gfx::vulkan
@@ -44,6 +46,7 @@ namespace imp::gfx::vulkan
 
         [[nodiscard]] u32 currentBackBufferIndex() const override { return m_currentImageIndex; }
         [[nodiscard]] u32 backBufferCount() const override { return static_cast<u32>(m_images.size()); }
+        [[nodiscard]] u32 currentFrameIndex() const { return m_currentFrame; }
 
         // Vulkan specific accessors for whatever records commands
         // against the current back buffer (the currently unwritten render module)
@@ -57,8 +60,9 @@ namespace imp::gfx::vulkan
         // the command buffer for this frame (see VulkanDevice::endFrame
         // once command submission exists)
         [[nodiscard]] VkSemaphore currentImageAvailableSemaphore() const { return m_imageAvailableSemaphores[m_currentFrame]; }
-        [[nodiscard]] VkSemaphore renderFinishedSemaphore() const { return m_renderFinishedSemaphores[m_currentImageIndex]; }
+        [[nodiscard]] VkSemaphore currentRenderFinishedSemaphore() const { return m_renderFinishedSemaphores[m_currentImageIndex]; }
         [[nodiscard]] VkFence currentInFlightFence() const { return m_inFlightFences[m_currentFrame]; }
+
         [[nodiscard]] bool isReady() const { return m_swapchain != VK_NULL_HANDLE; }
 
     private:
@@ -98,7 +102,7 @@ namespace imp::gfx::vulkan
 
         std::vector<VkSemaphore> m_imageAvailableSemaphores; // sized kMaxFramesInFlight
         std::vector<VkSemaphore> m_renderFinishedSemaphores; // sized to image count
-        std::vector<VkFence> m_inFlightFences;               // sized kMaxFramesInFlight
+        std::vector<VkFence>     m_inFlightFences;           // sized kMaxFramesInFlight
 
         u32 m_currentFrame = 0;
         u32 m_currentImageIndex = 0;
@@ -106,7 +110,5 @@ namespace imp::gfx::vulkan
         bool m_needsRecreate = false;
         u32 m_pendingWidth = 0;
         u32 m_pendingHeight = 0;
-
-        static const u32 kMaxFramesInFlight = 2;
     };
 }

@@ -22,6 +22,7 @@ elseif(IMP_GFX_BACKEND STREQUAL "VULKAN")
 	target_sources(imp_gfx PRIVATE
 			src/backend/vulkan/vk_device.cpp
 			src/backend/vulkan/vk_swapchain.cpp
+			src/backend/vulkan/vk_commands.cpp
 	)
 	find_package(Vulkan REQUIRED)
 

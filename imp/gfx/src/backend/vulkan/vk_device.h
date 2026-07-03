@@ -13,6 +13,7 @@
 namespace imp::gfx::vulkan
 {
 	class VulkanSwapchain;
+	class VulkanCommandContext;
 
 	struct QueueFamilyIndices
 	{
@@ -63,6 +64,9 @@ namespace imp::gfx::vulkan
 		bool pickPhysicalDevice();
 		bool createLogicalDevice();
 		bool createSwapchain(const fwk::GfxDeviceDesc& desc);
+		bool createCommands();
+
+		void recordAndSubmitFrame();
 
 		QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device) const;
 		[[nodiscard]] bool isDeviceSuitable(VkPhysicalDevice device) const;
@@ -77,11 +81,14 @@ namespace imp::gfx::vulkan
 		VkQueue m_presentQueue = VK_NULL_HANDLE;
 
 		std::unique_ptr<VulkanSwapchain> m_swapchain;
+		std::unique_ptr<VulkanCommandContext> m_commands;
 
 		QueueFamilyIndices m_queueFamilies;
 		bool m_validationEnabled = false;
 		u32 m_width = 0;
 		u32 m_height = 0;
 		bool m_minimised = false;
+
+		bool m_frameActive = false;
 	};
 }

@@ -2,6 +2,8 @@
 
 #include "vk_device.h"
 #include "vk_swapchain.h"
+#include "vk_commands.h"
+
 #include <fwk/window.h>
 
 #include <vulkan/vulkan.h>
@@ -111,6 +113,7 @@ namespace imp::gfx::vulkan
 		if (!pickPhysicalDevice()) { shutdown(); return false; }
 		if (!createLogicalDevice()) { shutdown(); return false; }
 		if (!createSwapchain(desc)) { shutdown(); return false; }
+		if (!createCommands()) { shutdown(); return false; }
 
 		VkPhysicalDeviceProperties props{};
 		vkGetPhysicalDeviceProperties(m_physicalDevice, &props);
@@ -121,7 +124,11 @@ namespace imp::gfx::vulkan
 
 	void VulkanDevice::shutdown()
 	{
-		// Swapchain must go before the device itself
+		// Swapchain and CommandBuffer must go
+		// before the device itself, since the
+		// pool/buffers/images/semaphores/etc
+		// are all owned by m_device.
+		m_commands.reset();
 		m_swapchain.reset();
 
 		if (m_device)
@@ -167,22 +174,21 @@ namespace imp::gfx::vulkan
 
 	void VulkanDevice::beginFrame()
 	{
-		if (!m_swapchain)
-			return;
+		m_frameActive = false;
 
-		// if (!m_swapchain->beginFrame()) return;
-			// record commands into m_swapchain->currentImageView()
+		if (!m_swapchain || !m_commands) return;
+		if (!m_swapchain->beginFrame()) return;
+
+		m_frameActive = true;
 	}
 
 	void VulkanDevice::endFrame()
 	{
-		if (!m_swapchain)
-			return;
+		if (!m_frameActive) return;
 
-		// m_swapchain-present();
-
-		// TODO: Command buffer but for now this and begin
-		// frame will be stubbed out
+		recordAndSubmitFrame();
+		m_swapchain->present();
+		m_frameActive = false;
 	}
 
 	bool VulkanDevice::createInstance(const fwk::GfxDeviceDesc& desc)
@@ -199,7 +205,7 @@ namespace imp::gfx::vulkan
 		appInfo.applicationVersion = VK_MAKE_API_VERSION(0, 1, 0, 0);
 		appInfo.pEngineName = "imperium_of_man";
 		appInfo.engineVersion = VK_MAKE_API_VERSION(0, 1, 0, 0);
-		appInfo.apiVersion = VK_API_VERSION_1_2;
+		appInfo.apiVersion = VK_API_VERSION_1_3;
 
 		auto extensions = getRequiredInstanceExtensions(m_validationEnabled);
 
@@ -329,13 +335,21 @@ namespace imp::gfx::vulkan
 			queueCreateInfos.push_back(qci);
 		}
 
-		VkPhysicalDeviceFeatures features{}; // nothing yet, but I guess shit like ray tracing and dat goes here?
+		VkPhysicalDeviceVulkan13Features features13{}; // nothing yet, but I guess shit like ray tracing and dat goes here?
+		features13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
+		features13.dynamicRendering = VK_TRUE;
+		features13.synchronization2 = VK_TRUE;
+
+		VkPhysicalDeviceFeatures2 features2{};
+		features2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+		features2.pNext = &features13;
 
 		VkDeviceCreateInfo createInfo{};
 		createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+		createInfo.pNext = &features2;
 		createInfo.pQueueCreateInfos = queueCreateInfos.data();
 		createInfo.queueCreateInfoCount = static_cast<u32>( queueCreateInfos.size() );
-		createInfo.pEnabledFeatures = &features;
+		createInfo.pEnabledFeatures = VK_NULL_HANDLE;
 		createInfo.enabledExtensionCount = static_cast<u32>( kDeviceExtensions.size() );
 		createInfo.ppEnabledExtensionNames = kDeviceExtensions.data();
 
@@ -382,6 +396,110 @@ namespace imp::gfx::vulkan
 		return true;
 	}
 
+	bool VulkanDevice::createCommands()
+	{
+		m_commands = std::make_unique<VulkanCommandContext>();
+		if (!m_commands->create(m_device, m_queueFamilies.graphics.value()))
+		{
+			LOG_ERROR("Vulkan", "Failed to create command context");
+			m_commands.reset();
+			return false;
+		}
+
+		return true;
+	}
+
+	void VulkanDevice::recordAndSubmitFrame()
+	{
+		u32 frame = m_swapchain->currentFrameIndex();
+		VkCommandBuffer cmd = m_commands->beginRecording(frame);
+
+		VkImageSubresourceRange colourRange{};
+		colourRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT; // why everything in american
+		colourRange.levelCount = 1;
+		colourRange.layerCount = 1;
+
+		VkImageMemoryBarrier2 toAttachment{};
+		toAttachment.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+		toAttachment.srcStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;
+		toAttachment.srcAccessMask = VK_ACCESS_2_NONE;
+		toAttachment.dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+		toAttachment.dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+		toAttachment.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		toAttachment.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		toAttachment.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		toAttachment.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		toAttachment.image = m_swapchain->currentImage();
+		toAttachment.subresourceRange = colourRange;
+
+		VkDependencyInfo toAttachmentDep{};
+		toAttachmentDep.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+		toAttachmentDep.imageMemoryBarrierCount = 1;
+		toAttachmentDep.pImageMemoryBarriers = &toAttachment;
+		vkCmdPipelineBarrier2(cmd, &toAttachmentDep);
+
+		VkRenderingAttachmentInfo colourAttachment{};
+		colourAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+		colourAttachment.imageView = m_swapchain->currentImageView();
+		colourAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		colourAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		colourAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+		colourAttachment.clearValue.color = { { 0.035f, 0.02f, 0.02f, 1.0f } };
+
+		VkRenderingInfo renderingInfo{};
+		renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
+		renderingInfo.renderArea = { { 0, 0 }, m_swapchain->extent() };
+		renderingInfo.layerCount = 1;
+		renderingInfo.colorAttachmentCount = 1;
+		renderingInfo.pColorAttachments = &colourAttachment;
+
+		vkCmdBeginRendering(cmd, &renderingInfo);
+		// rendering pipeline and draw calls go here? i think
+		vkCmdEndRendering(cmd);
+
+		VkImageMemoryBarrier2 toPresent = toAttachment;
+		toPresent.srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+		toPresent.srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+		toPresent.dstStageMask = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT;
+		toPresent.dstAccessMask = VK_ACCESS_2_NONE;
+		toPresent.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		toPresent.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+		VkDependencyInfo toPresentDep{};
+		toPresentDep.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+		toPresentDep.imageMemoryBarrierCount = 1;
+		toPresentDep.pImageMemoryBarriers = &toPresent;
+		vkCmdPipelineBarrier2(cmd, &toPresentDep);
+
+		m_commands->endRecording(frame);
+
+		VkSemaphoreSubmitInfo waitInfo{};
+		waitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
+		waitInfo.semaphore = m_swapchain->currentImageAvailableSemaphore();
+		waitInfo.stageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+
+		VkSemaphoreSubmitInfo signalInfo{};
+		signalInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
+		signalInfo.semaphore = m_swapchain->currentRenderFinishedSemaphore();
+		signalInfo.stageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+
+		VkCommandBufferSubmitInfo cmdSubmitInfo{};
+		cmdSubmitInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
+		cmdSubmitInfo.commandBuffer = cmd;
+
+		VkSubmitInfo2 submitInfo{};
+		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
+		submitInfo.waitSemaphoreInfoCount = 1;
+		submitInfo.pWaitSemaphoreInfos = &waitInfo;
+		submitInfo.commandBufferInfoCount = 1;
+		submitInfo.pCommandBufferInfos = &cmdSubmitInfo;
+		submitInfo.signalSemaphoreInfoCount = 1;
+		submitInfo.pSignalSemaphoreInfos = &signalInfo;
+
+		if (vkQueueSubmit2(m_graphicsQueue, 1, &submitInfo, m_swapchain->currentInFlightFence()) != VK_SUCCESS)
+			LOG_ERROR("Vulkan", "vkQueueSubmit2 failed");
+	}
+
 	QueueFamilyIndices VulkanDevice::findQueueFamilies(VkPhysicalDevice device) const
 	{
 		QueueFamilyIndices indices;
@@ -420,12 +538,22 @@ namespace imp::gfx::vulkan
 		for (const auto& ext : available)
 			required.erase(ext.extensionName);
 
-		if (!required.empty())
-			return false;
+		if (!required.empty()) return false;
 
-		// Swapchain support check (formats/present modes) belongs here once
-		// the swapchain module is written; for now, extension presence is
-		// enough to prove the wiring.
+		VkPhysicalDeviceProperties props{};
+		vkGetPhysicalDeviceProperties(device, &props);
+		if (props.apiVersion < VK_API_VERSION_1_3) return false;
+
+		VkPhysicalDeviceVulkan13Features features13{};
+		features13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
+
+		VkPhysicalDeviceFeatures2 features2{};
+		features2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+		features2.pNext = &features13;
+
+		vkGetPhysicalDeviceFeatures2(device, &features2);
+		if (!features13.dynamicRendering || !features13.synchronization2) return false;
+
 		return true;
 	}
 
