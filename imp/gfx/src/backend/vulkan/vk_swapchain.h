@@ -42,24 +42,24 @@ namespace imp::gfx::vulkan
         bool beginFrame() override;
         void present() override;
 
-        u32 currentBackBufferIndex() const override { return m_currentImageIndex; }
-        u32 backBufferCount() const override { return static_cast<u32>(m_images.size()); }
+        [[nodiscard]] u32 currentBackBufferIndex() const override { return m_currentImageIndex; }
+        [[nodiscard]] u32 backBufferCount() const override { return static_cast<u32>(m_images.size()); }
 
         // Vulkan specific accessors for whatever records commands
         // against the current back buffer (the currently unwritten render module)
         // Fine to expose raw handles here; this is a private backend header
-        VkExtent2D extent() const { return m_extent; }
-        VkFormat imageFormat() const { return m_imageFormat; }
-        VkImage currentImage() const { return m_images[m_currentImageIndex]; }
-        VkImageView currentImageView() const { return m_imageViews[m_currentImageIndex]; }
+        [[nodiscard]] VkExtent2D extent() const { return m_extent; }
+        [[nodiscard]] VkFormat imageFormat() const { return m_imageFormat; }
+        [[nodiscard]] VkImage currentImage() const { return m_images[m_currentImageIndex]; }
+        [[nodiscard]] VkImageView currentImageView() const { return m_imageViews[m_currentImageIndex]; }
 
         // Sync objects the caller must wait on / signal when submitting
         // the command buffer for this frame (see VulkanDevice::endFrame
         // once command submission exists)
-        VkSemaphore currentImageAvailableSemaphore() const { return m_imageAvailableSemaphores[m_currentFrame]; }
-        VkSemaphore renderFinishedSemaphore() const { return m_renderFinishedSemaphores[m_currentImageIndex]; }
-        VkFence currentInFlightFence() const { return m_inFlightFences[m_currentFrame]; }
-        bool isReady() const { return m_swapchain != VK_NULL_HANDLE; }
+        [[nodiscard]] VkSemaphore currentImageAvailableSemaphore() const { return m_imageAvailableSemaphores[m_currentFrame]; }
+        [[nodiscard]] VkSemaphore renderFinishedSemaphore() const { return m_renderFinishedSemaphores[m_currentImageIndex]; }
+        [[nodiscard]] VkFence currentInFlightFence() const { return m_inFlightFences[m_currentFrame]; }
+        [[nodiscard]] bool isReady() const { return m_swapchain != VK_NULL_HANDLE; }
 
     private:
         struct SupportDetails
