@@ -7,7 +7,7 @@
 #elif defined(IMP_GFX_DX12)
 	#include "../include/gfx/dx12_device.h"
 #elif defined(IMP_GFX_VULKAN)
-	#include "../include/gfx/vk_device.h"
+	#include "backend/vulkan/vk_device.h"
 #else
 	#error "No IMP_GFX defined"
 #endif

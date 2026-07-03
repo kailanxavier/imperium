@@ -1,9 +1,7 @@
-// Vulkan backend stub
-// TODO: Implement IDevice for Vulkan
-
 #if defined(IMP_GFX_VULKAN)
 
-#include "gfx/vk_device.h"
+#include "vk_device.h"
+#include "vk_swapchain.h"
 #include <fwk/window.h>
 
 #include <vulkan/vulkan.h>
@@ -88,6 +86,8 @@ namespace imp::gfx::vulkan
 		}
 	} // namespace
 
+	VulkanDevice::VulkanDevice()  = default;
+
 	VulkanDevice::~VulkanDevice()
 	{
 		shutdown();
@@ -110,6 +110,7 @@ namespace imp::gfx::vulkan
 		if (!createSurface(desc.window)) { shutdown(); return false; }
 		if (!pickPhysicalDevice()) { shutdown(); return false; }
 		if (!createLogicalDevice()) { shutdown(); return false; }
+		if (!createSwapchain(desc)) { shutdown(); return false; }
 
 		VkPhysicalDeviceProperties props{};
 		vkGetPhysicalDeviceProperties(m_physicalDevice, &props);
@@ -120,6 +121,9 @@ namespace imp::gfx::vulkan
 
 	void VulkanDevice::shutdown()
 	{
+		// Swapchain must go before the device itself
+		m_swapchain.reset();
+
 		if (m_device)
 		{
 			vkDeviceWaitIdle(m_device);
@@ -152,7 +156,8 @@ namespace imp::gfx::vulkan
 		m_width = width;
 		m_height = height;
 
-		// TODO: recreate swapchain once the swapchain actually exists
+		if (m_swapchain)
+			m_swapchain->resize(width, height);
 	}
 
 	void VulkanDevice::onMinimiseChanged(bool minimised)
@@ -162,13 +167,22 @@ namespace imp::gfx::vulkan
 
 	void VulkanDevice::beginFrame()
 	{
-		// TODO: acquire next swapchain image, wait on the frame's fence,
-		// begin the primary command buffer. Needs the swapchain module
+		if (!m_swapchain)
+			return;
+
+		// if (!m_swapchain->beginFrame()) return;
+			// record commands into m_swapchain->currentImageView()
 	}
 
 	void VulkanDevice::endFrame()
 	{
-		// TODO: submit the command buffer and present. Needs the swapchain module
+		if (!m_swapchain)
+			return;
+
+		// m_swapchain-present();
+
+		// TODO: Command buffer but for now this and begin
+		// frame will be stubbed out
 	}
 
 	bool VulkanDevice::createInstance(const fwk::GfxDeviceDesc& desc)
@@ -341,6 +355,30 @@ namespace imp::gfx::vulkan
 
 		vkGetDeviceQueue(m_device, m_queueFamilies.graphics.value(), 0, &m_graphicsQueue);
 		vkGetDeviceQueue(m_device, m_queueFamilies.present.value(), 0, &m_presentQueue);
+		return true;
+	}
+
+	bool VulkanDevice::createSwapchain(const fwk::GfxDeviceDesc &desc)
+	{
+		VulkanSwapchainCreateInfo info{};
+		info.physicalDevice = m_physicalDevice;
+		info.device = m_device;
+		info.surface = m_surface;
+		info.graphicsQueueFamily = m_queueFamilies.graphics.value();
+		info.presentQueueFamily = m_queueFamilies.present.value();
+		info.graphicsQueue = m_graphicsQueue;
+		info.presentQueue = m_presentQueue;
+		info.width = m_width;
+		info.height = m_height;
+		info.vsync = desc.vsync;
+
+		m_swapchain = std::make_unique<VulkanSwapchain>();
+		if (!m_swapchain->create(info))
+		{
+			LOG_FATAL("Vulkan", "Failed to create swapchain");
+			m_swapchain.reset();
+			return false;
+		}
 		return true;
 	}
 
