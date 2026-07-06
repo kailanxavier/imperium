@@ -14,8 +14,9 @@ int main()
 	LOG_INFO("Sandbox", "App starting...");
 
 	imp::fwk::Window window;
-	imp::fwk::WindowDesc windowDesc;
-	windowDesc.title = "Sandbox";
+
+	imp::fwk::WindowDesc windowDesc{};
+	windowDesc.title = "Sandbox App";
 	windowDesc.width = 1280;
 	windowDesc.height = 720;
 
