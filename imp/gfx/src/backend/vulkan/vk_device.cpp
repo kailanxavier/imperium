@@ -444,7 +444,7 @@ namespace imp::gfx::vulkan
 		colourAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 		colourAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 		colourAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-		colourAttachment.clearValue.color = { { 0.035f, 0.02f, 0.02f, 1.0f } };
+		colourAttachment.clearValue.color = { { 0.023153f, 0.000911f, 0.004391f, 1.0f } };
 
 		VkRenderingInfo renderingInfo{};
 		renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;

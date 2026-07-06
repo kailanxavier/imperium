@@ -47,8 +47,10 @@ namespace imp::gfx::vulkan
 
 	void VulkanCommandContext::destroy()
 	{
-		if (m_commandPool != VK_NULL_HANDLE)
+		if (m_commandPool != VK_NULL_HANDLE && m_device != VK_NULL_HANDLE)
 		{
+			vkDeviceWaitIdle(m_device);
+
 			// Destroying the pool implicitly frees all command buffers
 			// allocated from it; no need to vkFreeCommandBuffers first.
 			vkDestroyCommandPool(m_device, m_commandPool, nullptr);
