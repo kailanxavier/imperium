@@ -3,6 +3,7 @@
 #include "vk_device.h"
 #include "vk_swapchain.h"
 #include "vk_commands.h"
+#include "vk_pipeline.h"
 
 #include <fwk/window.h>
 
@@ -114,6 +115,7 @@ namespace imp::gfx::vulkan
 		if (!createLogicalDevice()) { shutdown(); return false; }
 		if (!createSwapchain(desc)) { shutdown(); return false; }
 		if (!createCommands()) { shutdown(); return false; }
+		if (!createPipeline()) { shutdown(); return false; }
 
 		VkPhysicalDeviceProperties props{};
 		vkGetPhysicalDeviceProperties(m_physicalDevice, &props);
@@ -124,10 +126,10 @@ namespace imp::gfx::vulkan
 
 	void VulkanDevice::shutdown()
 	{
-		// Swapchain and CommandBuffer must go
-		// before the device itself, since the
-		// pool/buffers/images/semaphores/etc
-		// are all owned by m_device.
+		// Get rid of the stuff that belongs to device first
+		// I cba adding a new comment to this every time something
+		// belongs to m_device.
+		m_pipeline.reset();
 		m_commands.reset();
 		m_swapchain.reset();
 
@@ -409,6 +411,25 @@ namespace imp::gfx::vulkan
 		return true;
 	}
 
+	bool VulkanDevice::createPipeline()
+	{
+		VulkanGraphicsPipelineCreateInfo info{};
+		info.device = m_device;
+		info.vertexShaderPath = "shaders/triangle.vert.spv";
+		info.fragmentShaderPath = "shaders/triangle.frag.spv";
+		info.colourAttachmentFormat = m_swapchain->imageFormat();
+
+		m_pipeline = std::make_unique<VulkanGraphicsPipeline>();
+		if (!m_pipeline->create(info))
+		{
+			LOG_ERROR("Vulkan", "Failed to create graphics pipeline");
+			m_pipeline.reset();
+			return false;
+		}
+
+		return true;
+	}
+
 	void VulkanDevice::recordAndSubmitFrame()
 	{
 		u32 frame = m_swapchain->currentFrameIndex();
@@ -454,7 +475,29 @@ namespace imp::gfx::vulkan
 		renderingInfo.pColorAttachments = &colourAttachment;
 
 		vkCmdBeginRendering(cmd, &renderingInfo);
-		// rendering pipeline and draw calls go here? i think
+
+		if (m_pipeline && m_pipeline->isValid())
+		{
+			vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline->pipeline());
+
+			VkExtent2D extent = m_swapchain->extent();
+			VkViewport viewport{};
+			viewport.x = 0.f;
+			viewport.y = 0.f;
+			viewport.width = static_cast<float>( extent.width );
+			viewport.height = static_cast<float>( extent.height );
+			viewport.minDepth = 0.f;
+			viewport.maxDepth = 1.f;
+			vkCmdSetViewport(cmd, 0, 1, &viewport);
+
+			VkRect2D scissor{};
+			scissor.offset = { 0, 0 };
+			scissor.extent = extent;
+			vkCmdSetScissor(cmd, 0, 1, &scissor);
+
+			vkCmdDraw(cmd, 3, 1, 0, 0);
+		}
+
 		vkCmdEndRendering(cmd);
 
 		VkImageMemoryBarrier2 toPresent = toAttachment;

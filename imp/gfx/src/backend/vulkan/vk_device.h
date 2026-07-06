@@ -14,6 +14,7 @@ namespace imp::gfx::vulkan
 {
 	class VulkanSwapchain;
 	class VulkanCommandContext;
+	class VulkanGraphicsPipeline;
 
 	struct QueueFamilyIndices
 	{
@@ -65,6 +66,7 @@ namespace imp::gfx::vulkan
 		bool createLogicalDevice();
 		bool createSwapchain(const fwk::GfxDeviceDesc& desc);
 		bool createCommands();
+		bool createPipeline();
 
 		void recordAndSubmitFrame();
 
@@ -82,6 +84,7 @@ namespace imp::gfx::vulkan
 
 		std::unique_ptr<VulkanSwapchain> m_swapchain;
 		std::unique_ptr<VulkanCommandContext> m_commands;
+		std::unique_ptr<VulkanGraphicsPipeline> m_pipeline;
 
 		QueueFamilyIndices m_queueFamilies;
 		bool m_validationEnabled = false;

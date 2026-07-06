@@ -23,10 +23,19 @@ elseif(IMP_GFX_BACKEND STREQUAL "VULKAN")
 			src/backend/vulkan/vk_device.cpp
 			src/backend/vulkan/vk_swapchain.cpp
 			src/backend/vulkan/vk_commands.cpp
+			src/backend/vulkan/vk_pipeline.cpp
+			src/backend/vulkan/vk_shader.cpp
 	)
 	find_package(Vulkan REQUIRED)
 
 	target_link_libraries(imp_gfx PRIVATE Vulkan::Vulkan)
+
+	include(cmake/CompileShaders.cmake)
+	IMP_COMPILE_SHADERS(imp_gfx
+		${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders
+		${CMAKE_CURRENT_SOURCE_DIR}/shaders/vulkan/triangle.vert
+		${CMAKE_CURRENT_SOURCE_DIR}/shaders/vulkan/triangle.frag
+	)
 
 endif()
 
