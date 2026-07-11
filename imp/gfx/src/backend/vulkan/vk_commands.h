@@ -17,7 +17,7 @@ namespace imp::gfx::vulkan
 		VulkanCommandContext(const VulkanCommandContext&) = delete;
 		VulkanCommandContext& operator=(const VulkanCommandContext&) = delete;
 
-		bool create(VkDevice device, u32 queueFamily);
+		bool create(VkDevice device, u32 queueFamily, const VkAllocationCallbacks* allocationCallbacks = nullptr);
 		void destroy();
 
 		// Resets and begins recording into the command buffer for frameIndex

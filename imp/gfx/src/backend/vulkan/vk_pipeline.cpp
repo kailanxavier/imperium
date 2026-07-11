@@ -2,8 +2,10 @@
 
 #include "vk_pipeline.h"
 #include "vk_shader.h"
+#include "vk_vertex.h"
 
 #include <core/log/log.h>
+#include <core/memory/int_types.h>
 
 namespace imp::gfx::vulkan
 {
@@ -15,14 +17,14 @@ namespace imp::gfx::vulkan
 	bool VulkanGraphicsPipeline::create(const VulkanGraphicsPipelineCreateInfo& info)
 	{
 		m_device = info.device;
+		m_allocationCallbacks = info.allocationCallbacks;
 
 		VulkanShaderModule vertModule;
-		if (!vertModule.loadFromFile(m_device, info.vertexShaderPath))
+		if (!vertModule.loadFromFile(m_device, info.vertexShaderPath, m_allocationCallbacks))
 			return false;
 
-
 		VulkanShaderModule fragModule;
-		if (!fragModule.loadFromFile(m_device, info.fragmentShaderPath))
+		if (!fragModule.loadFromFile(m_device, info.fragmentShaderPath, m_allocationCallbacks))
 			return false;
 
 		VkPipelineShaderStageCreateInfo stages[2]{};
@@ -36,8 +38,15 @@ namespace imp::gfx::vulkan
 		stages[1].module = fragModule.handle();
 		stages[1].pName = "main";
 
+		auto bindingDesc = Vertex::bindingDescription();
+		auto attributeDesc = Vertex::attributeDescriptions();
+
 		VkPipelineVertexInputStateCreateInfo vertexInput{};
 		vertexInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+		vertexInput.vertexBindingDescriptionCount = 1;
+		vertexInput.pVertexBindingDescriptions = &bindingDesc;
+		vertexInput.vertexAttributeDescriptionCount = static_cast<u32>( attributeDesc.size() );
+		vertexInput.pVertexAttributeDescriptions = attributeDesc.data();
 
 		VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
 		inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
@@ -82,7 +91,7 @@ namespace imp::gfx::vulkan
 		VkPipelineLayoutCreateInfo layoutInfo{};
 		layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 
-		if (vkCreatePipelineLayout(m_device, &layoutInfo, nullptr, &m_layout) != VK_SUCCESS)
+		if (vkCreatePipelineLayout(m_device, &layoutInfo, m_allocationCallbacks, &m_layout) != VK_SUCCESS)
 		{
 			LOG_ERROR("Vulkan", "vkCreatePipelineLayout failed");
 			return false;
@@ -109,10 +118,10 @@ namespace imp::gfx::vulkan
 		pipelineInfo.renderPass = VK_NULL_HANDLE;
 		pipelineInfo.subpass = 0;
 
-		if (vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_pipeline) != VK_SUCCESS)
+		if (vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &pipelineInfo, m_allocationCallbacks, &m_pipeline) != VK_SUCCESS)
 		{
 			LOG_ERROR("Vulkan", "vkCreateGraphicsPipelines failed");
-			vkDestroyPipelineLayout(m_device, m_layout, nullptr);
+			vkDestroyPipelineLayout(m_device, m_layout, m_allocationCallbacks);
 			m_layout = VK_NULL_HANDLE;
 			return false;
 		}
@@ -127,12 +136,12 @@ namespace imp::gfx::vulkan
 			vkDeviceWaitIdle(m_device);
 			if (m_pipeline != VK_NULL_HANDLE)
 			{
-				vkDestroyPipeline(m_device, m_pipeline, nullptr);
+				vkDestroyPipeline(m_device, m_pipeline, m_allocationCallbacks);
 				m_pipeline = VK_NULL_HANDLE;
 			}
 			if (m_layout != VK_NULL_HANDLE)
 			{
-				vkDestroyPipelineLayout(m_device, m_layout, nullptr);
+				vkDestroyPipelineLayout(m_device, m_layout, m_allocationCallbacks);
 				m_layout = VK_NULL_HANDLE;
 			}
 

@@ -20,6 +20,8 @@ namespace imp::gfx::vulkan
 		std::string fragmentShaderPath;
 
 		VkFormat colourAttachmentFormat = VK_FORMAT_UNDEFINED;
+
+		const VkAllocationCallbacks* allocationCallbacks = nullptr;
 	};
 
 	class VulkanGraphicsPipeline
@@ -42,5 +44,6 @@ namespace imp::gfx::vulkan
 		VkDevice m_device = VK_NULL_HANDLE;
 		VkPipelineLayout m_layout = VK_NULL_HANDLE;
 		VkPipeline m_pipeline = VK_NULL_HANDLE;
+		const VkAllocationCallbacks* m_allocationCallbacks = nullptr;
 	};
 }

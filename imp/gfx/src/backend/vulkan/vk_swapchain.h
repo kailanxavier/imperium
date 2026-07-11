@@ -23,6 +23,8 @@ namespace imp::gfx::vulkan
         u32 width = 0;
         u32 height = 0;
         bool vsync = true;
+
+        const VkAllocationCallbacks* allocationCallbacks = nullptr;
     };
 
     class VulkanSwapchain final : public ISwapChain

@@ -35,7 +35,7 @@ namespace imp::gfx::vulkan
 		return *this;
 	}
 
-	bool VulkanShaderModule::loadFromFile(VkDevice device, const std::string& path)
+	bool VulkanShaderModule::loadFromFile(VkDevice device, const std::string& path, const VkAllocationCallbacks* allocationCallbacks)
 	{
 		std::ifstream file(path, std::ios::binary | std::ios::ate);
 		if (!file.is_open())
@@ -64,7 +64,7 @@ namespace imp::gfx::vulkan
 		createInfo.codeSize = static_cast<size_t>( size );
 		createInfo.pCode = code.data();
 
-		if (vkCreateShaderModule(device, &createInfo, nullptr, &m_module) != VK_SUCCESS)
+		if (vkCreateShaderModule(device, &createInfo, allocationCallbacks, &m_module) != VK_SUCCESS)
 		{
 			LOG_ERROR("Vulkan", "vkCreateShaderModule failed {}", path.c_str());
 			return false;

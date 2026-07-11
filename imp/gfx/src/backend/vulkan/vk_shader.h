@@ -22,7 +22,7 @@ namespace imp::gfx::vulkan
 		// wired into gfx at the moment. If/when shader loading should
 		// go through the VFS instead, this is the only place we will
 		// have to change.
-		bool loadFromFile(VkDevice device, const std::string& path);
+		bool loadFromFile(VkDevice device, const std::string& path, const VkAllocationCallbacks* allocationCallbacks = nullptr);
 		void destroy();
 
 		VkShaderModule handle() const { return m_module; }
@@ -31,5 +31,6 @@ namespace imp::gfx::vulkan
 	private:
 		VkDevice m_device = VK_NULL_HANDLE;
 		VkShaderModule m_module = VK_NULL_HANDLE;
+		const VkAllocationCallbacks* m_allocationCallbacks = nullptr;
 	};
 }
