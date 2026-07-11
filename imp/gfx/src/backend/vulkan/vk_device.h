@@ -108,5 +108,11 @@ namespace imp::gfx::vulkan
 		bool m_minimised = false;
 
 		bool m_frameActive = false;
+
+		// TODO:
+		// This will be removed once everything is working,
+		// for now it's just a proof of life that the MVP
+		// push-constant pipeline is actually live
+		float m_rotationAngle = 0.f;
 	};
 }

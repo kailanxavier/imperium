@@ -9,7 +9,7 @@ namespace imp::gfx::vulkan
 {
 	struct Vertex
 	{
-		float position[2];
+		float position[3];
 		float colour[3];
 
 		static VkVertexInputBindingDescription bindingDescription()

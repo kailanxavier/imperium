@@ -15,6 +15,7 @@
 #include <GLFW/glfw3.h>
 
 #include <core/memory/int_types.h>
+#include <core/math/math.h>
 #include <core/log/log.h>
 
 #include <cstring>
@@ -460,9 +461,9 @@ namespace imp::gfx::vulkan
 	{
 		const Vertex vertices[] =
 		{
-			{ { 0.f, -0.5f }, { 1.f, 0.f, 0.f } },
-			{ { 0.5f, 0.5f }, { 0.f, 1.f, 0.f } },
-			{ { -0.5f, 0.5f }, { 0.f, 0.f, 1.f } }
+			{ { 0.f, -0.5f, 0.f }, { 1.f, 0.f, 0.f } },
+			{ { 0.5f, 0.5f, 0.f }, { 0.f, 1.f, 0.f } },
+			{ { -0.5f, 0.5f, 0.f }, { 0.f, 0.f, 1.f } }
 		};
 
 		VulkanBufferCreateInfo info{};
@@ -534,11 +535,25 @@ namespace imp::gfx::vulkan
 			vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline->pipeline());
 
 			VkExtent2D extent = m_swapchain->extent();
+
+			// TODO:
+			// y = height, height = -height: Vulkan's NDC is natively
+			// Y-down, so a "normal" positive-height viewport combined
+			// with this engine's Y-up LH math library renders
+			// everything upside-down
+			//
+			// Side effect worth remembering in the future here
+			// is that when culling gets turned on, this flip
+			// also reverses the effective winding order the
+			// rasterizer sees, so whichever frontFace looks correct
+			// without culling will need to be inverted once
+			// VK_CULL_MODE_BACK_BIT is enabled
+
 			VkViewport viewport{};
 			viewport.x = 0.f;
-			viewport.y = 0.f;
+			viewport.y = static_cast<float>( extent.height );;
 			viewport.width = static_cast<float>( extent.width );
-			viewport.height = static_cast<float>( extent.height );
+			viewport.height = -static_cast<float>( extent.height );
 			viewport.minDepth = 0.f;
 			viewport.maxDepth = 1.f;
 			vkCmdSetViewport(cmd, 0, 1, &viewport);
@@ -548,6 +563,17 @@ namespace imp::gfx::vulkan
 			scissor.extent = extent;
 			vkCmdSetScissor(cmd, 0, 1, &scissor);
 
+			using namespace imp::math;
+			const float aspect = extent.height > 0 
+				? static_cast<float>( extent.width ) / static_cast<float>( extent.height ) : 1.f;
+
+			Mat4f model = makeRotationY(m_rotationAngle);
+			Mat4f view = makeLookAtLH(Vec3f::unitZ(), Vec3f::zero(), Vec3f::up());
+			Mat4f proj = makePerspectiveLH(toRadians(70.f), aspect, 0.1f, 100.f);
+			Mat4f mvp = proj * view * model;
+
+			vkCmdPushConstants(cmd, m_pipeline->layout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(Mat4f), mvp.data());
+
 			if (m_vertexBuffer && m_vertexBuffer->isValid())
 			{
 				VkBuffer vertexBuffers[] = { m_vertexBuffer->handle() };
@@ -556,6 +582,8 @@ namespace imp::gfx::vulkan
 
 				vkCmdDraw(cmd, 3, 1, 0, 0);
 			}
+
+			m_rotationAngle += 0.01f;
 		}
 
 		vkCmdEndRendering(cmd);

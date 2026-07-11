@@ -5,6 +5,7 @@
 #include "vk_vertex.h"
 
 #include <core/log/log.h>
+#include <core/math/mat4.h>
 #include <core/memory/int_types.h>
 
 namespace imp::gfx::vulkan
@@ -88,8 +89,18 @@ namespace imp::gfx::vulkan
 		colourBlend.attachmentCount = 1;
 		colourBlend.pAttachments = &blendAttachment;
 
+		static_assert( sizeof(imp::math::Mat4f) == 64,
+			"Mat4f layout changed - VulkanDevice's push-constant upload assumes 4 tightly packed Vec4f columns" );
+
+		VkPushConstantRange pushConstantRange{};
+		pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+		pushConstantRange.offset = 0;
+		pushConstantRange.size = sizeof(imp::math::Mat4f);
+
 		VkPipelineLayoutCreateInfo layoutInfo{};
 		layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+		layoutInfo.pushConstantRangeCount = 1;
+		layoutInfo.pPushConstantRanges = &pushConstantRange;
 
 		if (vkCreatePipelineLayout(m_device, &layoutInfo, m_allocationCallbacks, &m_layout) != VK_SUCCESS)
 		{
