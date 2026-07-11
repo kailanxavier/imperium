@@ -1,22 +1,21 @@
 #include <core/core.h>
 #include <core/log/log.h>
-
+#include <core/memory/heap_allocator.h>
 #include <fwk/window.h>
 #include <fwk/gfx_device.h>
 #include <gfx/gfx.h>
-
 #include <iostream>
 
 int main()
 {
 	imp::log::Logger::get().initialise();
-
 	LOG_INFO("Sandbox", "App starting...");
 
-	imp::fwk::Window window;
+	imp::memory::HeapAllocator gfxHostAllocator("GfxHost");
 
+	imp::fwk::Window window;
 	imp::fwk::WindowDesc windowDesc{};
-	windowDesc.title = "Sandbox App";
+	windowDesc.title = "Titus' sandbox";
 	windowDesc.width = 1280;
 	windowDesc.height = 720;
 
@@ -31,7 +30,7 @@ int main()
 	imp::fwk::GfxDeviceDesc gfxDesc;
 	gfxDesc.window = &window;
 	gfxDesc.appName = "Sandbox";
-
+	gfxDesc.allocator = &gfxHostAllocator;
 #ifndef NDEBUG
 	gfxDesc.enableValidation = true;
 #endif
@@ -66,8 +65,6 @@ int main()
 	gfx->shutdown();
 	window.destroy();
 
-
 	imp::log::Logger::get().shutdown();
-
 	return 0;
 }

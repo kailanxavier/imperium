@@ -1,12 +1,13 @@
 #pragma once
 
-#include <memory>
 #include <fwk/gfx_device.h>
 
 #include <vulkan/vulkan.h>
+#include <vma/vk_mem_alloc.h>
 
 #include <core/memory/int_types.h>
 
+#include <memory>
 #include <optional>
 #include <vector>
 
@@ -14,6 +15,8 @@ namespace imp::gfx::vulkan
 {
 	class VulkanSwapchain;
 	class VulkanCommandContext;
+	class VulkanGraphicsPipeline;
+	class VulkanBuffer;
 
 	struct QueueFamilyIndices
 	{
@@ -65,6 +68,14 @@ namespace imp::gfx::vulkan
 		bool createLogicalDevice();
 		bool createSwapchain(const fwk::GfxDeviceDesc& desc);
 		bool createCommands();
+		bool createPipeline();
+		bool createAllocator();
+		bool createVertexBuffer();
+
+		const VkAllocationCallbacks* allocationCallbacks() const
+		{
+			return m_hasHostAllocationCallbacks ? &m_hostAllocationCallbacks : nullptr;
+		}
 
 		void recordAndSubmitFrame();
 
@@ -82,6 +93,13 @@ namespace imp::gfx::vulkan
 
 		std::unique_ptr<VulkanSwapchain> m_swapchain;
 		std::unique_ptr<VulkanCommandContext> m_commands;
+		std::unique_ptr<VulkanGraphicsPipeline> m_pipeline;
+
+		VmaAllocator m_vmaAllocator = VK_NULL_HANDLE;
+		std::unique_ptr<VulkanBuffer> m_vertexBuffer;
+
+		VkAllocationCallbacks m_hostAllocationCallbacks{};
+		bool m_hasHostAllocationCallbacks = false;
 
 		QueueFamilyIndices m_queueFamilies;
 		bool m_validationEnabled = false;

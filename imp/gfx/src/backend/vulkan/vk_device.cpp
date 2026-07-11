@@ -3,7 +3,10 @@
 #include "vk_device.h"
 #include "vk_swapchain.h"
 #include "vk_commands.h"
-
+#include "vk_pipeline.h"
+#include "vk_buffer.h"
+#include "vk_allocator.h"
+#include "vk_vertex.h"
 #include <fwk/window.h>
 
 #include <vulkan/vulkan.h>
@@ -89,7 +92,6 @@ namespace imp::gfx::vulkan
 	} // namespace
 
 	VulkanDevice::VulkanDevice()  = default;
-
 	VulkanDevice::~VulkanDevice()
 	{
 		shutdown();
@@ -107,13 +109,22 @@ namespace imp::gfx::vulkan
 		m_width = desc.window->width();
 		m_height = desc.window->height();
 
+		if (desc.allocator)
+		{
+			m_hostAllocationCallbacks = makeVulkanAllocationCallbacks(*desc.allocator);
+			m_hasHostAllocationCallbacks = true;
+		}
+
 		if (!createInstance(desc)) { shutdown(); return false; }
 		if (m_validationEnabled && !setupDebugMessenger()) { shutdown(); return false; }
 		if (!createSurface(desc.window)) { shutdown(); return false; }
 		if (!pickPhysicalDevice()) { shutdown(); return false; }
 		if (!createLogicalDevice()) { shutdown(); return false; }
+		if (!createAllocator()) { shutdown(); return false; }
 		if (!createSwapchain(desc)) { shutdown(); return false; }
 		if (!createCommands()) { shutdown(); return false; }
+		if (!createPipeline()) { shutdown(); return false; }
+		if (!createVertexBuffer()) { shutdown(); return false; }
 
 		VkPhysicalDeviceProperties props{};
 		vkGetPhysicalDeviceProperties(m_physicalDevice, &props);
@@ -124,32 +135,38 @@ namespace imp::gfx::vulkan
 
 	void VulkanDevice::shutdown()
 	{
-		// Swapchain and CommandBuffer must go
-		// before the device itself, since the
-		// pool/buffers/images/semaphores/etc
-		// are all owned by m_device.
+		// Get rid of the stuff that belongs to device first
+		// I cba adding a new comment to this every time something
+		// belongs to m_device.
+		m_pipeline.reset();
 		m_commands.reset();
 		m_swapchain.reset();
 
+		m_vertexBuffer.reset();
+		if (m_vmaAllocator != VK_NULL_HANDLE)
+		{
+			vmaDestroyAllocator(m_vmaAllocator);
+			m_vmaAllocator = VK_NULL_HANDLE;
+		}
 		if (m_device)
 		{
 			vkDeviceWaitIdle(m_device);
-			vkDestroyDevice(m_device, nullptr);
+			vkDestroyDevice(m_device, allocationCallbacks());
 			m_device = VK_NULL_HANDLE;
 		}
 		if (m_debugMessenger)
 		{
-			DestroyDebugUtilsMessengerEXT(m_instance, m_debugMessenger, nullptr);
+			DestroyDebugUtilsMessengerEXT(m_instance, m_debugMessenger, allocationCallbacks());
 			m_debugMessenger = VK_NULL_HANDLE;
 		}
 		if (m_surface)
 		{
-			vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
+			vkDestroySurfaceKHR(m_instance, m_surface, allocationCallbacks());
 			m_surface = VK_NULL_HANDLE;
 		}
 		if (m_instance)
 		{
-			vkDestroyInstance(m_instance, nullptr);
+			vkDestroyInstance(m_instance, allocationCallbacks());
 			m_instance = VK_NULL_HANDLE;
 		}
 
@@ -218,8 +235,8 @@ namespace imp::gfx::vulkan
 		VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo{};
 		if (m_validationEnabled)
 		{
-			createInfo.enabledLayerCount = static_cast<u32>( kValidationLayers.size() );
-			createInfo.ppEnabledLayerNames = kValidationLayers.data();
+			createInfo.enabledLayerCount = 0;
+			createInfo.ppEnabledLayerNames = nullptr;
 
 			debugCreateInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
 			debugCreateInfo.messageSeverity =
@@ -241,7 +258,7 @@ namespace imp::gfx::vulkan
 			createInfo.enabledLayerCount = 0;
 		}
 
-		VkResult result = vkCreateInstance(&createInfo, nullptr, &m_instance);
+		VkResult result = vkCreateInstance(&createInfo, allocationCallbacks(), &m_instance);
 		if (result != VK_SUCCESS)
 		{
 			LOG_ERROR("Vulkan", "vkCreateInstance failed ({})", static_cast<int>( result ));
@@ -265,7 +282,7 @@ namespace imp::gfx::vulkan
 
 		createInfo.pfnUserCallback = DebugCallback;
 
-		if (CreateDebugUtilsMessengerEXT(m_instance, &createInfo, nullptr, &m_debugMessenger) != VK_SUCCESS)
+		if (CreateDebugUtilsMessengerEXT(m_instance, &createInfo, allocationCallbacks(), &m_debugMessenger) != VK_SUCCESS)
 		{
 			LOG_ERROR("Vulkan", "Failed to set up debug messenger");
 			return false;
@@ -279,7 +296,7 @@ namespace imp::gfx::vulkan
 		// fwk::Window is built with GLFW under the hood; this is the one
 		// place that fact leaks into the Vulkan backend, via
 		// GetNativeHandle(). fwk's own headers stay Vulkan free.
-		VkResult result = glfwCreateWindowSurface(m_instance, window->getNativeHandle(), nullptr, &m_surface);
+		VkResult result = glfwCreateWindowSurface(m_instance, window->getNativeHandle(), allocationCallbacks(), &m_surface);
 		if (result != VK_SUCCESS)
 		{
 			LOG_ERROR("Vulkan", "glfwCreateWindowSurface() failed ({})", static_cast<int>( result ));
@@ -353,15 +370,7 @@ namespace imp::gfx::vulkan
 		createInfo.enabledExtensionCount = static_cast<u32>( kDeviceExtensions.size() );
 		createInfo.ppEnabledExtensionNames = kDeviceExtensions.data();
 
-		if (m_validationEnabled)
-		{
-			// Ignored on modern loaders (device layers are deprecated), BUT
-			// seems harmless enough to set for older loader compatibility
-			createInfo.enabledLayerCount = static_cast<u32>( kValidationLayers.size() );
-			createInfo.ppEnabledLayerNames = kValidationLayers.data();
-		}
-
-		if (vkCreateDevice(m_physicalDevice, &createInfo, nullptr, &m_device) != VK_SUCCESS)
+		if (vkCreateDevice(m_physicalDevice, &createInfo, allocationCallbacks(), &m_device) != VK_SUCCESS)
 		{
 			LOG_ERROR("Vulkan", "vkCreateDevice() failed");
 			return false;
@@ -385,6 +394,7 @@ namespace imp::gfx::vulkan
 		info.width = m_width;
 		info.height = m_height;
 		info.vsync = desc.vsync;
+		info.allocationCallbacks = allocationCallbacks();
 
 		m_swapchain = std::make_unique<VulkanSwapchain>();
 		if (!m_swapchain->create(info))
@@ -399,13 +409,77 @@ namespace imp::gfx::vulkan
 	bool VulkanDevice::createCommands()
 	{
 		m_commands = std::make_unique<VulkanCommandContext>();
-		if (!m_commands->create(m_device, m_queueFamilies.graphics.value()))
+		if (!m_commands->create(m_device, m_queueFamilies.graphics.value(), allocationCallbacks()))
 		{
 			LOG_ERROR("Vulkan", "Failed to create command context");
 			m_commands.reset();
 			return false;
 		}
 
+		return true;
+	}
+
+	bool VulkanDevice::createPipeline()
+	{
+		VulkanGraphicsPipelineCreateInfo info{};
+		info.device = m_device;
+		info.vertexShaderPath = "shaders/triangle.vert.spv";
+		info.fragmentShaderPath = "shaders/triangle.frag.spv";
+		info.colourAttachmentFormat = m_swapchain->imageFormat();
+		info.allocationCallbacks = allocationCallbacks();
+
+		m_pipeline = std::make_unique<VulkanGraphicsPipeline>();
+		if (!m_pipeline->create(info))
+		{
+			LOG_ERROR("Vulkan", "Failed to create graphics pipeline");
+			m_pipeline.reset();
+			return false;
+		}
+
+		return true;
+	}
+
+	bool VulkanDevice::createAllocator()
+	{
+		VmaAllocatorCreateInfo info{};
+		info.instance = m_instance;
+		info.physicalDevice = m_physicalDevice;
+		info.device = m_device;
+		info.vulkanApiVersion = VK_API_VERSION_1_3;
+		info.pAllocationCallbacks = allocationCallbacks();
+
+		if (vmaCreateAllocator(&info, &m_vmaAllocator) != VK_SUCCESS)
+		{
+			LOG_ERROR("Vulkan", "vmaCreateAllocator failed");
+			return false;
+		}
+		return true;
+	}
+
+	bool VulkanDevice::createVertexBuffer()
+	{
+		const Vertex vertices[] =
+		{
+			{ { 0.f, -0.5f }, { 1.f, 0.f, 0.f } },
+			{ { 0.5f, 0.5f }, { 0.f, 1.f, 0.f } },
+			{ { -0.5f, 0.5f }, { 0.f, 0.f, 1.f } }
+		};
+
+		VulkanBufferCreateInfo info{};
+		info.allocator = m_vmaAllocator;
+		info.size = sizeof(vertices);
+		info.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+		info.hostVisible = true;
+
+		m_vertexBuffer = std::make_unique<VulkanBuffer>();
+		if (!m_vertexBuffer->create(info))
+		{
+			LOG_ERROR("Vulkan", "Failed to create vertex buffer...");
+			m_vertexBuffer.reset();
+			return false;
+		}
+
+		std::memcpy(m_vertexBuffer->mappedData(), vertices, sizeof(vertices));
 		return true;
 	}
 
@@ -454,7 +528,36 @@ namespace imp::gfx::vulkan
 		renderingInfo.pColorAttachments = &colourAttachment;
 
 		vkCmdBeginRendering(cmd, &renderingInfo);
-		// rendering pipeline and draw calls go here? i think
+
+		if (m_pipeline && m_pipeline->isValid())
+		{
+			vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline->pipeline());
+
+			VkExtent2D extent = m_swapchain->extent();
+			VkViewport viewport{};
+			viewport.x = 0.f;
+			viewport.y = 0.f;
+			viewport.width = static_cast<float>( extent.width );
+			viewport.height = static_cast<float>( extent.height );
+			viewport.minDepth = 0.f;
+			viewport.maxDepth = 1.f;
+			vkCmdSetViewport(cmd, 0, 1, &viewport);
+
+			VkRect2D scissor{};
+			scissor.offset = { 0, 0 };
+			scissor.extent = extent;
+			vkCmdSetScissor(cmd, 0, 1, &scissor);
+
+			if (m_vertexBuffer && m_vertexBuffer->isValid())
+			{
+				VkBuffer vertexBuffers[] = { m_vertexBuffer->handle() };
+				VkDeviceSize offsets[] = { 0 };
+				vkCmdBindVertexBuffers(cmd, 0, 1, vertexBuffers, offsets);
+
+				vkCmdDraw(cmd, 3, 1, 0, 0);
+			}
+		}
+
 		vkCmdEndRendering(cmd);
 
 		VkImageMemoryBarrier2 toPresent = toAttachment;

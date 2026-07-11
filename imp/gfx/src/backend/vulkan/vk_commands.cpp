@@ -11,7 +11,7 @@ namespace imp::gfx::vulkan
 		destroy();
 	}
 
-	bool VulkanCommandContext::create(VkDevice device, u32 queueFamily)
+	bool VulkanCommandContext::create(VkDevice device, u32 queueFamily, const VkAllocationCallbacks* allocationCallbacks)
 	{
 		m_device = device;
 
@@ -24,7 +24,7 @@ namespace imp::gfx::vulkan
 		// we want to reuse each frame's buffer independently.
 		poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 
-		if (vkCreateCommandPool(m_device, &poolInfo, nullptr, &m_commandPool) != VK_SUCCESS)
+		if (vkCreateCommandPool(m_device, &poolInfo, allocationCallbacks, &m_commandPool) != VK_SUCCESS)
 		{
 			LOG_ERROR("Vulkan", "vkCreateCommandPool failed");
 			return false;

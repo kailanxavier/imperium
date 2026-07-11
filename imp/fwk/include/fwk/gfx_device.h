@@ -1,6 +1,7 @@
 #pragma once
 
 #include <core/memory/int_types.h>
+#include <core/memory/iallocator.h>
 
 namespace imp::fwk
 {
@@ -20,6 +21,8 @@ namespace imp::fwk
 		const char* appName = "App";
 		bool enableValidation = false;
 		bool vsync = true;
+		imp::memory::IAllocator* allocator = nullptr;
+		
 	};
 
 	class IGfxDevice

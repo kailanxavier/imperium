@@ -16,7 +16,7 @@ namespace imp::memory
 	[[nodiscard]] constexpr size_t alignUp(size_t size, size_t alignment) noexcept
 	{
 		assert(isPowerOfTwo(alignment));
-		return ( size * alignment - 1 ) & ~( alignment - 1 );
+		return ( size + alignment - 1 ) & ~( alignment - 1 );
 	}
 
 	// Round "size" down to the previous multiple of "alignment"
