@@ -126,6 +126,7 @@ namespace imp::gfx::vulkan
 		if (!createCommands()) { shutdown(); return false; }
 		if (!createPipeline()) { shutdown(); return false; }
 		if (!createVertexBuffer()) { shutdown(); return false; }
+		if (!createIndexBuffer()) { shutdown(); return false; }
 
 		VkPhysicalDeviceProperties props{};
 		vkGetPhysicalDeviceProperties(m_physicalDevice, &props);
@@ -144,6 +145,8 @@ namespace imp::gfx::vulkan
 		m_swapchain.reset();
 
 		m_vertexBuffer.reset();
+		m_indexBuffer.reset();
+
 		if (m_vmaAllocator != VK_NULL_HANDLE)
 		{
 			vmaDestroyAllocator(m_vmaAllocator);
@@ -395,6 +398,7 @@ namespace imp::gfx::vulkan
 		info.width = m_width;
 		info.height = m_height;
 		info.vsync = desc.vsync;
+		info.allocator = m_vmaAllocator;
 		info.allocationCallbacks = allocationCallbacks();
 
 		m_swapchain = std::make_unique<VulkanSwapchain>();
@@ -427,6 +431,7 @@ namespace imp::gfx::vulkan
 		info.vertexShaderPath = "shaders/triangle.vert.spv";
 		info.fragmentShaderPath = "shaders/triangle.frag.spv";
 		info.colourAttachmentFormat = m_swapchain->imageFormat();
+		info.depthAttachmentFormat = m_swapchain->depthFormat();
 		info.allocationCallbacks = allocationCallbacks();
 
 		m_pipeline = std::make_unique<VulkanGraphicsPipeline>();
@@ -459,11 +464,15 @@ namespace imp::gfx::vulkan
 
 	bool VulkanDevice::createVertexBuffer()
 	{
-		const Vertex vertices[] =
-		{
-			{ { 0.f, -0.5f, 0.f }, { 1.f, 0.f, 0.f } },
-			{ { 0.5f, 0.5f, 0.f }, { 0.f, 1.f, 0.f } },
-			{ { -0.5f, 0.5f, 0.f }, { 0.f, 0.f, 1.f } }
+		const Vertex vertices[] = {
+			{ { -0.5f, -0.5f, -0.5f }, { 1.f,  0.f,  0.f } },
+			{ {  0.5f, -0.5f, -0.5f }, { 0.f,  1.f,  0.f } },
+			{ {  0.5f,  0.5f, -0.5f }, { 0.f,  0.f,  1.f } },
+			{ { -0.5f,  0.5f, -0.5f }, { 1.f,  1.f,  0.f } },
+			{ { -0.5f, -0.5f,  0.5f }, { 1.f,  0.f,  1.f } },
+			{ {  0.5f, -0.5f,  0.5f }, { 0.f,  1.f,  1.f } },
+			{ {  0.5f,  0.5f,  0.5f }, { 1.f,  1.f,  1.f } },
+			{ { -0.5f,  0.5f,  0.5f }, { 0.5f, 0.5f, 0.5f} }
 		};
 
 		VulkanBufferCreateInfo info{};
@@ -481,6 +490,36 @@ namespace imp::gfx::vulkan
 		}
 
 		std::memcpy(m_vertexBuffer->mappedData(), vertices, sizeof(vertices));
+		return true;
+	}
+
+	bool VulkanDevice::createIndexBuffer()
+	{
+		const u16 indices[] = {
+			0, 2, 1,  0, 3, 2,
+			4, 5, 6,  4, 6, 7,
+			0, 7, 3,  0, 4, 7,
+			1, 2, 6,  1, 6, 5,
+			0, 1, 5,  0, 5, 4,
+			3, 6, 2,  3, 7, 6,
+		};
+		m_indexCount = static_cast<u32>( std::size(indices) );
+
+		VulkanBufferCreateInfo info{};
+		info.allocator = m_vmaAllocator;
+		info.size = sizeof(indices);
+		info.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+		info.hostVisible = true;
+
+		m_indexBuffer = std::make_unique<VulkanBuffer>();
+		if (!m_indexBuffer->create(info))
+		{
+			LOG_ERROR("Vulkan", "Failed to create index buffer");
+			m_indexBuffer.reset();
+			return false;
+		}
+
+		std::memcpy(m_indexBuffer->mappedData(), indices, sizeof(indices));
 		return true;
 	}
 
@@ -513,13 +552,49 @@ namespace imp::gfx::vulkan
 		toAttachmentDep.pImageMemoryBarriers = &toAttachment;
 		vkCmdPipelineBarrier2(cmd, &toAttachmentDep);
 
+		VkImageSubresourceRange depthRange{};
+		depthRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+		depthRange.levelCount = 1;
+		depthRange.layerCount = 1;
+
+		VkImageMemoryBarrier2 toDepthAttachment{};
+		toDepthAttachment.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+		toDepthAttachment.srcStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;
+		toDepthAttachment.srcAccessMask = VK_ACCESS_2_NONE;
+		toDepthAttachment.dstStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
+		toDepthAttachment.dstAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+		toDepthAttachment.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		toDepthAttachment.newLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+		toDepthAttachment.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		toDepthAttachment.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		toDepthAttachment.image = m_swapchain->depthImage();
+		toDepthAttachment.subresourceRange = depthRange;
+
+		const bool hasDepth = m_swapchain->depthImage() != VK_NULL_HANDLE;
+		if (hasDepth)
+		{
+			VkDependencyInfo toDepthAttachmentDep{};
+			toDepthAttachmentDep.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+			toDepthAttachmentDep.imageMemoryBarrierCount = 1;
+			toDepthAttachmentDep.pImageMemoryBarriers = &toDepthAttachment;
+			vkCmdPipelineBarrier2(cmd, &toDepthAttachmentDep);
+		}
+
 		VkRenderingAttachmentInfo colourAttachment{};
 		colourAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
 		colourAttachment.imageView = m_swapchain->currentImageView();
 		colourAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 		colourAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 		colourAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-		colourAttachment.clearValue.color = { { 0.023153f, 0.000911f, 0.004391f, 1.0f } };
+		colourAttachment.clearValue.color = { { 0.023153f, 0.000911f, 0.004391f, 1.f } };
+
+		VkRenderingAttachmentInfo depthAttachment{};
+		depthAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+		depthAttachment.imageView = m_swapchain->depthImageView();
+		depthAttachment.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+		depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		depthAttachment.clearValue.depthStencil.depth = 1.f;
 
 		VkRenderingInfo renderingInfo{};
 		renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
@@ -527,6 +602,7 @@ namespace imp::gfx::vulkan
 		renderingInfo.layerCount = 1;
 		renderingInfo.colorAttachmentCount = 1;
 		renderingInfo.pColorAttachments = &colourAttachment;
+		if (hasDepth) renderingInfo.pDepthAttachment = &depthAttachment;
 
 		vkCmdBeginRendering(cmd, &renderingInfo);
 
@@ -565,22 +641,25 @@ namespace imp::gfx::vulkan
 
 			using namespace imp::math;
 			const float aspect = extent.height > 0 
-				? static_cast<float>( extent.width ) / static_cast<float>( extent.height ) : 1.f;
+				? static_cast<float>( extent.width ) / static_cast<float>( extent.height ) 
+				: 1.f;
 
-			Mat4f model = makeRotationY(m_rotationAngle);
-			Mat4f view = makeLookAtLH(Vec3f::unitZ(), Vec3f::zero(), Vec3f::up());
-			Mat4f proj = makePerspectiveLH(toRadians(70.f), aspect, 0.1f, 100.f);
+			Mat4f model = makeRotationAxis(normalise(Vec3{ 1.f, 1.f, 0.f }), m_rotationAngle);
+			//Mat4f model = makeRotationY(m_rotationAngle);
+			Mat4f view = makeLookAtLH(Vec3f::unitZ() * -1.5f, Vec3f::zero(), Vec3f::up());
+			Mat4f proj = makePerspectiveLH(toRadians(90.f), aspect, 0.1f, 100.f);
 			Mat4f mvp = proj * view * model;
 
 			vkCmdPushConstants(cmd, m_pipeline->layout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(Mat4f), mvp.data());
 
-			if (m_vertexBuffer && m_vertexBuffer->isValid())
+			if (m_vertexBuffer && m_vertexBuffer->isValid() && m_indexBuffer && m_indexBuffer->isValid())
 			{
 				VkBuffer vertexBuffers[] = { m_vertexBuffer->handle() };
 				VkDeviceSize offsets[] = { 0 };
 				vkCmdBindVertexBuffers(cmd, 0, 1, vertexBuffers, offsets);
+				vkCmdBindIndexBuffer(cmd, m_indexBuffer->handle(), 0, VK_INDEX_TYPE_UINT16);
 
-				vkCmdDraw(cmd, 3, 1, 0, 0);
+				vkCmdDrawIndexed(cmd, m_indexCount, 1, 0, 0, 0);
 			}
 
 			m_rotationAngle += 0.01f;

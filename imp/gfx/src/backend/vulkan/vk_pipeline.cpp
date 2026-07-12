@@ -72,7 +72,7 @@ namespace imp::gfx::vulkan
 		// a defined coordinate convention (once forward has been defined essentially)
 		rasterizer.cullMode = VK_CULL_MODE_NONE;
 		rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
-		rasterizer.lineWidth = 1.0f;
+		rasterizer.lineWidth = 1.f;
 
 		VkPipelineMultisampleStateCreateInfo multisampling{};
 		multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
@@ -88,6 +88,18 @@ namespace imp::gfx::vulkan
 		colourBlend.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
 		colourBlend.attachmentCount = 1;
 		colourBlend.pAttachments = &blendAttachment;
+
+		VkPipelineDepthStencilStateCreateInfo depthStencil{};
+		depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+		if (info.depthAttachmentFormat != VK_FORMAT_UNDEFINED)
+		{
+			depthStencil.depthTestEnable = VK_TRUE;
+			depthStencil.depthWriteEnable = VK_TRUE;
+			depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
+		}
+		depthStencil.depthBoundsTestEnable = VK_FALSE;
+		depthStencil.stencilTestEnable = VK_FALSE;
+
 
 		static_assert( sizeof(imp::math::Mat4f) == 64,
 			"Mat4f layout changed - VulkanDevice's push-constant upload assumes 4 tightly packed Vec4f columns" );
@@ -112,6 +124,7 @@ namespace imp::gfx::vulkan
 		renderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
 		renderingCreateInfo.colorAttachmentCount = 1;
 		renderingCreateInfo.pColorAttachmentFormats = &info.colourAttachmentFormat;
+		renderingCreateInfo.depthAttachmentFormat = info.depthAttachmentFormat;
 
 		VkGraphicsPipelineCreateInfo pipelineInfo{};
 		pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
@@ -123,6 +136,7 @@ namespace imp::gfx::vulkan
 		pipelineInfo.pViewportState = &viewportState;
 		pipelineInfo.pRasterizationState = &rasterizer;
 		pipelineInfo.pMultisampleState = &multisampling;
+		pipelineInfo.pDepthStencilState = &depthStencil;
 		pipelineInfo.pColorBlendState = &colourBlend;
 		pipelineInfo.pDynamicState = &dynamicState;
 		pipelineInfo.layout = m_layout;

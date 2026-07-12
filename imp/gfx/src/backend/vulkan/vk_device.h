@@ -71,6 +71,7 @@ namespace imp::gfx::vulkan
 		bool createPipeline();
 		bool createAllocator();
 		bool createVertexBuffer();
+		bool createIndexBuffer();
 
 		const VkAllocationCallbacks* allocationCallbacks() const
 		{
@@ -97,6 +98,8 @@ namespace imp::gfx::vulkan
 
 		VmaAllocator m_vmaAllocator = VK_NULL_HANDLE;
 		std::unique_ptr<VulkanBuffer> m_vertexBuffer;
+		std::unique_ptr<VulkanBuffer> m_indexBuffer;
+		u32 m_indexCount = 0;
 
 		VkAllocationCallbacks m_hostAllocationCallbacks{};
 		bool m_hasHostAllocationCallbacks = false;

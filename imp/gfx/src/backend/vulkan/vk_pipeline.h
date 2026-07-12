@@ -20,6 +20,7 @@ namespace imp::gfx::vulkan
 		std::string fragmentShaderPath;
 
 		VkFormat colourAttachmentFormat = VK_FORMAT_UNDEFINED;
+		VkFormat depthAttachmentFormat = VK_FORMAT_UNDEFINED;
 
 		const VkAllocationCallbacks* allocationCallbacks = nullptr;
 	};
