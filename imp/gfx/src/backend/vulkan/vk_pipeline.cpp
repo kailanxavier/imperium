@@ -70,7 +70,7 @@ namespace imp::gfx::vulkan
 
 		// TODO: revisit this once there's an actual 3d pipeline with
 		// a defined coordinate convention (once forward has been defined essentially)
-		rasterizer.cullMode = VK_CULL_MODE_NONE;
+		rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
 		rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
 		rasterizer.lineWidth = 1.f;
 
