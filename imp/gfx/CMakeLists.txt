@@ -32,7 +32,7 @@ elseif(IMP_GFX_BACKEND STREQUAL "VULKAN")
 	find_package(Vulkan REQUIRED)
 	target_link_libraries(imp_gfx PRIVATE Vulkan::Vulkan)
 
-	target_include_directories(imp_gfx SYSTEM PRIVATE third_party/vma)
+	target_include_directories(imp_gfx SYSTEM PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third_party/vma)
 
 	include(cmake/CompileShaders.cmake)
 	IMP_COMPILE_SHADERS(imp_gfx

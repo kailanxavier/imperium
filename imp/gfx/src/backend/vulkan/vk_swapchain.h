@@ -3,7 +3,7 @@
 #include <gfx/swapchain.h>
 
 #include <vulkan/vulkan.h>
-#include <vma/vk_mem_alloc.h>
+#include <vk_mem_alloc.h>
 #include <core/memory/int_types.h>
 
 #include "vk_config.h"
