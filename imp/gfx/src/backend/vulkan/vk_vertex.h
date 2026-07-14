@@ -10,8 +10,8 @@ namespace imp::gfx::vulkan
 {
 	struct Vertex
 	{
-		imp::math::Vec3f position;
-		imp::math::Vec3f colour;
+		math::Vec3f position;
+		math::Vec3f colour;
 
 		static VkVertexInputBindingDescription bindingDescription()
 		{
