@@ -41,6 +41,16 @@
         "CMAKE_CXX_STANDARD": "23",
         "IMP_GFX_BACKEND": "VULKAN"
       }
+    },
+    {
+      "name": "mac-release",
+      "displayName": "MacOS Release",
+      "binaryDir": "${sourceDir}/build/mac-release",
+      "cacheVariables": {
+        "CMAKE_OSX_ARCHITECTURES": "arm64",
+        "CMAKE_BUILD_TYPE": "Release",
+        "IMP_GFX_BACKEND": "VULKAN"
+      }
     }
   ],
   "buildPresets": [

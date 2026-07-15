@@ -10,6 +10,7 @@
 *.userosscache
 *.sln.docstates
 *.env
+.DS_Store
 
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
@@ -331,8 +332,6 @@ node_modules/
 **/*.Server/ModelManifest.xml
 _Pvt_Extensions
 
-.idea/
-
 # Paket dependency manager
 **/.paket/paket.exe
 paket-files/
@@ -421,7 +420,11 @@ FodyWeavers.xsd
 *.msm
 *.msp
 
+# Exclude some CMake and IDE specific that shouldn't be on git.
+# as well as some other things that keep getting in the way and being annoying
 /CMakeFiles
+CMakeCache.txt
 /.cmake
-
-.DS_Store
+/.vscode
+/.vs
+/.idea

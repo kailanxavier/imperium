@@ -221,7 +221,7 @@ namespace imp::gfx::vulkan
     {
         if (m_depthImageView != VK_NULL_HANDLE)
         {
-            vkDeviceWaitIdle(m_device);
+            //vkDeviceWaitIdle(m_device);
             vkDestroyImageView(m_device, m_depthImageView, m_allocationCallbacks);
             m_depthImageView = VK_NULL_HANDLE;
         }
@@ -383,16 +383,23 @@ namespace imp::gfx::vulkan
         destroyDepthResources();
 
         for (VkImageView view : m_imageViews)
-            if (view != VK_NULL_HANDLE) vkDestroyImageView(m_device, view, m_allocationCallbacks);
+        {
+            if (view != VK_NULL_HANDLE)
+            {
+                vkDeviceWaitIdle(m_device);
+                vkDestroyImageView(m_device, view, m_allocationCallbacks);
+                view = VK_NULL_HANDLE;
+            }
+        }
 
         m_imageViews.clear();
         m_images.clear();
 
-        if (m_swapchain != VK_NULL_HANDLE)
-        {
-            vkDestroySwapchainKHR(m_device, m_swapchain, m_allocationCallbacks);
-            m_swapchain = VK_NULL_HANDLE;
-        }
+        //if (m_swapchain != VK_NULL_HANDLE)
+        //{
+        //    vkDestroySwapchainKHR(m_device, m_swapchain, m_allocationCallbacks);
+        //    m_swapchain = VK_NULL_HANDLE;
+        //}
     }
 
     void VulkanSwapchain::destroySyncObjects()

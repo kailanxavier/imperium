@@ -44,7 +44,8 @@ namespace imp::memory
 		explicit HeapAllocator(std::string_view name = "HeapAllocator") noexcept : IAllocator(name) {}
 		~HeapAllocator() override
 		{
-			assert(m_stats.currentUsed.load(std::memory_order_relaxed) == 0 && "HeapAllocator destroyed with live allocations");
+			const size_t n = m_stats.currentUsed.load(std::memory_order_relaxed);
+			assert(n == 0 && "HeapAllocator destroyed with live allocations");
 		}
 
 		[[nodiscard]] void* alloc(

@@ -2,6 +2,7 @@
 
 #include <core/memory/allocator_utils.h>
 #include <core/memory/allocator_types.h>
+#include <core/log/log.h>
 
 #include <cstddef>
 #include <string_view>
