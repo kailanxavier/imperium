@@ -44,8 +44,22 @@ namespace imp::memory
 		explicit HeapAllocator(std::string_view name = "HeapAllocator") noexcept : IAllocator(name) {}
 		~HeapAllocator() override
 		{
-			const size_t n = m_stats.currentUsed.load(std::memory_order_relaxed);
-			assert(n == 0 && "HeapAllocator destroyed with live allocations");
+			const auto snapshot = statsSnapshot();
+
+			if (snapshot.currentUsed != 0)
+			{
+				LOG_ERROR("Allocator", "Allocator '{}' destroyed with {} live bytes", name(), snapshot.currentUsed);
+				for (size_t i = 0; i < static_cast<size_t>(MemTag::Count); ++i)
+				{
+					if (snapshot.tagBytes[i] != 0)
+					{
+						LOG_ERROR("Allocator", "{}: {} bytes",
+							toString(static_cast<MemTag>(i)), snapshot.tagBytes[i]);
+					}
+				}
+			}
+
+			assert(snapshot.currentUsed == 0 && "HeapAllocator destroyed with live allocations");
 		}
 
 		[[nodiscard]] void* alloc(

@@ -10,7 +10,7 @@ int main()
 {
 	imp::log::Logger::get().initialise();
 	LOG_INFO("Sandbox", "App starting...");
-
+	{
 	imp::memory::HeapAllocator gfxHostAllocator("GfxHost");
 
 	imp::fwk::Window window;
@@ -64,6 +64,7 @@ int main()
 	window.detachGfxDevice();
 	gfx->shutdown();
 	window.destroy();
+	}
 
 	imp::log::Logger::get().shutdown();
 	return 0;

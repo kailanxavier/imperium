@@ -10,6 +10,8 @@
 
 #include <vector>
 
+#include "core/memory/heap_allocator.h"
+
 namespace imp::gfx::vulkan
 {
     struct VulkanSwapchainCreateInfo
@@ -92,9 +94,9 @@ namespace imp::gfx::vulkan
         bool createDepthResources();
         void destroyDepthResources();
 
-        SupportDetails querySupport() const;
+        [[nodiscard]] SupportDetails querySupport() const;
         static VkSurfaceFormatKHR chooseFormat(const std::vector<VkSurfaceFormatKHR>& formats);
-        VkPresentModeKHR choosePresentMode(const std::vector<VkPresentModeKHR>& modes) const;
+        [[nodiscard]] VkPresentModeKHR choosePresentMode(const std::vector<VkPresentModeKHR>& modes) const;
         static VkExtent2D chooseExtent(const VkSurfaceCapabilitiesKHR& caps, u32 width, u32 height);
 
         VkPhysicalDevice m_physicalDevice = VK_NULL_HANDLE;
