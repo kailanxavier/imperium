@@ -1,5 +1,3 @@
-#if defined(IMP_GFX_VULKAN)
-
 #include "vk_pipeline.h"
 #include "vk_shader.h"
 #include "vk_vertex.h"
@@ -173,7 +171,4 @@ namespace imp::gfx::vulkan
 			m_device = VK_NULL_HANDLE;
 		}
 	}
-
 }
-
-#endif

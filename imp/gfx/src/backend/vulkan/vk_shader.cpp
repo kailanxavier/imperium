@@ -1,5 +1,3 @@
-#if defined(IMP_GFX_VULKAN)
-
 #include "vk_shader.h"
 
 #include <core/log/log.h>
@@ -85,5 +83,3 @@ namespace imp::gfx::vulkan
 	}
 	
 }
-
-#endif

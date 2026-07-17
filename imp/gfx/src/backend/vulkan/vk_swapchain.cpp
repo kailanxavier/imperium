@@ -1,4 +1,5 @@
 #include "vk_swapchain.h"
+#include "vk_config.h"
 
 #include <core/log/log.h>
 

@@ -1,5 +1,3 @@
-#if defined(IMP_GFX_VULKAN)
-
 #include "vk_commands.h"
 
 #include <core/log/log.h>
@@ -82,5 +80,3 @@ namespace imp::gfx::vulkan
 		vkEndCommandBuffer(m_commandBuffers[frameIndex]);
 	}
 }
-
-#endif

@@ -1,5 +1,3 @@
-#if defined(IMP_GFX_VULKAN)
-
 #include "vk_device.h"
 #include "vk_swapchain.h"
 #include "vk_commands.h"
@@ -780,5 +778,3 @@ namespace imp::gfx::vulkan
 		return extensions;
 	}
 }
-
-#endif

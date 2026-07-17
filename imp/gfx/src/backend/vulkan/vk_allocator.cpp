@@ -1,12 +1,9 @@
-#if defined(IMP_GFX_VULKAN)
-
 #include "vk_allocator.h"
 
 #include <core/memory/allocator_utils.h>
 #include <core/memory/int_types.h>
 
 #include <algorithm>
-#include <cstring>
 
 namespace imp::gfx::vulkan
 {
@@ -115,4 +112,3 @@ namespace imp::gfx::vulkan
 	}
 }
 
-#endif
