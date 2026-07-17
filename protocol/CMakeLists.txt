@@ -34,6 +34,9 @@ add_library(imp_protocol STATIC
         src/serialisation.cpp
         src/tcp_socket.cpp
         src/tcp_listener.cpp
+        src/frame.cpp
+        src/control.cpp
+        src/tool_server.cpp
 )
 
 add_dependencies(imp_protocol imp_protocol_schemas)
