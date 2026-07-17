@@ -1,0 +1,40 @@
+namespace imp.protocol.memory;
+
+enum MemTag : uint8
+{
+    Untagged = 0,
+    Renderer,
+    Audio,
+    Physics,
+    Animation,
+    AI,
+    UI,
+    Texture,
+    Mesh,
+    Shader,
+    Material,
+    Scene,
+    String,
+    Container,
+    Scratch,
+    Debug
+}
+
+table AllocatorStats
+{
+    allocator_name: string;
+    total_allocated: uint64;
+    total_freed: uint64;
+    current_used: uint64;
+    peak_used: uint64;
+    allocation_count: uint64;
+    free_count: uint64;
+    tag_bytes: [uint64];
+}
+
+table MemoryTelemetry
+{
+    allocators: [AllocatorStats];
+}
+
+root_type MemoryTelemetry;

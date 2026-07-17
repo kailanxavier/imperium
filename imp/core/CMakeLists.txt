@@ -35,7 +35,7 @@ target_include_directories(imp_core
 )
 
 target_link_libraries(imp_core
-	PUBLIC 
+	PUBLIC
 		imperium_compile_options
 		fmt::fmt
 )
