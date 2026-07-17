@@ -19,6 +19,7 @@
 #include <core/log/log.h>
 
 #include <cstring>
+#include <iterator>
 #include <set>
 
 namespace imp::gfx::vulkan

@@ -1,6 +1,5 @@
 #pragma once
 #include <fwk/gfx_device.h>
-
 #include <memory>
 
 namespace imp::gfx

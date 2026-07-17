@@ -293,6 +293,12 @@ namespace imp::gfx::vulkan
         // vkCreateSwapchainKHR above completes).
         destroySwapchainResources();
 
+        if (m_swapchain != VK_NULL_HANDLE)
+        {
+            vkDestroySwapchainKHR(m_device, m_swapchain, m_allocationCallbacks);
+            m_swapchain = VK_NULL_HANDLE;
+        }
+
         m_swapchain = newSwapchain;
         m_imageFormat = surfaceFormat.format;
         m_extent = extent;
@@ -386,7 +392,6 @@ namespace imp::gfx::vulkan
         {
             if (view != VK_NULL_HANDLE)
             {
-                vkDeviceWaitIdle(m_device);
                 vkDestroyImageView(m_device, view, m_allocationCallbacks);
                 view = VK_NULL_HANDLE;
             }
