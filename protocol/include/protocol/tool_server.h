@@ -4,6 +4,7 @@
 #include <thread>
 #include <atomic>
 #include <deque>
+#include <mutex>
 
 #include "int_types.h"
 #include "message_type.h"
@@ -44,7 +45,8 @@ namespace imp::protocol
         };
 
         std::thread m_thread;
-        std::atomic<bool> m_running{false};
+        std::atomic<bool> m_running{ false };
+        std::atomic<bool> m_listening{ false };
         std::atomic<u32> m_subscriberCounts[kTypeCount]{};
         TelemetryChannel m_channels[kTypeCount];
 

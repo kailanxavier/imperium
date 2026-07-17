@@ -47,3 +47,7 @@ target_include_directories(imp_protocol
             ${CMAKE_CURRENT_BINARY_DIR}/generated
         PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
+
+if (WIN32)
+    target_link_libraries(imp_protocol PRIVATE Ws2_32)
+endif()

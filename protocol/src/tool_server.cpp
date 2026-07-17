@@ -19,8 +19,13 @@ namespace imp::protocol
         if (m_running.exchange(true))
             return false; // already running
 
+        m_listening.store(false);
         m_thread = std::thread([this, port] { networkThreadLoop(port); });
-        return true;
+
+        while (m_running.load(std::memory_order_relaxed) && !m_listening.load(std::memory_order_relaxed))
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+
+        return m_listening.load(std::memory_order_relaxed);
     }
 
     void ToolServer::stop()
@@ -30,6 +35,8 @@ namespace imp::protocol
 
         if (m_thread.joinable())
             m_thread.join();
+
+        m_listening.store(false);
     }
 
     bool ToolServer::hasSubscribers(MessageType type) const
@@ -81,16 +88,15 @@ namespace imp::protocol
             return;
         }
 
+        m_listening.store(true, std::memory_order_relaxed);
+
         std::vector<Connection> connections;
         std::vector<u8> recvScratch;
 
         while (m_running.load(std::memory_order_relaxed))
         {
-            // --- accept new tools ---
             if (TCPSocket incoming = listener.accept(); incoming.isValid())
-            {
                 connections.push_back(Connection{std::move(incoming), FrameReader{}, MessageMask::None});
-            }
 
             // read + process inbound frames
             for (auto it = connections.begin(); it != connections.end(); )

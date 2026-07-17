@@ -149,21 +149,7 @@ namespace imp::protocol
 
     void TCPSocket::setNonBlocking(const bool nonBlocking) const
     {
-        if (!isValid()) return;
-#ifdef _WIN32
-        u_long mode = nonBlocking ? 1 : 0;
-        ::ioctlsocket(static_cast<SocketType>(m_handle), FIONBIO, &mode);
-#else
-        if (int flags = ::fcntl(static_cast<SocketType>(m_handle), F_GETFL, 0); flags != -1)
-        {
-            if (nonBlocking)
-                flags |= O_NONBLOCK;
-            else
-                flags &= ~O_NONBLOCK;
-
-            ::fcntl(static_cast<SocketType>(m_handle), F_SETFL, flags);
-        }
-#endif
+        hidden::setSocketNonBlocking(m_handle, nonBlocking);
     }
 
 }

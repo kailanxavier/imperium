@@ -1,5 +1,6 @@
-#include "protocol/tcp_listener.h"
 #include "protocol/tcp_helpers.h"
+#include "protocol/tcp_listener.h"
+#include "protocol/tcp_socket.h"
 
 namespace imp::protocol
 {
@@ -25,6 +26,8 @@ namespace imp::protocol
         SocketType sock = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
         if (sock == kInvalidSocket) return false;
         m_handle = static_cast<u64>(sock);
+
+        hidden::setSocketNonBlocking(m_handle, true);
 
         int reuse = 1;
         ::setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<char*>(&reuse), sizeof(reuse));

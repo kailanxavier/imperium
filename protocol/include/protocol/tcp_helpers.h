@@ -51,4 +51,19 @@ namespace imp::protocol::hidden
         return errno == EAGAIN || errno == EWOULDBLOCK;
 #endif
     }
+
+    inline void setSocketNonBlocking(u64 handle, bool nonBlocking)
+    {
+        if (handle == kInvalidSocket) return;
+#ifdef _WIN32
+        u_long mode = nonBlocking ? 1 : 0;
+        ::ioctlsocket(static_cast<SocketType>(handle), FIONBIO, &mode);
+#else
+        if (const int flags = ::fcntl(static_cast<SocketType>(handle), F_GETFL, 0); flags != -1)
+        {
+            const int newFlags = nonBlocking ? (flags | O_NONBLOCK) : (flags & ~O_NONBLOCK);
+            ::fcntl(static_cast<SocketType>(handle), F_SETFL, newFlags);
+        }
+#endif
+    }
 }

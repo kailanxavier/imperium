@@ -1,5 +1,6 @@
 #pragma once
 
+#include <new>
 #include <vector>
 #include <atomic>
 
@@ -40,7 +41,10 @@ namespace imp::protocol
 
         std::vector<T> m_buffer;
 
-        alignas(64) std::atomic<size_t> m_head{0};
-        alignas(64) std::atomic<size_t> m_tail{0};
+        alignas(std::hardware_destructive_interference_size)
+        std::atomic<size_t> m_head{ 0 };
+
+        alignas(std::hardware_destructive_interference_size)
+        std::atomic<size_t> m_tail{ 0 };
     };
 }

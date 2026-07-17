@@ -1,1 +1,9 @@
-#include "mem_viewer/mem_viewer.h"
+#include "memv/memv.h"
+#include <cstdio>
+
+int main()
+{
+	printf("mem v");
+
+	return 0;
+}

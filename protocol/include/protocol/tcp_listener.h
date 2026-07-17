@@ -1,9 +1,9 @@
 #pragma once
 #include "int_types.h"
-#include "tcp_socket.h"
 
 namespace imp::protocol
 {
+    class TCPSocket;
     class TCPListener
     {
     public:
