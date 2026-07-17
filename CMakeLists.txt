@@ -32,6 +32,8 @@ set(IMP_GFX_BACKEND "VULKAN" CACHE STRING "Graphics backend: DX11, DX12, VULKAN"
 set_property(CACHE IMP_GFX_BACKEND PROPERTY STRINGS DX11 DX12 VULKAN)
 message(STATUS "Graphics backend: ${IMP_GFX_BACKEND}")
 
+add_subdirectory(protocol)
 add_subdirectory(imp)
+add_subdirectory(tools)
 add_subdirectory(sandbox)
 add_subdirectory(tests)

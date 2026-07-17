@@ -1,8 +1,12 @@
 # Try adding fmt as a git submodule first
 if (EXISTS "${CMAKE_SOURCE_DIR}/vendor/fmt/CMakeLists.txt")
+	set(FMT_TEST OFF CACHE BOOL "" FORCE)
+	set(FMT_DOC OFF CACHE BOOL "" FORCE)
+	set(FMT_INSTALL OFF CACHE BOOL "" FORCE)
+
 	add_subdirectory(
 		"${CMAKE_SOURCE_DIR}/vendor/fmt"
-		"${CMAKE_SOURCE_BIN}/vendor/fmt"
+		"${CMAKE_BINARY_DIR}/vendor/fmt"
 		EXCLUDE_FROM_ALL
 	)
 # Otherwise use FetchContent
