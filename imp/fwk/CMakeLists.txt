@@ -33,6 +33,7 @@ endif()
 
 add_library(imp_fwk STATIC
 	src/fwk.cpp
+    src/layer.cpp
     src/window.cpp
 )
 

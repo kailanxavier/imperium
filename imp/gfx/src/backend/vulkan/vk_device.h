@@ -73,7 +73,7 @@ namespace imp::gfx::vulkan
 		bool createVertexBuffer();
 		bool createIndexBuffer();
 
-		const VkAllocationCallbacks* allocationCallbacks() const
+		[[nodiscard]] const VkAllocationCallbacks* allocationCallbacks() const
 		{
 			return m_hasHostAllocationCallbacks ? &m_hostAllocationCallbacks : nullptr;
 		}

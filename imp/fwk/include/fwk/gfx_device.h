@@ -21,8 +21,7 @@ namespace imp::fwk
 		const char* appName = "App";
 		bool enableValidation = false;
 		bool vsync = true;
-		imp::memory::IAllocator* allocator = nullptr;
-		
+		memory::IAllocator* allocator = nullptr;
 	};
 
 	class IGfxDevice

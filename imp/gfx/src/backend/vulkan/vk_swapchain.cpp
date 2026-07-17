@@ -48,6 +48,12 @@ namespace imp::gfx::vulkan
         destroySwapchainResources();
         destroySyncObjects();
 
+        if (m_swapchain != VK_NULL_HANDLE)
+        {
+            vkDestroySwapchainKHR(m_device, m_swapchain, m_allocationCallbacks);
+            m_swapchain = VK_NULL_HANDLE;
+        }
+
         m_device = VK_NULL_HANDLE;
     }
 
@@ -294,6 +300,7 @@ namespace imp::gfx::vulkan
         destroySwapchainResources();
 
         m_swapchain = newSwapchain;
+
         m_imageFormat = surfaceFormat.format;
         m_extent = extent;
 
@@ -302,7 +309,11 @@ namespace imp::gfx::vulkan
         m_images.resize(actualCount);
         vkGetSwapchainImagesKHR(m_device, m_swapchain, &actualCount, m_images.data());
 
-        if (!createImageViews()) return false;
+        if (!createImageViews())
+        {
+            vkDestroySwapchainKHR(m_device, newSwapchain, nullptr);
+            return false;
+        }
         if (!createDepthResources()) return false;
 
         if (actualCount != m_renderFinishedSemaphores.size())
@@ -380,26 +391,19 @@ namespace imp::gfx::vulkan
 
     void VulkanSwapchain::destroySwapchainResources()
     {
-        destroyDepthResources();
-
-        for (VkImageView view : m_imageViews)
+        for (VkImageView& view : m_imageViews)
         {
             if (view != VK_NULL_HANDLE)
             {
-                vkDeviceWaitIdle(m_device);
                 vkDestroyImageView(m_device, view, m_allocationCallbacks);
                 view = VK_NULL_HANDLE;
             }
         }
 
+        destroyDepthResources();
+
         m_imageViews.clear();
         m_images.clear();
-
-        //if (m_swapchain != VK_NULL_HANDLE)
-        //{
-        //    vkDestroySwapchainKHR(m_device, m_swapchain, m_allocationCallbacks);
-        //    m_swapchain = VK_NULL_HANDLE;
-        //}
     }
 
     void VulkanSwapchain::destroySyncObjects()

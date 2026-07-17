@@ -28,11 +28,12 @@ namespace imp::gfx::vulkan
 		// beginRecording() for this frameIndex
 		void endRecording(u32 frameIndex);
 
-		VkCommandBuffer commandBuffer(u32 frameIndex) const { return m_commandBuffers[frameIndex]; }
+		[[nodiscard]] VkCommandBuffer commandBuffer(u32 frameIndex) const { return m_commandBuffers[frameIndex]; }
 
 	private:
 		VkDevice m_device = VK_NULL_HANDLE;
 		VkCommandPool m_commandPool = VK_NULL_HANDLE;
 		std::array<VkCommandBuffer, kMaxFramesInFlight> m_commandBuffers{};
+		const VkAllocationCallbacks* m_allocationCallbacks = nullptr;
 	};
 }

@@ -25,8 +25,8 @@ namespace imp::gfx::vulkan
 		bool loadFromFile(VkDevice device, const std::string& path, const VkAllocationCallbacks* allocationCallbacks = nullptr);
 		void destroy();
 
-		VkShaderModule handle() const { return m_module; }
-		bool isValid() const { return m_module != VK_NULL_HANDLE; }
+		[[nodiscard]] VkShaderModule handle() const { return m_module; }
+		[[nodiscard]] bool isValid() const { return m_module != VK_NULL_HANDLE; }
 
 	private:
 		VkDevice m_device = VK_NULL_HANDLE;

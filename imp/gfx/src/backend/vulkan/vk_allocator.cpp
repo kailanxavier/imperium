@@ -3,6 +3,7 @@
 #include "vk_allocator.h"
 
 #include <core/memory/allocator_utils.h>
+#include <core/memory/int_types.h>
 
 #include <algorithm>
 #include <cstring>
@@ -16,46 +17,60 @@ namespace imp::gfx::vulkan
 			void* rawPtr;
 			size_t rawSize;
 			size_t requestedSize;
+			u64 magic;
 		};
 
-		void* allocate(imp::memory::IAllocator& allocator, size_t size, size_t alignment)
+		void* allocate(memory::IAllocator& allocator, size_t size, size_t alignment)
 		{
 			const size_t effectiveAlign = std::max(alignment, alignof( AllocationHeader ));
 			const size_t rawSize = size + effectiveAlign + sizeof(AllocationHeader);
 
-			void* raw = allocator.alloc(rawSize, imp::memory::kMinAlignment, imp::memory::MemTag::Renderer);
+			void* raw = allocator.alloc(rawSize, std::max(memory::kMinAlignment, effectiveAlign), memory::MemTag::Renderer);
 
 			if (!raw) return nullptr;
 
-			const uintptr_t basis = reinterpret_cast<uintptr_t>( raw ) + sizeof(AllocationHeader);
-			const uintptr_t alignedAdrr = ( basis + effectiveAlign - 1 ) & ~( effectiveAlign - 1 );
-			void* userPtr = reinterpret_cast<void*>( alignedAdrr );
+			uintptr_t start = reinterpret_cast<uintptr_t>(raw) + sizeof(AllocationHeader);
+			uintptr_t aligned = memory::alignUp(start, effectiveAlign);
+			void* userPtr = reinterpret_cast<void*>(aligned);
 
-			auto* header = reinterpret_cast<AllocationHeader*>( alignedAdrr ) - 1;
+			auto* header = reinterpret_cast<AllocationHeader*>( aligned - sizeof(AllocationHeader) );
 			header->rawPtr = raw;
 			header->rawSize = rawSize;
 			header->requestedSize = size;
+			header->magic = 0xDEADBEEFCAFEBABE;
 
 			return userPtr;
 		}
 
-		void freePtr(imp::memory::IAllocator& allocator, void* userPtr)
+		void freePtr(memory::IAllocator& allocator, void* userPtr)
 		{
-			if (!userPtr) return;
-			auto* header = reinterpret_cast<AllocationHeader*>( userPtr ) - 1;
-			allocator.free(header->rawPtr, header->rawSize, imp::memory::MemTag::Renderer);
+			if (!userPtr)
+				return;
+
+			auto* header =
+				reinterpret_cast<AllocationHeader*>(
+					reinterpret_cast<uintptr_t>(userPtr) - sizeof(AllocationHeader)
+				);
+
+			assert(header->magic == 0xDEADBEEFCAFEBABE && "Magic was garbage");
+
+			allocator.free(
+				header->rawPtr,
+				header->rawSize,
+				memory::MemTag::Renderer
+			);
 		}
 
 		void* VKAPI_CALL vkAllocationFn(void* pUserData, size_t size, size_t alignment, VkSystemAllocationScope)
 		{
 			if (size == 0) return nullptr;
-			auto& allocator = *static_cast<imp::memory::IAllocator*>( pUserData );
+			auto& allocator = *static_cast<memory::IAllocator*>( pUserData );
 			return allocate(allocator, size, alignment);
 		}
 
 		void* VKAPI_CALL vkReallocationFn(void* pUserData, void* pOriginal, size_t size, size_t alignment, VkSystemAllocationScope scope)
 		{
-			auto& allocator = *static_cast<imp::memory::IAllocator*>( pUserData );
+			auto& allocator = *static_cast<memory::IAllocator*>( pUserData );
 			if (!pOriginal) return vkAllocationFn(pUserData, size, alignment, scope);
 
 			if (size == 0)
@@ -68,7 +83,13 @@ namespace imp::gfx::vulkan
 
 			if (!newPtr) return nullptr;
 
-			auto* oldHeader = reinterpret_cast<AllocationHeader*>( pOriginal ) - 1;
+			auto* oldHeader =
+				reinterpret_cast<AllocationHeader*>(
+					reinterpret_cast<uintptr_t>(pOriginal) - sizeof(AllocationHeader)
+				);
+
+			assert(oldHeader->magic == 0xDEADBEEFCAFEBABE && "Magic was garbage");
+
 			const size_t copySize = std::min(oldHeader->requestedSize, size);
 			std::memcpy(newPtr, pOriginal, copySize);
 
@@ -78,12 +99,12 @@ namespace imp::gfx::vulkan
 
 		void VKAPI_CALL vkFreeFn(void* pUserData, void* pMemory)
 		{
-			auto& allocator = *static_cast<imp::memory::IAllocator*>( pUserData );
+			auto& allocator = *static_cast<memory::IAllocator*>( pUserData );
 			freePtr(allocator, pMemory);
 		}
 	}
 
-	VkAllocationCallbacks makeVulkanAllocationCallbacks(imp::memory::IAllocator& allocator) noexcept
+	VkAllocationCallbacks makeVulkanAllocationCallbacks(memory::IAllocator& allocator) noexcept
 	{
 		VkAllocationCallbacks callbacks{};
 		callbacks.pUserData = &allocator;
