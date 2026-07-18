@@ -8,6 +8,24 @@ namespace imp::protocol
         hidden::initialiseNetworkStack();
     }
 
+    TCPSocket::TCPSocket(TCPSocket&& other) noexcept
+        : m_handle(other.m_handle), m_sendBuffer(std::move(other.m_sendBuffer))
+    {
+        other.m_handle = kInvalidSocket;
+    }
+
+    TCPSocket& TCPSocket::operator=(TCPSocket && other) noexcept
+    {
+        if (this != &other)
+        {
+            close();
+            m_handle = other.m_handle;
+            m_sendBuffer = std::move(other.m_sendBuffer);
+            other.m_handle = kInvalidSocket;
+        }
+        return *this;
+    }
+
     TCPSocket::~TCPSocket()
     {
         close();

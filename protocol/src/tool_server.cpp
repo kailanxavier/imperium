@@ -37,6 +37,19 @@ namespace imp::protocol
             m_thread.join();
 
         m_listening.store(false);
+
+        for (auto& count : m_subscriberCounts)
+            count.store(0, std::memory_order_relaxed);
+
+        for (auto& channel : m_channels)
+        {
+            std::lock_guard lock(channel.mutex);
+            channel.frames.clear();
+        }
+
+        InboundCommand discard;
+        while (m_inboundCommands.tryPop(discard)) {}
+
     }
 
     bool ToolServer::hasSubscribers(MessageType type) const

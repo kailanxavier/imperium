@@ -12,6 +12,12 @@ namespace imp::protocol
         TCPSocket();
         ~TCPSocket();
 
+        TCPSocket(const TCPSocket&) = delete;
+        TCPSocket& operator=(const TCPSocket&) = delete;
+
+        TCPSocket(TCPSocket&& other) noexcept;
+        TCPSocket& operator=(TCPSocket&& other) noexcept;
+
         // Used by tools to connect to engine
         bool connect(const char* address, u16 port);
 
@@ -32,12 +38,10 @@ namespace imp::protocol
         static constexpr size_t kMaxSendBufferBytes = 4 * 1024 * 1024; // 4 MiB backlog cap
 
     private:
-        // OS specific socket handle
         friend class TCPListener;
         explicit TCPSocket(u64 handle) : m_handle(handle) {}
 
         u64 m_handle;
-
         std::vector<u8> m_sendBuffer;
     };
 }
