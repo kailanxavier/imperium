@@ -3,6 +3,8 @@
 #include <vulkan/vulkan.h>
 #include <string>
 
+#include <core/fs/vfs.h>
+
 namespace imp::gfx::vulkan
 {
 	class VulkanShaderModule
@@ -17,12 +19,10 @@ namespace imp::gfx::vulkan
 		VulkanShaderModule(VulkanShaderModule&& other) noexcept;
 		VulkanShaderModule& operator=(VulkanShaderModule&& other) noexcept;
 
-		// NOTE: this read directly off the OS filesystem rather than
-		// through the engine's asset/VFS layer because there isn't one 
-		// wired into gfx at the moment. If/when shader loading should
-		// go through the VFS instead, this is the only place we will
-		// have to change.
-		bool loadFromFile(VkDevice device, const std::string& path, const VkAllocationCallbacks* allocationCallbacks = nullptr);
+		// Load SPIR-V bytecode through the engine's VFS rather than the OS
+		// filesystem directly, so shader assets are subject to the same
+		// mount/override rules as everything else (that is to come)
+		bool loadFromFile(VkDevice device, const fs::VirtualFileSystem& vfs, const fs::Path& path, const VkAllocationCallbacks* allocationCallbacks);
 		void destroy();
 
 		[[nodiscard]] VkShaderModule handle() const { return m_module; }

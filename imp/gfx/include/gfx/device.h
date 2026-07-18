@@ -7,8 +7,6 @@
 #include <core/memory/int_types.h>
 #include <memory>
 
-#include "../../../../../../../../Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/System/Library/Frameworks/IOKit.framework/Headers/IOSharedLock.h"
-
 namespace imp::fwk { class Window; }
 namespace imp::memory { class IAllocator; }
 

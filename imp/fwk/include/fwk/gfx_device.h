@@ -3,6 +3,7 @@
 #include <core/memory/int_types.h>
 #include <core/memory/iallocator.h>
 
+namespace imp::fs { class VirtualFileSystem; }
 namespace imp::fwk
 {
 	class Window;
@@ -21,6 +22,7 @@ namespace imp::fwk
 		const char* appName = "App";
 		bool enableValidation = false;
 		bool vsync = true;
+		const fs::VirtualFileSystem* vfs = nullptr;
 		memory::IAllocator* allocator = nullptr;
 	};
 

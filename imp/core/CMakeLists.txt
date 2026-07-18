@@ -27,6 +27,8 @@ endif()
 add_library(imp_core STATIC
 	src/core.cpp
 	include/core/log/log.cpp
+	include/core/fs/vfs.cpp
+	include/core/platform/exe_path.cpp
 )
 
 target_include_directories(imp_core

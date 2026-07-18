@@ -99,6 +99,8 @@ namespace imp::gfx::vulkan
 
 	bool VulkanDevice::initialise(const fwk::GfxDeviceDesc& desc)
 	{
+		m_vfs = desc.vfs;
+
 		if (!desc.window)
 		{
 			LOG_ERROR("Vulkan", "initialise() requires a window");
@@ -427,6 +429,7 @@ namespace imp::gfx::vulkan
 	{
 		VulkanGraphicsPipelineCreateInfo info{};
 		info.device = m_device;
+		info.vfs = m_vfs;
 		info.vertexShaderPath = "shaders/triangle.vert.spv";
 		info.fragmentShaderPath = "shaders/triangle.frag.spv";
 		info.colourAttachmentFormat = m_swapchain->imageFormat();

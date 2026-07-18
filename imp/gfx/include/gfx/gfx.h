@@ -4,7 +4,7 @@
 
 namespace imp::gfx
 {
-	std::unique_ptr<imp::fwk::IGfxDevice> createDevice();
+	std::unique_ptr<fwk::IGfxDevice> createDevice();
 
 	const char* Version();
 	const char* ActiveBackend();

@@ -5,6 +5,9 @@
 #include <fwk/gfx_device.h>
 #include <gfx/gfx.h>
 
+#include <core/fs/vfs.h>
+#include <core/platform/exe_path.h>
+
 #include <protocol/tool_server.h>
 #include <protocol/memory_telemetry.h>
 
@@ -16,6 +19,14 @@ int main()
 	LOG_INFO("Sandbox", "App starting...");
 	{
 	imp::memory::HeapAllocator gfxHostAllocator("GfxHost");
+	imp::fs::VirtualFileSystem vfsHost;
+
+	const auto shadersPath = (imp::platform::executableDir() / "shaders").string();
+	if (!vfsHost.mount("shaders/", shadersPath, 0, true, true))
+	{
+		LOG_ERROR("Sandbox", "Failed to mount shaders");
+		return 1;
+	}
 
 	imp::fwk::Window window;
 	imp::fwk::WindowDesc windowDesc{};
@@ -35,6 +46,7 @@ int main()
 	gfxDesc.window = &window;
 	gfxDesc.appName = "Sandbox";
 	gfxDesc.allocator = &gfxHostAllocator;
+	gfxDesc.vfs = &vfsHost;
 #ifndef NDEBUG
 	gfxDesc.enableValidation = true;
 #endif

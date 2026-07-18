@@ -9,6 +9,7 @@
 #include <optional>
 #include <vector>
 
+namespace imp::fs { class VirtualFileSystem; }
 namespace imp::gfx::vulkan
 {
 	class VulkanSwapchain;
@@ -58,6 +59,8 @@ namespace imp::gfx::vulkan
 		[[nodiscard]] const QueueFamilyIndices& getQueueFamilies() const { return m_queueFamilies; }
 
 		[[nodiscard]] VulkanSwapchain* getSwapchain() const { return m_swapchain.get(); }
+		[[nodiscard]] const fs::VirtualFileSystem& getVfs() const { return *m_vfs; }
+
 	private:
 		bool createInstance(const fwk::GfxDeviceDesc& desc);
 		bool setupDebugMessenger();
@@ -109,6 +112,8 @@ namespace imp::gfx::vulkan
 		bool m_minimised = false;
 
 		bool m_frameActive = false;
+
+		const fs::VirtualFileSystem* m_vfs = nullptr;
 
 		// TODO:
 		// This will be removed once everything is working,

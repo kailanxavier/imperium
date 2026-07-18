@@ -11,17 +11,19 @@
 #include <vulkan/vulkan.h>
 #include <string>
 
+namespace imp::fs { class VirtualFileSystem; }
 namespace imp::gfx::vulkan
 {
 	struct VulkanGraphicsPipelineCreateInfo
 	{
 		VkDevice device = VK_NULL_HANDLE;
+		const fs::VirtualFileSystem* vfs = nullptr;
+
 		std::string vertexShaderPath;
 		std::string fragmentShaderPath;
 
 		VkFormat colourAttachmentFormat = VK_FORMAT_UNDEFINED;
 		VkFormat depthAttachmentFormat = VK_FORMAT_UNDEFINED;
-
 		const VkAllocationCallbacks* allocationCallbacks = nullptr;
 	};
 

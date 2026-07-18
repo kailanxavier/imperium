@@ -5,6 +5,7 @@
 #include <core/log/log.h>
 #include <core/math/mat4.h>
 #include <core/memory/int_types.h>
+#include <core/fs/vfs.h>
 
 namespace imp::gfx::vulkan
 {
@@ -18,12 +19,18 @@ namespace imp::gfx::vulkan
 		m_device = info.device;
 		m_allocationCallbacks = info.allocationCallbacks;
 
+		if (!info.vfs)
+		{
+			LOG_ERROR("Vulkan", "VulkanGraphicsPipelineCreateInfo::vfs was nullptr");
+			return false;
+		}
+
 		VulkanShaderModule vertModule;
-		if (!vertModule.loadFromFile(m_device, info.vertexShaderPath, m_allocationCallbacks))
+		if (!vertModule.loadFromFile(m_device, *info.vfs, info.vertexShaderPath, m_allocationCallbacks))
 			return false;
 
 		VulkanShaderModule fragModule;
-		if (!fragModule.loadFromFile(m_device, info.fragmentShaderPath, m_allocationCallbacks))
+		if (!fragModule.loadFromFile(m_device, *info.vfs, info.fragmentShaderPath, m_allocationCallbacks))
 			return false;
 
 		VkPipelineShaderStageCreateInfo stages[2]{};
