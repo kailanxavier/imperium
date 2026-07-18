@@ -1,11 +1,11 @@
-#if defined(IMP_GFX_VULKAN)
-
 #include "vk_pipeline.h"
 #include "vk_shader.h"
 #include "vk_vertex.h"
 
 #include <core/log/log.h>
+#include <core/math/mat4.h>
 #include <core/memory/int_types.h>
+#include <core/fs/vfs.h>
 
 namespace imp::gfx::vulkan
 {
@@ -19,12 +19,18 @@ namespace imp::gfx::vulkan
 		m_device = info.device;
 		m_allocationCallbacks = info.allocationCallbacks;
 
+		if (!info.vfs)
+		{
+			LOG_ERROR("Vulkan", "VulkanGraphicsPipelineCreateInfo::vfs was nullptr");
+			return false;
+		}
+
 		VulkanShaderModule vertModule;
-		if (!vertModule.loadFromFile(m_device, info.vertexShaderPath, m_allocationCallbacks))
+		if (!vertModule.loadFromFile(m_device, *info.vfs, info.vertexShaderPath, m_allocationCallbacks))
 			return false;
 
 		VulkanShaderModule fragModule;
-		if (!fragModule.loadFromFile(m_device, info.fragmentShaderPath, m_allocationCallbacks))
+		if (!fragModule.loadFromFile(m_device, *info.vfs, info.fragmentShaderPath, m_allocationCallbacks))
 			return false;
 
 		VkPipelineShaderStageCreateInfo stages[2]{};
@@ -69,9 +75,9 @@ namespace imp::gfx::vulkan
 
 		// TODO: revisit this once there's an actual 3d pipeline with
 		// a defined coordinate convention (once forward has been defined essentially)
-		rasterizer.cullMode = VK_CULL_MODE_NONE;
+		rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
 		rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
-		rasterizer.lineWidth = 1.0f;
+		rasterizer.lineWidth = 1.f;
 
 		VkPipelineMultisampleStateCreateInfo multisampling{};
 		multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
@@ -88,8 +94,30 @@ namespace imp::gfx::vulkan
 		colourBlend.attachmentCount = 1;
 		colourBlend.pAttachments = &blendAttachment;
 
+		VkPipelineDepthStencilStateCreateInfo depthStencil{};
+		depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+		if (info.depthAttachmentFormat != VK_FORMAT_UNDEFINED)
+		{
+			depthStencil.depthTestEnable = VK_TRUE;
+			depthStencil.depthWriteEnable = VK_TRUE;
+			depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
+		}
+		depthStencil.depthBoundsTestEnable = VK_FALSE;
+		depthStencil.stencilTestEnable = VK_FALSE;
+
+
+		static_assert( sizeof(imp::math::Mat4f) == 64,
+			"Mat4f layout changed - VulkanDevice's push-constant upload assumes 4 tightly packed Vec4f columns" );
+
+		VkPushConstantRange pushConstantRange{};
+		pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+		pushConstantRange.offset = 0;
+		pushConstantRange.size = sizeof(imp::math::Mat4f);
+
 		VkPipelineLayoutCreateInfo layoutInfo{};
 		layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+		layoutInfo.pushConstantRangeCount = 1;
+		layoutInfo.pPushConstantRanges = &pushConstantRange;
 
 		if (vkCreatePipelineLayout(m_device, &layoutInfo, m_allocationCallbacks, &m_layout) != VK_SUCCESS)
 		{
@@ -101,6 +129,7 @@ namespace imp::gfx::vulkan
 		renderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
 		renderingCreateInfo.colorAttachmentCount = 1;
 		renderingCreateInfo.pColorAttachmentFormats = &info.colourAttachmentFormat;
+		renderingCreateInfo.depthAttachmentFormat = info.depthAttachmentFormat;
 
 		VkGraphicsPipelineCreateInfo pipelineInfo{};
 		pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
@@ -112,6 +141,7 @@ namespace imp::gfx::vulkan
 		pipelineInfo.pViewportState = &viewportState;
 		pipelineInfo.pRasterizationState = &rasterizer;
 		pipelineInfo.pMultisampleState = &multisampling;
+		pipelineInfo.pDepthStencilState = &depthStencil;
 		pipelineInfo.pColorBlendState = &colourBlend;
 		pipelineInfo.pDynamicState = &dynamicState;
 		pipelineInfo.layout = m_layout;
@@ -148,7 +178,4 @@ namespace imp::gfx::vulkan
 			m_device = VK_NULL_HANDLE;
 		}
 	}
-
 }
-
-#endif

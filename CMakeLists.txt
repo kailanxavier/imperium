@@ -21,7 +21,7 @@ add_library(imperium_compile_options INTERFACE
         tests/math/math_test_helper.h)
 target_compile_options(imperium_compile_options INTERFACE
     $<$<CXX_COMPILER_ID:MSVC>:
-        /W4 /WX /MP /permissive- /Zc:__cplusplus /wd4201 /Zc:preprocessor
+        /W4 /WX /MP /permissive- /Zc:__cplusplus /wd4201 /Zc:preprocessor /wd4324
     >
     $<$<CXX_COMPILER_ID:GNU,Clang>:
         -Wall -Wextra -Werror -Wpedantic
@@ -32,6 +32,8 @@ set(IMP_GFX_BACKEND "VULKAN" CACHE STRING "Graphics backend: DX11, DX12, VULKAN"
 set_property(CACHE IMP_GFX_BACKEND PROPERTY STRINGS DX11 DX12 VULKAN)
 message(STATUS "Graphics backend: ${IMP_GFX_BACKEND}")
 
+add_subdirectory(protocol)
 add_subdirectory(imp)
+add_subdirectory(tools)
 add_subdirectory(sandbox)
 add_subdirectory(tests)

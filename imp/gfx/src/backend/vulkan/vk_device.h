@@ -3,14 +3,13 @@
 #include <fwk/gfx_device.h>
 
 #include <vulkan/vulkan.h>
-#include <vma/vk_mem_alloc.h>
-
-#include <core/memory/int_types.h>
+#include <vk_mem_alloc.h>
 
 #include <memory>
 #include <optional>
 #include <vector>
 
+namespace imp::fs { class VirtualFileSystem; }
 namespace imp::gfx::vulkan
 {
 	class VulkanSwapchain;
@@ -60,6 +59,8 @@ namespace imp::gfx::vulkan
 		[[nodiscard]] const QueueFamilyIndices& getQueueFamilies() const { return m_queueFamilies; }
 
 		[[nodiscard]] VulkanSwapchain* getSwapchain() const { return m_swapchain.get(); }
+		[[nodiscard]] const fs::VirtualFileSystem& getVfs() const { return *m_vfs; }
+
 	private:
 		bool createInstance(const fwk::GfxDeviceDesc& desc);
 		bool setupDebugMessenger();
@@ -71,8 +72,9 @@ namespace imp::gfx::vulkan
 		bool createPipeline();
 		bool createAllocator();
 		bool createVertexBuffer();
+		bool createIndexBuffer();
 
-		const VkAllocationCallbacks* allocationCallbacks() const
+		[[nodiscard]] const VkAllocationCallbacks* allocationCallbacks() const
 		{
 			return m_hasHostAllocationCallbacks ? &m_hostAllocationCallbacks : nullptr;
 		}
@@ -97,6 +99,8 @@ namespace imp::gfx::vulkan
 
 		VmaAllocator m_vmaAllocator = VK_NULL_HANDLE;
 		std::unique_ptr<VulkanBuffer> m_vertexBuffer;
+		std::unique_ptr<VulkanBuffer> m_indexBuffer;
+		u32 m_indexCount = 0;
 
 		VkAllocationCallbacks m_hostAllocationCallbacks{};
 		bool m_hasHostAllocationCallbacks = false;
@@ -108,5 +112,13 @@ namespace imp::gfx::vulkan
 		bool m_minimised = false;
 
 		bool m_frameActive = false;
+
+		const fs::VirtualFileSystem* m_vfs = nullptr;
+
+		// TODO:
+		// This will be removed once everything is working,
+		// for now it's just a proof of life that the MVP
+		// push-constant pipeline is actually live
+		float m_rotationAngle = 0.f;
 	};
 }

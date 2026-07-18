@@ -1,5 +1,3 @@
-#if defined(IMP_GFX_VULKAN)
-
 #include "vk_shader.h"
 
 #include <core/log/log.h>
@@ -35,42 +33,40 @@ namespace imp::gfx::vulkan
 		return *this;
 	}
 
-	bool VulkanShaderModule::loadFromFile(VkDevice device, const std::string& path, const VkAllocationCallbacks* allocationCallbacks)
+	bool VulkanShaderModule::loadFromFile(VkDevice device,
+		const fs::VirtualFileSystem& vfs,
+		const fs::Path& path, const VkAllocationCallbacks* allocationCallbacks)
 	{
-		std::ifstream file(path, std::ios::binary | std::ios::ate);
-		if (!file.is_open())
+		m_allocationCallbacks = allocationCallbacks;
+		m_device = device;
+
+		fs::Bytes raw;
+		if (!vfs.readEntireFile(path, raw))
 		{
-			LOG_ERROR("Vulkan", "Failed to open shader file: {}", path.c_str());
+			LOG_ERROR("Vulkan", "Failed to read shader file: {}", path.c_str());
 			return false;
 		}
 
-		std::streamsize size = file.tellg();
-		if (size <= 0 || ( size % 4 ) != 0)
+		if (raw.empty() || (raw.size() % 4) != 0)
 		{
 			LOG_ERROR("Vulkan", "Shader file has invalid size, not a valid SPIR-V binary: {}", path.c_str());
 			return false;
 		}
 
-		file.seekg(0, std::ios::beg);
-		std::vector<u32> code(static_cast<size_t>( size ) / sizeof(u32));
-		if (!file.read(reinterpret_cast<char*>( code.data() ), size))
-		{
-			LOG_ERROR("Vulkan", "Failed to read shader file {}: ", path.c_str());
-			return false;
-		}
+		std::vector<u32> code(raw.size() / sizeof(u32));
+		std::memcpy(code.data(), raw.data(), raw.size());
 
 		VkShaderModuleCreateInfo createInfo{};
 		createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-		createInfo.codeSize = static_cast<size_t>( size );
+		createInfo.codeSize = raw.size();
 		createInfo.pCode = code.data();
 
-		if (vkCreateShaderModule(device, &createInfo, allocationCallbacks, &m_module) != VK_SUCCESS)
+		if (vkCreateShaderModule(m_device, &createInfo, m_allocationCallbacks, &m_module) != VK_SUCCESS)
 		{
 			LOG_ERROR("Vulkan", "vkCreateShaderModule failed {}", path.c_str());
 			return false;
 		}
 
-		m_device = device;
 		return true;
 	}
 
@@ -78,12 +74,10 @@ namespace imp::gfx::vulkan
 	{
 		if (m_module != VK_NULL_HANDLE)
 		{
-			vkDestroyShaderModule(m_device, m_module, nullptr);
+			vkDestroyShaderModule(m_device, m_module, m_allocationCallbacks);
 			m_module = VK_NULL_HANDLE;
 		}
 		m_device = VK_NULL_HANDLE;
 	}
 	
 }
-
-#endif

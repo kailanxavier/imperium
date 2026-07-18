@@ -1,5 +1,6 @@
 #pragma once
 
+#include <core/math/vec3.h>
 #include <vulkan/vulkan.h>
 
 #include <array>
@@ -9,8 +10,8 @@ namespace imp::gfx::vulkan
 {
 	struct Vertex
 	{
-		float position[2];
-		float colour[3];
+		math::Vec3f position;
+		math::Vec3f colour;
 
 		static VkVertexInputBindingDescription bindingDescription()
 		{
@@ -27,7 +28,7 @@ namespace imp::gfx::vulkan
 
 			attrs[0].location = 0;
 			attrs[0].binding = 0;
-			attrs[0].format = VK_FORMAT_R32G32_SFLOAT;
+			attrs[0].format = VK_FORMAT_R32G32B32_SFLOAT;
 			attrs[0].offset = offsetof(Vertex, position);
 
 			attrs[1].location = 1;

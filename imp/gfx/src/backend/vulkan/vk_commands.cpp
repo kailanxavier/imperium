@@ -1,5 +1,3 @@
-#if defined(IMP_GFX_VULKAN)
-
 #include "vk_commands.h"
 
 #include <core/log/log.h>
@@ -14,6 +12,7 @@ namespace imp::gfx::vulkan
 	bool VulkanCommandContext::create(VkDevice device, u32 queueFamily, const VkAllocationCallbacks* allocationCallbacks)
 	{
 		m_device = device;
+		m_allocationCallbacks = allocationCallbacks;
 
 		VkCommandPoolCreateInfo poolInfo{};
 		poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
@@ -53,7 +52,7 @@ namespace imp::gfx::vulkan
 
 			// Destroying the pool implicitly frees all command buffers
 			// allocated from it; no need to vkFreeCommandBuffers first.
-			vkDestroyCommandPool(m_device, m_commandPool, nullptr);
+			vkDestroyCommandPool(m_device, m_commandPool, m_allocationCallbacks);
 			m_commandPool = VK_NULL_HANDLE;
 			m_commandBuffers.fill(VK_NULL_HANDLE);
 		}
@@ -81,5 +80,3 @@ namespace imp::gfx::vulkan
 		vkEndCommandBuffer(m_commandBuffers[frameIndex]);
 	}
 }
-
-#endif

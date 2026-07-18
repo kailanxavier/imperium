@@ -16,7 +16,6 @@ namespace imp::fwk
 		destroy();
 	}
 
-
 	bool Window::create(const WindowDesc& desc)
 	{
 		if (m_handle)

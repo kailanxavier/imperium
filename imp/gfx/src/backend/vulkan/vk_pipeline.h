@@ -11,16 +11,19 @@
 #include <vulkan/vulkan.h>
 #include <string>
 
+namespace imp::fs { class VirtualFileSystem; }
 namespace imp::gfx::vulkan
 {
 	struct VulkanGraphicsPipelineCreateInfo
 	{
 		VkDevice device = VK_NULL_HANDLE;
+		const fs::VirtualFileSystem* vfs = nullptr;
+
 		std::string vertexShaderPath;
 		std::string fragmentShaderPath;
 
 		VkFormat colourAttachmentFormat = VK_FORMAT_UNDEFINED;
-
+		VkFormat depthAttachmentFormat = VK_FORMAT_UNDEFINED;
 		const VkAllocationCallbacks* allocationCallbacks = nullptr;
 	};
 
@@ -36,9 +39,9 @@ namespace imp::gfx::vulkan
 		bool create(const VulkanGraphicsPipelineCreateInfo& info);
 		void destroy();
 
-		VkPipeline pipeline() const { return m_pipeline; }
-		VkPipelineLayout layout() const { return m_layout; }
-		bool isValid() const { return m_pipeline != VK_NULL_HANDLE; }
+		[[nodiscard]] VkPipeline pipeline() const { return m_pipeline; }
+		[[nodiscard]] VkPipelineLayout layout() const { return m_layout; }
+		[[nodiscard]] bool isValid() const { return m_pipeline != VK_NULL_HANDLE; }
 
 	private:
 		VkDevice m_device = VK_NULL_HANDLE;

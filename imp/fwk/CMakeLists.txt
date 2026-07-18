@@ -33,7 +33,9 @@ endif()
 
 add_library(imp_fwk STATIC
 	src/fwk.cpp
- "include/fwk/window.h" "src/window.cpp")
+    src/layer.cpp
+    src/window.cpp
+)
 
 target_include_directories(imp_fwk
 	PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include

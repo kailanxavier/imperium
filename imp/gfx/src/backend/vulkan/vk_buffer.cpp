@@ -1,8 +1,5 @@
-#if defined(IMP_GFX_VULKAN)
-
 #include "vk_buffer.h"
 #include <core/log/log.h>
-
 
 namespace imp::gfx::vulkan
 {
@@ -59,5 +56,3 @@ namespace imp::gfx::vulkan
 		m_allocator = VK_NULL_HANDLE;
 	}
 }
-
-#endif

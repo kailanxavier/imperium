@@ -1,7 +1,7 @@
 #pragma once
 
 #include <vulkan/vulkan.h>
-#include <vma/vk_mem_alloc.h>
+#include <vk_mem_alloc.h>
 
 namespace imp::gfx::vulkan
 {
@@ -26,10 +26,10 @@ namespace imp::gfx::vulkan
 		bool create(const VulkanBufferCreateInfo& info);
 		void destroy();
 
-		VkBuffer handle() const { return m_buffer; }
-		void* mappedData() const { return m_mappedData; }
-		VkDeviceSize size() const { return m_size; }
-		bool isValid() const { return m_buffer != VK_NULL_HANDLE; }
+		[[nodiscard]] VkBuffer handle() const { return m_buffer; }
+		[[nodiscard]] void* mappedData() const { return m_mappedData; }
+		[[nodiscard]] VkDeviceSize size() const { return m_size; }
+		[[nodiscard]] bool isValid() const { return m_buffer != VK_NULL_HANDLE; }
 
 	private:
 		VmaAllocator m_allocator = VK_NULL_HANDLE;

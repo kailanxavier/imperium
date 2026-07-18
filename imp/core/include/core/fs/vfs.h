@@ -31,30 +31,30 @@ namespace imp::fs
 
 		void unmountAll();
 
-		const std::vector<MountPoint>& mounts() const { return m_mounts; }
+		[[nodiscard]] const std::vector<MountPoint>& mounts() const { return m_mounts; }
 
 		// Queries
-		bool exists(const Path& virtualPath) const;
-		bool isDirectory(const Path& virtualPath) const;
+		[[nodiscard]] bool exists(const Path& virtualPath) const;
+		[[nodiscard]] bool isDirectory(const Path& virtualPath) const;
 
 		bool readEntireFile(const Path& virtualPath, Bytes& outData) const;
 		bool readEntireFileText(const Path& virtualPath, std::string& outText) const;
 
-		bool writeEntireFile(const Path& virtualPath, const Bytes& data, bool createDirs = true) const;
-		bool writeEntireFileText(const Path& virtualPath, const std::string& text, bool createDirs = true) const;
+		[[nodiscard]] bool writeEntireFile(const Path& virtualPath, const Bytes& data, bool createDirs = true) const;
+		[[nodiscard]] bool writeEntireFileText(const Path& virtualPath, const std::string& text, bool createDirs = true) const;
 
-		bool Delete(const Path& virtualPath) const;
-		bool createDirectory(const Path& virtualDir) const;
+		[[nodiscard]] bool Delete(const Path& virtualPath) const;
+		[[nodiscard]] bool createDirectory(const Path& virtualDir) const;
 
-		std::vector<std::string> listFiles(const Path& virtualDir, bool recursive = false) const;
+		[[nodiscard]] std::vector<std::string> listFiles(const Path& virtualDir, bool recursive = false) const;
 
-		std::string resolvePhysicalPath(const Path& virtualPath, bool forWrite = false) const;
+		[[nodiscard]] std::string resolvePhysicalPath(const Path& virtualPath, bool forWrite = false) const;
 		static std::string normalisePath(const std::string& p);
 
 	private:
 		std::vector<MountPoint> m_mounts;
 		void sortMountsByPriority();
 
-		std::vector<const MountPoint*> matchingMounts(const std::string& normalisedVirtualPath) const;
+		[[nodiscard]] std::vector<const MountPoint*> matchingMounts(const std::string& normalisedVirtualPath) const;
 	};
 }

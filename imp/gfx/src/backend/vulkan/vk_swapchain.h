@@ -3,11 +3,11 @@
 #include <gfx/swapchain.h>
 
 #include <vulkan/vulkan.h>
-#include <core/memory/int_types.h>
-
-#include "vk_config.h"
+#include <vk_mem_alloc.h>
 
 #include <vector>
+
+#include "core/memory/heap_allocator.h"
 
 namespace imp::gfx::vulkan
 {
@@ -24,6 +24,7 @@ namespace imp::gfx::vulkan
         u32 height = 0;
         bool vsync = true;
 
+        VmaAllocator allocator = VK_NULL_HANDLE;
         const VkAllocationCallbacks* allocationCallbacks = nullptr;
     };
 
@@ -58,6 +59,10 @@ namespace imp::gfx::vulkan
         [[nodiscard]] VkImage currentImage() const { return m_images[m_currentImageIndex]; }
         [[nodiscard]] VkImageView currentImageView() const { return m_imageViews[m_currentImageIndex]; }
 
+        [[nodiscard]] VkImageView depthImageView() const { return m_depthImageView; }
+        [[nodiscard]] VkImage depthImage() const { return m_depthImage; }
+        [[nodiscard]] VkFormat depthFormat() const { return m_depthFormat; }
+
         // Sync objects the caller must wait on / signal when submitting
         // the command buffer for this frame (see VulkanDevice::endFrame
         // once command submission exists)
@@ -82,9 +87,13 @@ namespace imp::gfx::vulkan
         void destroySyncObjects();
         void recreate();
 
-        SupportDetails querySupport() const;
+        bool pickDepthFormat();
+        bool createDepthResources();
+        void destroyDepthResources();
+
+        [[nodiscard]] SupportDetails querySupport() const;
         static VkSurfaceFormatKHR chooseFormat(const std::vector<VkSurfaceFormatKHR>& formats);
-        VkPresentModeKHR choosePresentMode(const std::vector<VkPresentModeKHR>& modes) const;
+        [[nodiscard]] VkPresentModeKHR choosePresentMode(const std::vector<VkPresentModeKHR>& modes) const;
         static VkExtent2D chooseExtent(const VkSurfaceCapabilitiesKHR& caps, u32 width, u32 height);
 
         VkPhysicalDevice m_physicalDevice = VK_NULL_HANDLE;
@@ -95,12 +104,19 @@ namespace imp::gfx::vulkan
         VkQueue m_graphicsQueue = VK_NULL_HANDLE;
         VkQueue m_presentQueue = VK_NULL_HANDLE;
         bool m_vsync = true;
+        VmaAllocator m_allocator = VK_NULL_HANDLE;
+        const VkAllocationCallbacks* m_allocationCallbacks = nullptr;
 
         VkSwapchainKHR m_swapchain = VK_NULL_HANDLE;
         VkFormat m_imageFormat = VK_FORMAT_UNDEFINED;
         VkExtent2D m_extent{};
         std::vector<VkImage> m_images;
         std::vector<VkImageView> m_imageViews;
+
+        VkFormat m_depthFormat = VK_FORMAT_UNDEFINED;
+        VkImage m_depthImage = VK_NULL_HANDLE;
+        VmaAllocation m_depthImageAllocation = VK_NULL_HANDLE;
+        VkImageView m_depthImageView = VK_NULL_HANDLE;
 
         std::vector<VkSemaphore> m_imageAvailableSemaphores; // sized kMaxFramesInFlight
         std::vector<VkSemaphore> m_renderFinishedSemaphores; // sized to image count

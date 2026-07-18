@@ -4,14 +4,29 @@
 #include <fwk/window.h>
 #include <fwk/gfx_device.h>
 #include <gfx/gfx.h>
-#include <iostream>
+
+#include <core/fs/vfs.h>
+#include <core/platform/exe_path.h>
+
+#include <protocol/tool_server.h>
+#include <protocol/memory_telemetry.h>
 
 int main()
 {
 	imp::log::Logger::get().initialise();
-	LOG_INFO("Sandbox", "App starting...");
+	imp::protocol::ToolServer::instance().start(47810);
 
+	LOG_INFO("Sandbox", "App starting...");
+	{
 	imp::memory::HeapAllocator gfxHostAllocator("GfxHost");
+	imp::fs::VirtualFileSystem vfsHost;
+
+	const auto shadersPath = (imp::platform::executableDir() / "shaders").string();
+	if (!vfsHost.mount("shaders/", shadersPath, 0, true, true))
+	{
+		LOG_ERROR("Sandbox", "Failed to mount shaders");
+		return 1;
+	}
 
 	imp::fwk::Window window;
 	imp::fwk::WindowDesc windowDesc{};
@@ -31,6 +46,7 @@ int main()
 	gfxDesc.window = &window;
 	gfxDesc.appName = "Sandbox";
 	gfxDesc.allocator = &gfxHostAllocator;
+	gfxDesc.vfs = &vfsHost;
 #ifndef NDEBUG
 	gfxDesc.enableValidation = true;
 #endif
@@ -47,12 +63,37 @@ int main()
 	LOG_INFO("Sandbox", "Running with {} device, window ({}, {})",
 		gfx->getApiName(), window.width(), window.height());
 
+	auto lastTelemetryPublish = std::chrono::steady_clock::now();
+	constexpr auto kTelemetryInterval = std::chrono::milliseconds(200);
+
 	while (!window.shouldClose())
 	{
 		window.pollEvents();
 
 		if (window.isMinimised())
 			continue; // skip rendering while minimised
+
+		const auto now = std::chrono::steady_clock::now();
+		if (now - lastTelemetryPublish >= kTelemetryInterval &&
+			imp::protocol::ToolServer::instance().hasSubscribers(imp::protocol::MessageType::MemoryTelemetry))
+		{
+			const auto snap = gfxHostAllocator.statsSnapshot();
+
+			imp::protocol::AllocatorStatsPayload payload;
+			payload.name            = std::string(gfxHostAllocator.name());
+			payload.totalAllocated  = snap.totalAllocated;
+			payload.totalFreed      = snap.totalFreed;
+			payload.currentUsed     = snap.currentUsed;
+			payload.peakUsed        = snap.peakUsed;
+			payload.allocationCount = snap.allocationCount;
+			payload.freeCount       = snap.freeCount;
+			payload.tagBytes.assign(std::begin(snap.tagBytes), std::end(snap.tagBytes));
+
+			const auto bytes = imp::protocol::serialiseMemoryTelemetry({payload});
+			imp::protocol::ToolServer::instance().publish(imp::protocol::MessageType::MemoryTelemetry, bytes);
+
+			lastTelemetryPublish = now;
+		}
 
 		gfx->beginFrame();
 
@@ -64,7 +105,9 @@ int main()
 	window.detachGfxDevice();
 	gfx->shutdown();
 	window.destroy();
+	}
 
+	imp::protocol::ToolServer::instance().stop();
 	imp::log::Logger::get().shutdown();
 	return 0;
 }

@@ -1,4 +1,5 @@
 #include "vk_swapchain.h"
+#include "vk_config.h"
 
 #include <core/log/log.h>
 
@@ -22,6 +23,11 @@ namespace imp::gfx::vulkan
         m_graphicsQueue = info.graphicsQueue;
         m_presentQueue = info.presentQueue;
         m_vsync = info.vsync;
+        m_allocator = info.allocator;
+        m_allocationCallbacks = info.allocationCallbacks;
+
+        if (!pickDepthFormat())
+            return false;
 
         if (!createSyncObjects())
             return false;
@@ -42,6 +48,12 @@ namespace imp::gfx::vulkan
         vkDeviceWaitIdle(m_device);
         destroySwapchainResources();
         destroySyncObjects();
+
+        if (m_swapchain != VK_NULL_HANDLE)
+        {
+            vkDestroySwapchainKHR(m_device, m_swapchain, m_allocationCallbacks);
+            m_swapchain = VK_NULL_HANDLE;
+        }
 
         m_device = VK_NULL_HANDLE;
     }
@@ -135,10 +147,97 @@ namespace imp::gfx::vulkan
         bool ok = createSwapchain(m_pendingWidth, m_pendingHeight, old);
 
         if (old != VK_NULL_HANDLE)
-            vkDestroySwapchainKHR(m_device, old, nullptr);
+            vkDestroySwapchainKHR(m_device, old, m_allocationCallbacks);
 
         if (!ok)
             LOG_ERROR("Vulkan", "Swapchain recreate failed.");
+    }
+
+    bool VulkanSwapchain::pickDepthFormat()
+    {
+        const VkFormat candidates[] =
+        {
+            VK_FORMAT_D32_SFLOAT,
+            VK_FORMAT_D32_SFLOAT_S8_UINT,
+            VK_FORMAT_D24_UNORM_S8_UINT
+        };
+
+        for (VkFormat format : candidates)
+        {
+            VkFormatProperties props{};
+            vkGetPhysicalDeviceFormatProperties(m_physicalDevice, format, &props);
+            if (props.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT)
+            {
+                m_depthFormat = format;
+                LOG_INFO("Vulkan", "Depth format picked: {}", static_cast<int>( format ));
+                return true;
+            }
+        }
+
+        LOG_ERROR("Vulkan", "No supported depth format found.");
+        return false;
+    }
+
+    bool VulkanSwapchain::createDepthResources()
+    {
+        VkImageCreateInfo imageInfo{};
+        imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+        imageInfo.imageType = VK_IMAGE_TYPE_2D;
+        imageInfo.extent = { m_extent.width, m_extent.height, 1 };
+        imageInfo.mipLevels = 1;
+        imageInfo.arrayLayers = 1;
+        imageInfo.format = m_depthFormat;
+        imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+        imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        imageInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+        imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+        imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+        VmaAllocationCreateInfo allocInfo{};
+        allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
+        if (vmaCreateImage(m_allocator, &imageInfo, &allocInfo, &m_depthImage, &m_depthImageAllocation, nullptr) != VK_SUCCESS)
+        {
+            LOG_ERROR("Vulkan", "vmaCreateInfo (depth) failed");
+            return false;
+        }
+
+        VkImageViewCreateInfo viewInfo{};
+        viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        viewInfo.image = m_depthImage;
+        viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        viewInfo.format = m_depthFormat;
+        viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+        viewInfo.subresourceRange.baseMipLevel = 0;
+        viewInfo.subresourceRange.levelCount = 1;
+        viewInfo.subresourceRange.baseArrayLayer = 0;
+        viewInfo.subresourceRange.layerCount = 1;
+
+        if (vkCreateImageView(m_device, &viewInfo, m_allocationCallbacks, &m_depthImageView) != VK_SUCCESS)
+        {
+            LOG_ERROR("Vulkan", "vkCreateImageView (depth) failed");
+            vmaDestroyImage(m_allocator, m_depthImage, m_depthImageAllocation);
+            m_depthImage = VK_NULL_HANDLE;
+            m_depthImageAllocation = VK_NULL_HANDLE;
+            return false;
+        }
+
+        return true;
+    }
+
+    void VulkanSwapchain::destroyDepthResources()
+    {
+        if (m_depthImageView != VK_NULL_HANDLE)
+        {
+            //vkDeviceWaitIdle(m_device);
+            vkDestroyImageView(m_device, m_depthImageView, m_allocationCallbacks);
+            m_depthImageView = VK_NULL_HANDLE;
+        }
+        if (m_depthImage != VK_NULL_HANDLE)
+        {
+            vmaDestroyImage(m_allocator, m_depthImage, m_depthImageAllocation);
+            m_depthImage = VK_NULL_HANDLE;
+            m_depthImageAllocation = VK_NULL_HANDLE;
+        }
     }
 
     bool VulkanSwapchain::createSwapchain(u32 width, u32 height, VkSwapchainKHR oldSwapchain)
@@ -189,7 +288,7 @@ namespace imp::gfx::vulkan
         createInfo.oldSwapchain = oldSwapchain;
 
         VkSwapchainKHR newSwapchain = VK_NULL_HANDLE;
-        if (vkCreateSwapchainKHR(m_device, &createInfo, nullptr, &newSwapchain) != VK_SUCCESS)
+        if (vkCreateSwapchainKHR(m_device, &createInfo, m_allocationCallbacks, &newSwapchain) != VK_SUCCESS)
         {
             LOG_ERROR("Vulkan", "vkCreateSwapchainKHR failed.");
             return false;
@@ -202,6 +301,7 @@ namespace imp::gfx::vulkan
         destroySwapchainResources();
 
         m_swapchain = newSwapchain;
+
         m_imageFormat = surfaceFormat.format;
         m_extent = extent;
 
@@ -210,19 +310,24 @@ namespace imp::gfx::vulkan
         m_images.resize(actualCount);
         vkGetSwapchainImagesKHR(m_device, m_swapchain, &actualCount, m_images.data());
 
-        if (!createImageViews()) return false;
+        if (!createImageViews())
+        {
+            vkDestroySwapchainKHR(m_device, newSwapchain, nullptr);
+            return false;
+        }
+        if (!createDepthResources()) return false;
 
         if (actualCount != m_renderFinishedSemaphores.size())
         {
             for (VkSemaphore s : m_renderFinishedSemaphores)
-                if (s != VK_NULL_HANDLE) vkDestroySemaphore(m_device, s, nullptr);
+                if (s != VK_NULL_HANDLE) vkDestroySemaphore(m_device, s, m_allocationCallbacks);
 
             m_renderFinishedSemaphores.assign(actualCount, VK_NULL_HANDLE);
             VkSemaphoreCreateInfo semInfo{};
             semInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
             for (u32 i = 0; i < actualCount; ++i)
             {
-                if (vkCreateSemaphore(m_device, &semInfo, nullptr, &m_renderFinishedSemaphores[i]) != VK_SUCCESS)
+                if (vkCreateSemaphore(m_device, &semInfo, m_allocationCallbacks, &m_renderFinishedSemaphores[i]) != VK_SUCCESS)
                 {
                     LOG_ERROR("Vulkan", "vkCreateSemaphore (renderFinished) failed.");
                     return false;
@@ -250,7 +355,7 @@ namespace imp::gfx::vulkan
             viewInfo.subresourceRange.baseArrayLayer = 0;
             viewInfo.subresourceRange.layerCount = 1;
 
-            if (vkCreateImageView(m_device, &viewInfo, nullptr, &m_imageViews[i]) != VK_SUCCESS)
+            if (vkCreateImageView(m_device, &viewInfo, m_allocationCallbacks, &m_imageViews[i]) != VK_SUCCESS)
             {
                 LOG_ERROR("Vulkan", "vkCreateImageView failed.");
                 return false;
@@ -274,8 +379,8 @@ namespace imp::gfx::vulkan
 
         for (u32 i = 0; i < kMaxFramesInFlight; ++i)
         {
-            if (vkCreateSemaphore(m_device, &semInfo, nullptr, &m_imageAvailableSemaphores[i]) != VK_SUCCESS
-                || vkCreateFence(m_device, &fenceInfo, nullptr, &m_inFlightFences[i]) != VK_SUCCESS)
+            if (vkCreateSemaphore(m_device, &semInfo, m_allocationCallbacks, &m_imageAvailableSemaphores[i]) != VK_SUCCESS
+                || vkCreateFence(m_device, &fenceInfo, m_allocationCallbacks, &m_inFlightFences[i]) != VK_SUCCESS)
             {
                 LOG_ERROR("Vulkan", "Failed to create per-frame sync objects");
                 return false;
@@ -287,32 +392,34 @@ namespace imp::gfx::vulkan
 
     void VulkanSwapchain::destroySwapchainResources()
     {
-        for (VkImageView view : m_imageViews)
-            if (view != VK_NULL_HANDLE) vkDestroyImageView(m_device, view, nullptr);
+        for (VkImageView& view : m_imageViews)
+        {
+            if (view != VK_NULL_HANDLE)
+            {
+                vkDestroyImageView(m_device, view, m_allocationCallbacks);
+                view = VK_NULL_HANDLE;
+            }
+        }
+
+        destroyDepthResources();
 
         m_imageViews.clear();
         m_images.clear();
-
-        if (m_swapchain != VK_NULL_HANDLE)
-        {
-            vkDestroySwapchainKHR(m_device, m_swapchain, nullptr);
-            m_swapchain = VK_NULL_HANDLE;
-        }
     }
 
     void VulkanSwapchain::destroySyncObjects()
     {
         // Image available semaphores
         for (VkSemaphore s : m_imageAvailableSemaphores)
-            if (s != VK_NULL_HANDLE) vkDestroySemaphore(m_device, s, nullptr);
+            if (s != VK_NULL_HANDLE) vkDestroySemaphore(m_device, s, m_allocationCallbacks);
 
         // Render finished semaphores
         for (VkSemaphore s : m_renderFinishedSemaphores)
-            if (s != VK_NULL_HANDLE) vkDestroySemaphore(m_device, s, nullptr);
+            if (s != VK_NULL_HANDLE) vkDestroySemaphore(m_device, s, m_allocationCallbacks);
 
         // In flight fences
         for (VkFence f : m_inFlightFences)
-            if (f != VK_NULL_HANDLE) vkDestroyFence(m_device, f, nullptr);
+            if (f != VK_NULL_HANDLE) vkDestroyFence(m_device, f, m_allocationCallbacks);
 
         m_imageAvailableSemaphores.clear();
         m_renderFinishedSemaphores.clear();

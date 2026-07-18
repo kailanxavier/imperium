@@ -1,8 +1,12 @@
 # Try adding fmt as a git submodule first
 if (EXISTS "${CMAKE_SOURCE_DIR}/vendor/fmt/CMakeLists.txt")
+	set(FMT_TEST OFF CACHE BOOL "" FORCE)
+	set(FMT_DOC OFF CACHE BOOL "" FORCE)
+	set(FMT_INSTALL OFF CACHE BOOL "" FORCE)
+
 	add_subdirectory(
 		"${CMAKE_SOURCE_DIR}/vendor/fmt"
-		"${CMAKE_SOURCE_BIN}/vendor/fmt"
+		"${CMAKE_BINARY_DIR}/vendor/fmt"
 		EXCLUDE_FROM_ALL
 	)
 # Otherwise use FetchContent
@@ -22,7 +26,10 @@ endif()
 
 add_library(imp_core STATIC
 	src/core.cpp
- "include/core/math/vec2.h" "include/core/math/vec3.h" "include/core/math/vec4.h" "include/core/math/mat4.h" "include/core/math/mat3.h" "include/core/math/math.h" "include/core/log/log.cpp" "include/core/log/console_sink.h" "include/core/log/file_sink.h"   "include/core/memory/iallocator.h" "include/core/memory/allocator_types.h" "include/core/memory/allocator_utils.h" "include/core/memory/heap_allocator.h" "include/core/memory/linear_allocator.h" "include/core/memory/stack_allocator.h" "include/core/memory/pool_allocator.h" "include/core/fs/vfs.h" "include/core/fs/vfs.cpp" "include/core/memory/int_types.h")
+	include/core/log/log.cpp
+	include/core/fs/vfs.cpp
+	include/core/platform/exe_path.cpp
+)
 
 target_include_directories(imp_core
 	PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
@@ -30,7 +37,7 @@ target_include_directories(imp_core
 )
 
 target_link_libraries(imp_core
-	PUBLIC 
+	PUBLIC
 		imperium_compile_options
 		fmt::fmt
 )
