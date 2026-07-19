@@ -34,13 +34,6 @@ elseif(IMP_GFX_BACKEND STREQUAL "VULKAN")
 
 	target_include_directories(imp_gfx SYSTEM PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third_party/vma)
 
-	include(cmake/CompileShaders.cmake)
-	IMP_COMPILE_SHADERS(imp_gfx
-		${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders
-		${CMAKE_CURRENT_SOURCE_DIR}/shaders/vulkan/triangle.vert
-		${CMAKE_CURRENT_SOURCE_DIR}/shaders/vulkan/triangle.frag
-	)
-
 	# simple allocator test that doesn't need to go through gtest for now
 	add_executable(imp_gfx_vulkan_alloc_test
 		src/backend/vulkan/vk_allocator_test.cpp

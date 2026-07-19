@@ -2,6 +2,8 @@ add_executable(imp_memv
         src/memv.cpp
 )
 
+imp_set_runtime_dir(imp_memv tools)
+
 target_include_directories(imp_memv
         PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
         PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src

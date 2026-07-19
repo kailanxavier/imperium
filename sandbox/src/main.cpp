@@ -30,7 +30,11 @@ int main()
 
 	imp::fwk::Window window;
 	imp::fwk::WindowDesc windowDesc{};
-	windowDesc.title = "Titus' sandbox";
+#ifndef NDEBUG
+	windowDesc.title = "Atlas";
+#else
+	windowDesc.title = "Velvet";
+#endif
 	windowDesc.width = 1280;
 	windowDesc.height = 720;
 
