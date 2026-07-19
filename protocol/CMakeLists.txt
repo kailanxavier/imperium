@@ -53,3 +53,5 @@ target_link_libraries(imp_protocol PUBLIC flatbuffers)
 if (WIN32)
     target_link_libraries(imp_protocol PRIVATE Ws2_32)
 endif()
+
+imp_set_runtime_dir(flatc third_party)
