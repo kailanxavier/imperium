@@ -30,6 +30,7 @@ target_compile_options(imperium_compile_options INTERFACE
     >
 )
 
+include(cmake/AddThirdParty.cmake)
 include(cmake/CompileShaders.cmake)
 
 function(imp_set_runtime_dir TARGET SUBDIR)
