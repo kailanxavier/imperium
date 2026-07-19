@@ -22,3 +22,5 @@ target_link_libraries(imp_math_tests PRIVATE imperium_compile_options)
 
 include(GoogleTest)
 add_test(NAME imp_math_tests COMMAND imp_math_tests)
+
+imp_set_runtime_dir(imp_math_tests tests)
