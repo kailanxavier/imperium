@@ -51,6 +51,7 @@ function(imp_set_runtime_dir TARGET SUBDIR)
 
 endfunction()
 
+option(IMP_BUILD_SHADERS "Compile SPIR-V shaders" ON)
 
 set(IMP_GFX_BACKEND "VULKAN" CACHE STRING "Graphics backend: DX11, DX12, VULKAN")
 set_property(CACHE IMP_GFX_BACKEND PROPERTY STRINGS DX11 DX12 VULKAN)
