@@ -60,6 +60,7 @@ namespace imp::gfx
         RenderTarget = 1u << 1, // writable as a colour attachment
         DepthStencil = 1u << 2, // writable as a depth/stencil attachment
     };
+
     inline TextureUsage operator|(TextureUsage a, TextureUsage b)
     {
         return static_cast<TextureUsage>(static_cast<u32>(a) | static_cast<u32>(b));
@@ -107,7 +108,6 @@ namespace imp::gfx
     {
     public:
         virtual ~IRenderTarget() = default;
-
         virtual u32 width() const = 0;
         virtual u32 height() const = 0;
         virtual TextureFormat format() const = 0;

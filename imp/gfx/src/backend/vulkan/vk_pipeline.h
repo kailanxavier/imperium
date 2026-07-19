@@ -1,15 +1,8 @@
 #pragma once
 
-// TODO: 
-// This is NOT a general pipeline/material system.
-// When we inevitably come to the point that we need multiple
-// shaders, vertex layouts, blend modes, etc. we will need a
-// builder that fills VulkanGraphicsPipelineCreateInfo per material
-// and a cache keyed on that description rather than this class itself
-// growing arms.
-
+#include <gfx/pipeline.h>
 #include <vulkan/vulkan.h>
-#include <string>
+#include <vector>
 
 namespace imp::fs { class VirtualFileSystem; }
 namespace imp::gfx::vulkan
@@ -17,17 +10,28 @@ namespace imp::gfx::vulkan
 	struct VulkanGraphicsPipelineCreateInfo
 	{
 		VkDevice device = VK_NULL_HANDLE;
-		const fs::VirtualFileSystem* vfs = nullptr;
+		VkShaderModule vertexShader = VK_NULL_HANDLE;
+		VkShaderModule fragmentShader = VK_NULL_HANDLE;
 
-		std::string vertexShaderPath;
-		std::string fragmentShaderPath;
+		VkVertexInputBindingDescription vertexBinding{};
+		std::vector<VkVertexInputAttributeDescription> vertexAttributes;
+
+		VkCullModeFlags cullMode = VK_CULL_MODE_NONE;
+
+		bool depthTestEnable = false;
+		bool depthWriteEnable = false;
+		VkCompareOp depthCompareOp = VK_COMPARE_OP_LESS;
 
 		VkFormat colourAttachmentFormat = VK_FORMAT_UNDEFINED;
 		VkFormat depthAttachmentFormat = VK_FORMAT_UNDEFINED;
+
+		u32 pushConstantSize = 0;
+
+		const fs::VirtualFileSystem* vfs = nullptr;
 		const VkAllocationCallbacks* allocationCallbacks = nullptr;
 	};
 
-	class VulkanGraphicsPipeline
+	class VulkanGraphicsPipeline final : public gfx::IPipeline
 	{
 	public:
 		VulkanGraphicsPipeline() = default;

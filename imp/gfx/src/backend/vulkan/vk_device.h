@@ -1,6 +1,6 @@
 #pragma once
 
-#include <fwk/gfx_device.h>
+#include <gfx/device.h>
 
 #include <vulkan/vulkan.h>
 #include <vk_mem_alloc.h>
@@ -9,23 +9,23 @@
 #include <optional>
 #include <vector>
 
+namespace imp::fwk { class Window; }
 namespace imp::fs { class VirtualFileSystem; }
 namespace imp::gfx::vulkan
 {
 	class VulkanSwapchain;
 	class VulkanCommandContext;
-	class VulkanGraphicsPipeline;
-	class VulkanBuffer;
+	class VulkanCommandList;
+	class VulkanRenderTarget;
 
 	struct QueueFamilyIndices
 	{
 		std::optional<u32> graphics;
 		std::optional<u32> present;
-
 		[[nodiscard]] bool IsComplete() const { return graphics.has_value() && present.has_value(); }
 	};
 
-	class VulkanDevice final : public fwk::IGfxDevice
+	class VulkanDevice final : public gfx::IDevice
 	{
 	public:
 		VulkanDevice();
@@ -34,56 +34,43 @@ namespace imp::gfx::vulkan
 		VulkanDevice(const VulkanDevice&) = delete;
 		VulkanDevice& operator=(const VulkanDevice&) = delete;
 
-		bool initialise(const fwk::GfxDeviceDesc& desc) override;
+		bool initialise(const gfx::DeviceDesc& desc) override;
 		void shutdown() override;
 
-		void onResize(u32 width, u32 height) override;
-		void onMinimiseChanged(bool minimised) override;
+		[[nodiscard]] std::unique_ptr<gfx::IBuffer> createBuffer(const gfx::BufferDesc& desc) override;
+		[[nodiscard]] std::unique_ptr<gfx::ITexture> createTexture(const gfx::TextureDesc& desc) override;
+		[[nodiscard]] std::unique_ptr<gfx::ISampler> createSampler(const gfx::SamplerDesc& desc) override;
+		[[nodiscard]] std::unique_ptr<gfx::IShader> createShader(const gfx::ShaderDesc& desc) override;
+		[[nodiscard]] std::unique_ptr<gfx::IPipeline> createPipeline(const gfx::PipelineDesc& desc) override;
+
+		gfx::IRenderTarget& backBuffer() override;
+		gfx::IRenderTarget* depthBuffer() override;
 		
-		void beginFrame() override;
+		gfx::ICommandList* beginFrame() override;
 		void endFrame() override;
 
-		[[nodiscard]] fwk::GfxApi getApi() const override { return fwk::GfxApi::Vulkan; }
-		[[nodiscard]] const char* getApiName() const override { return "Vulkan"; }
+		gfx::GraphicsApi api() const override { return gfx::GraphicsApi::Vulkan; }
+		const char* apiName() const override { return "Vulkan"; }
 
-		// Exposed for later pieces (swapchain module, renderer) that will
-		// need the raw helpers. Kept here rather than made private so this
-		// device can act as the shared context other Vulkan-side classes
-		// build on, without everything being crammed into one file.
-		[[nodiscard]] VkInstance getInstance() const { return m_instance; }
-		[[nodiscard]] VkPhysicalDevice getPhysicalDevice() const { return m_physicalDevice; }
-		[[nodiscard]] VkDevice getDevice() const { return m_device; }
-		[[nodiscard]] VkSurfaceKHR getSurface() const { return m_surface; }
-		[[nodiscard]] VkQueue getGraphicsQueue() const { return m_graphicsQueue; }
-		[[nodiscard]] VkQueue getPresentQueue() const { return m_presentQueue; }
-		[[nodiscard]] const QueueFamilyIndices& getQueueFamilies() const { return m_queueFamilies; }
-
-		[[nodiscard]] VulkanSwapchain* getSwapchain() const { return m_swapchain.get(); }
 		[[nodiscard]] const fs::VirtualFileSystem& getVfs() const { return *m_vfs; }
-
 	private:
-		bool createInstance(const fwk::GfxDeviceDesc& desc);
+		bool createInstance(const gfx::DeviceDesc& desc);
 		bool setupDebugMessenger();
 		bool createSurface(fwk::Window* window);
 		bool pickPhysicalDevice();
 		bool createLogicalDevice();
-		bool createSwapchain(const fwk::GfxDeviceDesc& desc);
-		bool createCommands();
-		bool createPipeline();
 		bool createAllocator();
-		bool createVertexBuffer();
-		bool createIndexBuffer();
+		bool createSwapchainInternal(const gfx::DeviceDesc& desc);
+		bool createCommandsInternal();
+
+		QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device) const;
+		[[nodiscard]] bool isDeviceSuitable(VkPhysicalDevice device) const;
+		[[nodiscard]] std::vector<const char*> getRequiredInstanceExtensions(bool wantValidation) const;
 
 		[[nodiscard]] const VkAllocationCallbacks* allocationCallbacks() const
 		{
 			return m_hasHostAllocationCallbacks ? &m_hostAllocationCallbacks : nullptr;
 		}
-
-		void recordAndSubmitFrame();
-
-		QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device) const;
-		[[nodiscard]] bool isDeviceSuitable(VkPhysicalDevice device) const;
-		[[nodiscard]] std::vector<const char*> getRequiredInstanceExtensions(bool wantValidation) const;
 
 		VkInstance m_instance = VK_NULL_HANDLE;
 		VkDebugUtilsMessengerEXT m_debugMessenger = VK_NULL_HANDLE;
@@ -95,12 +82,11 @@ namespace imp::gfx::vulkan
 
 		std::unique_ptr<VulkanSwapchain> m_swapchain;
 		std::unique_ptr<VulkanCommandContext> m_commands;
-		std::unique_ptr<VulkanGraphicsPipeline> m_pipeline;
+		std::unique_ptr<VulkanRenderTarget> m_backBufferTarget;
+		std::unique_ptr<VulkanRenderTarget> m_depthBufferTarget;
+		std::unique_ptr<VulkanCommandList> m_commandList;
 
 		VmaAllocator m_vmaAllocator = VK_NULL_HANDLE;
-		std::unique_ptr<VulkanBuffer> m_vertexBuffer;
-		std::unique_ptr<VulkanBuffer> m_indexBuffer;
-		u32 m_indexCount = 0;
 
 		VkAllocationCallbacks m_hostAllocationCallbacks{};
 		bool m_hasHostAllocationCallbacks = false;
@@ -110,15 +96,8 @@ namespace imp::gfx::vulkan
 		u32 m_width = 0;
 		u32 m_height = 0;
 		bool m_minimised = false;
-
 		bool m_frameActive = false;
 
 		const fs::VirtualFileSystem* m_vfs = nullptr;
-
-		// TODO:
-		// This will be removed once everything is working,
-		// for now it's just a proof of life that the MVP
-		// push-constant pipeline is actually live
-		float m_rotationAngle = 0.f;
 	};
 }

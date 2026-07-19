@@ -1,6 +1,6 @@
+#if defined(IMP_GFX_VULKAN)
+
 #include "vk_pipeline.h"
-#include "vk_shader.h"
-#include "vk_vertex.h"
 
 #include <core/log/log.h>
 #include <core/math/mat4.h>
@@ -19,40 +19,23 @@ namespace imp::gfx::vulkan
 		m_device = info.device;
 		m_allocationCallbacks = info.allocationCallbacks;
 
-		if (!info.vfs)
-		{
-			LOG_ERROR("Vulkan", "VulkanGraphicsPipelineCreateInfo::vfs was nullptr");
-			return false;
-		}
-
-		VulkanShaderModule vertModule;
-		if (!vertModule.loadFromFile(m_device, *info.vfs, info.vertexShaderPath, m_allocationCallbacks))
-			return false;
-
-		VulkanShaderModule fragModule;
-		if (!fragModule.loadFromFile(m_device, *info.vfs, info.fragmentShaderPath, m_allocationCallbacks))
-			return false;
-
 		VkPipelineShaderStageCreateInfo stages[2]{};
 		stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 		stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
-		stages[0].module = vertModule.handle();
+		stages[0].module = info.vertexShader;
 		stages[0].pName = "main";
 
 		stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 		stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-		stages[1].module = fragModule.handle();
+		stages[1].module = info.fragmentShader;
 		stages[1].pName = "main";
-
-		auto bindingDesc = Vertex::bindingDescription();
-		auto attributeDesc = Vertex::attributeDescriptions();
 
 		VkPipelineVertexInputStateCreateInfo vertexInput{};
 		vertexInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 		vertexInput.vertexBindingDescriptionCount = 1;
-		vertexInput.pVertexBindingDescriptions = &bindingDesc;
-		vertexInput.vertexAttributeDescriptionCount = static_cast<u32>( attributeDesc.size() );
-		vertexInput.pVertexAttributeDescriptions = attributeDesc.data();
+		vertexInput.pVertexBindingDescriptions = &info.vertexBinding;
+		vertexInput.vertexAttributeDescriptionCount = static_cast<u32>( info.vertexAttributes.size() );
+		vertexInput.pVertexAttributeDescriptions = info.vertexAttributes.data();
 
 		VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
 		inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
@@ -72,10 +55,7 @@ namespace imp::gfx::vulkan
 		VkPipelineRasterizationStateCreateInfo rasterizer{};
 		rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
 		rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
-
-		// TODO: revisit this once there's an actual 3d pipeline with
-		// a defined coordinate convention (once forward has been defined essentially)
-		rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
+		rasterizer.cullMode = info.cullMode;
 		rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
 		rasterizer.lineWidth = 1.f;
 
@@ -96,28 +76,27 @@ namespace imp::gfx::vulkan
 
 		VkPipelineDepthStencilStateCreateInfo depthStencil{};
 		depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-		if (info.depthAttachmentFormat != VK_FORMAT_UNDEFINED)
-		{
-			depthStencil.depthTestEnable = VK_TRUE;
-			depthStencil.depthWriteEnable = VK_TRUE;
-			depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
-		}
+		depthStencil.depthTestEnable = info.depthTestEnable ? VK_TRUE : VK_FALSE;
+		depthStencil.depthWriteEnable = info.depthWriteEnable ? VK_TRUE : VK_FALSE;
+		depthStencil.depthCompareOp = info.depthCompareOp;
 		depthStencil.depthBoundsTestEnable = VK_FALSE;
 		depthStencil.stencilTestEnable = VK_FALSE;
 
-
 		static_assert( sizeof(imp::math::Mat4f) == 64,
-			"Mat4f layout changed - VulkanDevice's push-constant upload assumes 4 tightly packed Vec4f columns" );
+			"Mat4f layout changed the push-constant assumption in VulkanCommandList::pushConstants need re-checking" );
 
 		VkPushConstantRange pushConstantRange{};
 		pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 		pushConstantRange.offset = 0;
-		pushConstantRange.size = sizeof(imp::math::Mat4f);
+		pushConstantRange.size = info.pushConstantSize;
 
 		VkPipelineLayoutCreateInfo layoutInfo{};
 		layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-		layoutInfo.pushConstantRangeCount = 1;
-		layoutInfo.pPushConstantRanges = &pushConstantRange;
+		if (info.pushConstantSize > 0)
+		{
+			layoutInfo.pushConstantRangeCount = 1;
+			layoutInfo.pPushConstantRanges = &pushConstantRange;
+		}
 
 		if (vkCreatePipelineLayout(m_device, &layoutInfo, m_allocationCallbacks, &m_layout) != VK_SUCCESS)
 		{
@@ -161,21 +140,18 @@ namespace imp::gfx::vulkan
 
 	void VulkanGraphicsPipeline::destroy()
 	{
-		if (m_device != VK_NULL_HANDLE)
+		if (m_pipeline != VK_NULL_HANDLE)
 		{
-			vkDeviceWaitIdle(m_device);
-			if (m_pipeline != VK_NULL_HANDLE)
-			{
-				vkDestroyPipeline(m_device, m_pipeline, m_allocationCallbacks);
-				m_pipeline = VK_NULL_HANDLE;
-			}
-			if (m_layout != VK_NULL_HANDLE)
-			{
-				vkDestroyPipelineLayout(m_device, m_layout, m_allocationCallbacks);
-				m_layout = VK_NULL_HANDLE;
-			}
-
-			m_device = VK_NULL_HANDLE;
+			vkDestroyPipeline(m_device, m_pipeline, m_allocationCallbacks);
+			m_pipeline = VK_NULL_HANDLE;
 		}
+		if (m_layout != VK_NULL_HANDLE)
+		{
+			vkDestroyPipelineLayout(m_device, m_layout, m_allocationCallbacks);
+			m_layout = VK_NULL_HANDLE;
+		}
+		m_device = VK_NULL_HANDLE;
 	}
 }
+
+#endif // IMP_GFX_VULKAN

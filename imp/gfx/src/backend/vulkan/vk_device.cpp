@@ -1,23 +1,24 @@
+#if defined(IMP_GFX_VULKAN)
+
 #include "vk_device.h"
 #include "vk_swapchain.h"
 #include "vk_commands.h"
+#include "vk_command_list.h"
+#include "vk_render_target.h"
 #include "vk_pipeline.h"
 #include "vk_buffer.h"
+#include "vk_shader.h"
 #include "vk_allocator.h"
-#include "vk_vertex.h"
-#include <fwk/window.h>
 
-#include <vulkan/vulkan.h>
+#include <fwk/window.h>
 
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 
 #include <core/memory/int_types.h>
-#include <core/math/math.h>
 #include <core/log/log.h>
 
 #include <cstring>
-#include <iterator>
 #include <set>
 
 namespace imp::gfx::vulkan
@@ -56,7 +57,7 @@ namespace imp::gfx::vulkan
 			return true;
 		}
 
-		VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(
+		VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
 			VkDebugUtilsMessageSeverityFlagBitsEXT severity,
 			VkDebugUtilsMessageTypeFlagsEXT,
 			const VkDebugUtilsMessengerCallbackDataEXT* data,
@@ -68,7 +69,7 @@ namespace imp::gfx::vulkan
 			return VK_FALSE;
 		}
 
-		VkResult CreateDebugUtilsMessengerEXT(VkInstance instance,
+		VkResult createDebugUtilsMessengerEXT(VkInstance instance,
 			const VkDebugUtilsMessengerCreateInfoEXT* createInfo,
 			const VkAllocationCallbacks* allocator,
 			VkDebugUtilsMessengerEXT* messenger)
@@ -81,7 +82,7 @@ namespace imp::gfx::vulkan
 			return VK_ERROR_EXTENSION_NOT_PRESENT;
 		}
 
-		void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT messenger,
+		void destroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT messenger,
 			const VkAllocationCallbacks* allocator)
 		{
 			auto func = reinterpret_cast<PFN_vkDestroyDebugUtilsMessengerEXT>(
@@ -89,15 +90,66 @@ namespace imp::gfx::vulkan
 
 			if (func) func(instance, messenger, allocator);
 		}
-	} // namespace
 
-	VulkanDevice::VulkanDevice()  = default;
+		VkCullModeFlags toVkCullMode(gfx::CullMode mode)
+		{
+			switch (mode)
+			{
+			case imp::gfx::CullMode::None: return VK_CULL_MODE_NONE;
+			case imp::gfx::CullMode::Front: return VK_CULL_MODE_FRONT_BIT;
+			case imp::gfx::CullMode::Back: return VK_CULL_MODE_BACK_BIT;
+			}
+			return VK_CULL_MODE_NONE;
+		}
+
+		VkCompareOp toVkCompareOp(gfx::CompareOp op)
+		{
+			switch (op)
+			{
+			case imp::gfx::CompareOp::Never: return VK_COMPARE_OP_NEVER;
+			case imp::gfx::CompareOp::Less: return VK_COMPARE_OP_LESS;
+			case imp::gfx::CompareOp::Equal: return VK_COMPARE_OP_EQUAL;
+			case imp::gfx::CompareOp::LessOrEqual: return VK_COMPARE_OP_LESS_OR_EQUAL;
+			case imp::gfx::CompareOp::Greater: return VK_COMPARE_OP_GREATER;
+			case imp::gfx::CompareOp::NotEqual: return VK_COMPARE_OP_NOT_EQUAL;
+			case imp::gfx::CompareOp::GreaterOrEqual: return VK_COMPARE_OP_GREATER_OR_EQUAL;
+			case imp::gfx::CompareOp::Always: return VK_COMPARE_OP_ALWAYS;
+			}
+			return VK_COMPARE_OP_LESS;
+		}
+
+		VkFormat toVkAttributeFormat(u32 componentCount, bool isFloat)
+		{
+			if (!isFloat) return VK_FORMAT_UNDEFINED;
+			switch (componentCount)
+			{
+			case 1: return VK_FORMAT_R32_SFLOAT;
+			case 2: return VK_FORMAT_R32G32_SFLOAT;
+			case 3: return VK_FORMAT_R32G32B32_SFLOAT;
+			case 4: return VK_FORMAT_R32G32B32A32_SFLOAT;
+			}
+
+			return VK_FORMAT_UNDEFINED;
+		}
+
+		VkBufferUsageFlags toVkBufferUsage(gfx::BufferUsage usage)
+		{
+			VkBufferUsageFlags flags = 0;
+			if (gfx::hasFlag(usage, gfx::BufferUsage::Vertex)) flags |= VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+			if (gfx::hasFlag(usage, gfx::BufferUsage::Index)) flags |= VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+			if (gfx::hasFlag(usage, gfx::BufferUsage::Uniform)) flags |= VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+			if (gfx::hasFlag(usage, gfx::BufferUsage::Storage)) flags |= VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+			return flags;
+		}
+	}
+
+	VulkanDevice::VulkanDevice() = default;
 	VulkanDevice::~VulkanDevice()
 	{
 		shutdown();
 	}
 
-	bool VulkanDevice::initialise(const fwk::GfxDeviceDesc& desc)
+	bool VulkanDevice::initialise(const gfx::DeviceDesc& desc)
 	{
 		m_vfs = desc.vfs;
 
@@ -123,11 +175,21 @@ namespace imp::gfx::vulkan
 		if (!pickPhysicalDevice()) { shutdown(); return false; }
 		if (!createLogicalDevice()) { shutdown(); return false; }
 		if (!createAllocator()) { shutdown(); return false; }
-		if (!createSwapchain(desc)) { shutdown(); return false; }
-		if (!createCommands()) { shutdown(); return false; }
-		if (!createPipeline()) { shutdown(); return false; }
-		if (!createVertexBuffer()) { shutdown(); return false; }
-		if (!createIndexBuffer()) { shutdown(); return false; }
+		if (!createSwapchainInternal(desc)) { shutdown(); return false; }
+		if (!createCommandsInternal()) { shutdown(); return false; }
+
+		m_backBufferTarget = std::make_unique<VulkanRenderTarget>(*m_swapchain, VulkanRenderTargetKind::Colour);
+		m_depthBufferTarget = std::make_unique<VulkanRenderTarget>(*m_swapchain, VulkanRenderTargetKind::Depth);
+		m_commandList = std::make_unique<VulkanCommandList>();
+
+		desc.window->setResizeCallback([this](u32 width, u32 height, bool minimised)
+			{
+				m_width = width;
+				m_height = height;
+				m_minimised = minimised;
+				if (m_swapchain && !minimised)
+					m_swapchain->resize(width, height);
+			});
 
 		VkPhysicalDeviceProperties props{};
 		vkGetPhysicalDeviceProperties(m_physicalDevice, &props);
@@ -138,15 +200,12 @@ namespace imp::gfx::vulkan
 
 	void VulkanDevice::shutdown()
 	{
-		// Get rid of the stuff that belongs to device first
-		// I cba adding a new comment to this every time something
-		// belongs to m_device.
-		m_pipeline.reset();
+		// All of these must go before the device
+		m_commandList.reset();
+		m_backBufferTarget.reset();
+		m_depthBufferTarget.reset();
 		m_commands.reset();
 		m_swapchain.reset();
-
-		m_vertexBuffer.reset();
-		m_indexBuffer.reset();
 
 		if (m_vmaAllocator != VK_NULL_HANDLE)
 		{
@@ -161,7 +220,7 @@ namespace imp::gfx::vulkan
 		}
 		if (m_debugMessenger)
 		{
-			DestroyDebugUtilsMessengerEXT(m_instance, m_debugMessenger, allocationCallbacks());
+			destroyDebugUtilsMessengerEXT(m_instance, m_debugMessenger, allocationCallbacks());
 			m_debugMessenger = VK_NULL_HANDLE;
 		}
 		if (m_surface)
@@ -180,40 +239,159 @@ namespace imp::gfx::vulkan
 		m_presentQueue = VK_NULL_HANDLE;
 	}
 
-	void VulkanDevice::onResize(u32 width, u32 height)
+	std::unique_ptr<gfx::IBuffer> VulkanDevice::createBuffer(const gfx::BufferDesc& desc)
 	{
-		m_width = width;
-		m_height = height;
+		VulkanBufferCreateInfo info{};
+		info.allocator = m_vmaAllocator;
+		info.size = desc.size;
+		info.usage = toVkBufferUsage(desc.usage);
+		info.hostVisible = ( desc.memoryAccess == gfx::MemoryAccess::HostVisible );
 
-		if (m_swapchain)
-			m_swapchain->resize(width, height);
+		auto buffer = std::make_unique<VulkanBuffer>();
+		if (!buffer->create(info))
+		{
+			LOG_ERROR("Vulkan", "creatBuffer failed");
+			return nullptr;
+		}
+
+		return buffer;
 	}
 
-	void VulkanDevice::onMinimiseChanged(bool minimised)
+	std::unique_ptr<gfx::ITexture> VulkanDevice::createTexture(const gfx::TextureDesc& desc)
 	{
-		m_minimised = minimised;
+		LOG_ERROR("Vulkan", "createTexture not implemented yet");
+		return nullptr;
 	}
 
-	void VulkanDevice::beginFrame()
+	std::unique_ptr<gfx::ISampler> VulkanDevice::createSampler(const gfx::SamplerDesc& desc)
+	{
+		LOG_ERROR("Vulkan", "createSampler not implemented yet");
+		return nullptr;
+	}
+
+	std::unique_ptr<gfx::IShader> VulkanDevice::createShader(const gfx::ShaderDesc& desc)
+	{
+		auto shader = std::make_unique<VulkanShaderModule>();
+		if (!shader->loadFromFile(m_device, desc.stage, *m_vfs, desc.path, allocationCallbacks()))
+		{
+			LOG_ERROR("Vulkan", "createShader failed");
+			return nullptr;
+		}
+		return shader;
+	}
+
+	std::unique_ptr<gfx::IPipeline> VulkanDevice::createPipeline(const gfx::PipelineDesc& desc)
+	{
+		if (!desc.vertexShader || !desc.fragmentShader)
+		{
+			LOG_ERROR("Vulkan", "createPipeline requires both a vertex and a fragment shader");
+			return nullptr;
+		}
+
+		VulkanGraphicsPipelineCreateInfo info{};
+		info.device = m_device;
+		info.vertexShader = static_cast<VulkanShaderModule*>( desc.vertexShader )->handle();
+		info.fragmentShader = static_cast<VulkanShaderModule*>( desc.fragmentShader )->handle();
+
+		info.vertexBinding.binding = 0;
+		info.vertexBinding.stride = desc.vertexLayout.stride;
+		info.vertexBinding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+		info.vertexAttributes.reserve(desc.vertexLayout.attributeCount);
+		for (u32 i = 0; i < desc.vertexLayout.attributeCount; ++i)
+		{
+			const gfx::VertexAttribute& src = desc.vertexLayout.attributes[i];
+			VkVertexInputAttributeDescription attr{};
+			attr.location = src.location;
+			attr.binding = 0;
+			attr.offset = src.offset;
+			attr.format = toVkAttributeFormat(src.componentCount, src.isFloat);
+			info.vertexAttributes.push_back(attr);
+		}
+
+		info.vfs = m_vfs;
+		info.cullMode = toVkCullMode(desc.rasterizerState.cullMode);
+		info.depthTestEnable = desc.depthStencilState.depthTestEnable;
+		info.depthWriteEnable = desc.depthStencilState.depthWriteEnable;
+		info.depthCompareOp = toVkCompareOp(desc.depthStencilState.depthCompareOp);
+		info.colourAttachmentFormat = toVkFormat(desc.colourFormat);
+		info.depthAttachmentFormat = toVkFormat(desc.depthFormat);
+		info.pushConstantSize = desc.pushConstantSize;
+		info.allocationCallbacks = allocationCallbacks();
+
+		auto pipeline = std::make_unique<VulkanGraphicsPipeline>();
+		if (!pipeline->create(info))
+		{
+			LOG_ERROR("Vulkan", "createPipeline failed");
+			return nullptr;
+		}
+
+		return pipeline;
+	}
+
+	gfx::IRenderTarget& VulkanDevice::backBuffer()
+	{
+		return *m_backBufferTarget;
+	}
+
+	gfx::IRenderTarget* VulkanDevice::depthBuffer()
+	{
+		return m_depthBufferTarget.get();
+	}
+
+	gfx::ICommandList* VulkanDevice::beginFrame()
 	{
 		m_frameActive = false;
 
-		if (!m_swapchain || !m_commands) return;
-		if (!m_swapchain->beginFrame()) return;
+		if (!m_swapchain || !m_commands) return nullptr;
+		if (!m_swapchain->beginFrame()) return nullptr;	
 
+		u32 frame = m_swapchain->currentFrameIndex();
+		VkCommandBuffer cmd = m_commands->beginRecording(frame);
+		m_commandList->reset(cmd);
 		m_frameActive = true;
+
+		return m_commandList.get();
 	}
 
 	void VulkanDevice::endFrame()
 	{
 		if (!m_frameActive) return;
 
-		recordAndSubmitFrame();
+		u32 frame = m_swapchain->currentFrameIndex();
+		m_commands->endRecording(frame);
+
+		VkSemaphoreSubmitInfo waitInfo{};
+		waitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
+		waitInfo.semaphore = m_swapchain->currentImageAvailableSemaphore();
+		waitInfo.stageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+
+		VkSemaphoreSubmitInfo signalInfo{};
+		signalInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
+		signalInfo.semaphore = m_swapchain->currentRenderFinishedSemaphore();
+		signalInfo.stageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+
+		VkCommandBufferSubmitInfo cmdSubmitInfo{};
+		cmdSubmitInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
+		cmdSubmitInfo.commandBuffer = m_commandList->commandBuffer();
+
+		VkSubmitInfo2 submitInfo{};
+		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
+		submitInfo.waitSemaphoreInfoCount = 1;
+		submitInfo.pWaitSemaphoreInfos = &waitInfo;
+		submitInfo.commandBufferInfoCount = 1;
+		submitInfo.pCommandBufferInfos = &cmdSubmitInfo;
+		submitInfo.signalSemaphoreInfoCount = 1;
+		submitInfo.pSignalSemaphoreInfos = &signalInfo;
+
+		if (vkQueueSubmit2(m_graphicsQueue, 1, &submitInfo, m_swapchain->currentInFlightFence()) != VK_SUCCESS)
+			LOG_ERROR("Vulkan", "vkQueueSubmit2 failed");
+
 		m_swapchain->present();
 		m_frameActive = false;
 	}
 
-	bool VulkanDevice::createInstance(const fwk::GfxDeviceDesc& desc)
+	bool VulkanDevice::createInstance(const gfx::DeviceDesc& desc)
 	{
 		if (m_validationEnabled && !checkValidationLayerSupport())
 		{
@@ -225,7 +403,7 @@ namespace imp::gfx::vulkan
 		appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
 		appInfo.pApplicationName = desc.appName;
 		appInfo.applicationVersion = VK_MAKE_API_VERSION(0, 1, 0, 0);
-		appInfo.pEngineName = "imperium_of_man";
+		appInfo.pEngineName = "IMPERIUM";
 		appInfo.engineVersion = VK_MAKE_API_VERSION(0, 1, 0, 0);
 		appInfo.apiVersion = VK_API_VERSION_1_3;
 
@@ -253,23 +431,15 @@ namespace imp::gfx::vulkan
 				VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
 				VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
 
-			debugCreateInfo.pfnUserCallback = DebugCallback;
-
-			// Chained so instance creation itself is also validated
+			debugCreateInfo.pfnUserCallback = debugCallback;
 			createInfo.pNext = &debugCreateInfo;
 		}
-		else
-		{
-			createInfo.enabledLayerCount = 0;
-		}
 
-		VkResult result = vkCreateInstance(&createInfo, allocationCallbacks(), &m_instance);
-		if (result != VK_SUCCESS)
+		if (vkCreateInstance(&createInfo, allocationCallbacks(), &m_instance) != VK_SUCCESS)
 		{
-			LOG_ERROR("Vulkan", "vkCreateInstance failed ({})", static_cast<int>( result ));
+			LOG_ERROR("Vulkan", "vkCreateInstance failed");
 			return false;
 		}
-
 		return true;
 	}
 
@@ -285,26 +455,21 @@ namespace imp::gfx::vulkan
 			VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
 			VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
 
-		createInfo.pfnUserCallback = DebugCallback;
+		createInfo.pfnUserCallback = debugCallback;
 
-		if (CreateDebugUtilsMessengerEXT(m_instance, &createInfo, allocationCallbacks(), &m_debugMessenger) != VK_SUCCESS)
+		if (createDebugUtilsMessengerEXT(m_instance, &createInfo, allocationCallbacks(), &m_debugMessenger) != VK_SUCCESS)
 		{
 			LOG_ERROR("Vulkan", "Failed to set up debug messenger");
 			return false;
 		}
-
 		return true;
 	}
 
 	bool VulkanDevice::createSurface(fwk::Window* window)
 	{
-		// fwk::Window is built with GLFW under the hood; this is the one
-		// place that fact leaks into the Vulkan backend, via
-		// GetNativeHandle(). fwk's own headers stay Vulkan free.
-		VkResult result = glfwCreateWindowSurface(m_instance, window->getNativeHandle(), allocationCallbacks(), &m_surface);
-		if (result != VK_SUCCESS)
+		if (glfwCreateWindowSurface(m_instance, window->getNativeHandle(), allocationCallbacks(), &m_surface) != VK_SUCCESS)
 		{
-			LOG_ERROR("Vulkan", "glfwCreateWindowSurface() failed ({})", static_cast<int>( result ));
+			LOG_ERROR("Vulkan", "glfwCreateWindowSurface() failed");
 			return false;
 		}
 		return true;
@@ -386,7 +551,24 @@ namespace imp::gfx::vulkan
 		return true;
 	}
 
-	bool VulkanDevice::createSwapchain(const fwk::GfxDeviceDesc &desc)
+	bool VulkanDevice::createAllocator()
+	{
+		VmaAllocatorCreateInfo info{};
+		info.instance = m_instance;
+		info.physicalDevice = m_physicalDevice;
+		info.device = m_device;
+		info.vulkanApiVersion = VK_API_VERSION_1_3;
+		info.pAllocationCallbacks = allocationCallbacks();
+
+		if (vmaCreateAllocator(&info, &m_vmaAllocator) != VK_SUCCESS)
+		{
+			LOG_ERROR("Vulkan", "vmaCreateAllocator failed");
+			return false;
+		}
+		return true;
+	}
+
+	bool VulkanDevice::createSwapchainInternal(const gfx::DeviceDesc& desc)
 	{
 		VulkanSwapchainCreateInfo info{};
 		info.physicalDevice = m_physicalDevice;
@@ -405,14 +587,14 @@ namespace imp::gfx::vulkan
 		m_swapchain = std::make_unique<VulkanSwapchain>();
 		if (!m_swapchain->create(info))
 		{
-			LOG_FATAL("Vulkan", "Failed to create swapchain");
+			LOG_ERROR("Vulkan", "Failed to create swapchain");
 			m_swapchain.reset();
 			return false;
 		}
 		return true;
 	}
 
-	bool VulkanDevice::createCommands()
+	bool VulkanDevice::createCommandsInternal()
 	{
 		m_commands = std::make_unique<VulkanCommandContext>();
 		if (!m_commands->create(m_device, m_queueFamilies.graphics.value(), allocationCallbacks()))
@@ -421,301 +603,12 @@ namespace imp::gfx::vulkan
 			m_commands.reset();
 			return false;
 		}
-
 		return true;
-	}
-
-	bool VulkanDevice::createPipeline()
-	{
-		VulkanGraphicsPipelineCreateInfo info{};
-		info.device = m_device;
-		info.vfs = m_vfs;
-		info.vertexShaderPath = "shaders/triangle.vert.spv";
-		info.fragmentShaderPath = "shaders/triangle.frag.spv";
-		info.colourAttachmentFormat = m_swapchain->imageFormat();
-		info.depthAttachmentFormat = m_swapchain->depthFormat();
-		info.allocationCallbacks = allocationCallbacks();
-
-		m_pipeline = std::make_unique<VulkanGraphicsPipeline>();
-		if (!m_pipeline->create(info))
-		{
-			LOG_ERROR("Vulkan", "Failed to create graphics pipeline");
-			m_pipeline.reset();
-			return false;
-		}
-
-		return true;
-	}
-
-	bool VulkanDevice::createAllocator()
-	{
-		VmaAllocatorCreateInfo info{};
-		info.instance = m_instance;
-		info.physicalDevice = m_physicalDevice;
-		info.device = m_device;
-		info.vulkanApiVersion = VK_API_VERSION_1_3;
-		info.pAllocationCallbacks = allocationCallbacks();
-
-		if (vmaCreateAllocator(&info, &m_vmaAllocator) != VK_SUCCESS)
-		{
-			LOG_ERROR("Vulkan", "vmaCreateAllocator failed");
-			return false;
-		}
-		return true;
-	}
-
-	bool VulkanDevice::createVertexBuffer()
-	{
-		const Vertex vertices[] = {
-			{ { -0.5f, -0.5f, -0.5f }, { 1.f,  0.f,  0.f } },
-			{ {  0.5f, -0.5f, -0.5f }, { 0.f,  1.f,  0.f } },
-			{ {  0.5f,  0.5f, -0.5f }, { 0.f,  0.f,  1.f } },
-			{ { -0.5f,  0.5f, -0.5f }, { 1.f,  1.f,  0.f } },
-			{ { -0.5f, -0.5f,  0.5f }, { 1.f,  0.f,  1.f } },
-			{ {  0.5f, -0.5f,  0.5f }, { 0.f,  1.f,  1.f } },
-			{ {  0.5f,  0.5f,  0.5f }, { 1.f,  1.f,  1.f } },
-			{ { -0.5f,  0.5f,  0.5f }, { 0.5f, 0.5f, 0.5f} }
-		};
-
-		VulkanBufferCreateInfo info{};
-		info.allocator = m_vmaAllocator;
-		info.size = sizeof(vertices);
-		info.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-		info.hostVisible = true;
-
-		m_vertexBuffer = std::make_unique<VulkanBuffer>();
-		if (!m_vertexBuffer->create(info))
-		{
-			LOG_ERROR("Vulkan", "Failed to create vertex buffer...");
-			m_vertexBuffer.reset();
-			return false;
-		}
-
-		std::memcpy(m_vertexBuffer->mappedData(), vertices, sizeof(vertices));
-		return true;
-	}
-
-	bool VulkanDevice::createIndexBuffer()
-	{
-		const u16 indices[] = {
-			0, 2, 1,  0, 3, 2,
-			4, 5, 6,  4, 6, 7,
-			0, 7, 3,  0, 4, 7,
-			1, 2, 6,  1, 6, 5,
-			0, 1, 5,  0, 5, 4,
-			3, 6, 2,  3, 7, 6,
-		};
-		m_indexCount = static_cast<u32>( std::size(indices) );
-
-		VulkanBufferCreateInfo info{};
-		info.allocator = m_vmaAllocator;
-		info.size = sizeof(indices);
-		info.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
-		info.hostVisible = true;
-
-		m_indexBuffer = std::make_unique<VulkanBuffer>();
-		if (!m_indexBuffer->create(info))
-		{
-			LOG_ERROR("Vulkan", "Failed to create index buffer");
-			m_indexBuffer.reset();
-			return false;
-		}
-
-		std::memcpy(m_indexBuffer->mappedData(), indices, sizeof(indices));
-		return true;
-	}
-
-	void VulkanDevice::recordAndSubmitFrame()
-	{
-		u32 frame = m_swapchain->currentFrameIndex();
-		VkCommandBuffer cmd = m_commands->beginRecording(frame);
-
-		VkImageSubresourceRange colourRange{};
-		colourRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT; // why everything in american
-		colourRange.levelCount = 1;
-		colourRange.layerCount = 1;
-
-		VkImageMemoryBarrier2 toAttachment{};
-		toAttachment.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
-		toAttachment.srcStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;
-		toAttachment.srcAccessMask = VK_ACCESS_2_NONE;
-		toAttachment.dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
-		toAttachment.dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
-		toAttachment.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		toAttachment.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-		toAttachment.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-		toAttachment.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-		toAttachment.image = m_swapchain->currentImage();
-		toAttachment.subresourceRange = colourRange;
-
-		VkDependencyInfo toAttachmentDep{};
-		toAttachmentDep.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-		toAttachmentDep.imageMemoryBarrierCount = 1;
-		toAttachmentDep.pImageMemoryBarriers = &toAttachment;
-		vkCmdPipelineBarrier2(cmd, &toAttachmentDep);
-
-		VkImageSubresourceRange depthRange{};
-		depthRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-		depthRange.levelCount = 1;
-		depthRange.layerCount = 1;
-
-		VkImageMemoryBarrier2 toDepthAttachment{};
-		toDepthAttachment.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
-		toDepthAttachment.srcStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;
-		toDepthAttachment.srcAccessMask = VK_ACCESS_2_NONE;
-		toDepthAttachment.dstStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
-		toDepthAttachment.dstAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-		toDepthAttachment.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		toDepthAttachment.newLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
-		toDepthAttachment.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-		toDepthAttachment.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-		toDepthAttachment.image = m_swapchain->depthImage();
-		toDepthAttachment.subresourceRange = depthRange;
-
-		const bool hasDepth = m_swapchain->depthImage() != VK_NULL_HANDLE;
-		if (hasDepth)
-		{
-			VkDependencyInfo toDepthAttachmentDep{};
-			toDepthAttachmentDep.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-			toDepthAttachmentDep.imageMemoryBarrierCount = 1;
-			toDepthAttachmentDep.pImageMemoryBarriers = &toDepthAttachment;
-			vkCmdPipelineBarrier2(cmd, &toDepthAttachmentDep);
-		}
-
-		VkRenderingAttachmentInfo colourAttachment{};
-		colourAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-		colourAttachment.imageView = m_swapchain->currentImageView();
-		colourAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-		colourAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-		colourAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-		colourAttachment.clearValue.color = { { 0.023153f, 0.000911f, 0.004391f, 1.f } };
-
-		VkRenderingAttachmentInfo depthAttachment{};
-		depthAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-		depthAttachment.imageView = m_swapchain->depthImageView();
-		depthAttachment.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
-		depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-		depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		depthAttachment.clearValue.depthStencil.depth = 1.f;
-
-		VkRenderingInfo renderingInfo{};
-		renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
-		renderingInfo.renderArea = { { 0, 0 }, m_swapchain->extent() };
-		renderingInfo.layerCount = 1;
-		renderingInfo.colorAttachmentCount = 1;
-		renderingInfo.pColorAttachments = &colourAttachment;
-		if (hasDepth) renderingInfo.pDepthAttachment = &depthAttachment;
-
-		vkCmdBeginRendering(cmd, &renderingInfo);
-
-		if (m_pipeline && m_pipeline->isValid())
-		{
-			vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline->pipeline());
-
-			VkExtent2D extent = m_swapchain->extent();
-
-			// TODO:
-			// y = height, height = -height: Vulkan's NDC is natively
-			// Y-down, so a "normal" positive-height viewport combined
-			// with this engine's Y-up LH math library renders
-			// everything upside-down
-			//
-			// Side effect worth remembering in the future here
-			// is that when culling gets turned on, this flip
-			// also reverses the effective winding order the
-			// rasterizer sees, so whichever frontFace looks correct
-			// without culling will need to be inverted once
-			// VK_CULL_MODE_BACK_BIT is enabled
-
-			VkViewport viewport{};
-			viewport.x = 0.f;
-			viewport.y = static_cast<float>( extent.height );;
-			viewport.width = static_cast<float>( extent.width );
-			viewport.height = -static_cast<float>( extent.height );
-			viewport.minDepth = 0.f;
-			viewport.maxDepth = 1.f;
-			vkCmdSetViewport(cmd, 0, 1, &viewport);
-
-			VkRect2D scissor{};
-			scissor.offset = { 0, 0 };
-			scissor.extent = extent;
-			vkCmdSetScissor(cmd, 0, 1, &scissor);
-
-			using namespace imp::math;
-			const float aspect = extent.height > 0 
-				? static_cast<float>( extent.width ) / static_cast<float>( extent.height ) 
-				: 1.f;
-
-			Mat4f model = makeRotationAxis(normalise(Vec3{ 1.f, 1.f, 0.f }), m_rotationAngle);
-			//Mat4f model = makeRotationY(m_rotationAngle);
-			Mat4f view = makeLookAtLH(Vec3f::unitZ() * -1.5f, Vec3f::zero(), Vec3f::up());
-			Mat4f proj = makePerspectiveLH(toRadians(90.f), aspect, 0.1f, 100.f);
-			Mat4f mvp = proj * view * model;
-
-			vkCmdPushConstants(cmd, m_pipeline->layout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(Mat4f), mvp.data());
-
-			if (m_vertexBuffer && m_vertexBuffer->isValid() && m_indexBuffer && m_indexBuffer->isValid())
-			{
-				VkBuffer vertexBuffers[] = { m_vertexBuffer->handle() };
-				VkDeviceSize offsets[] = { 0 };
-				vkCmdBindVertexBuffers(cmd, 0, 1, vertexBuffers, offsets);
-				vkCmdBindIndexBuffer(cmd, m_indexBuffer->handle(), 0, VK_INDEX_TYPE_UINT16);
-
-				vkCmdDrawIndexed(cmd, m_indexCount, 1, 0, 0, 0);
-			}
-
-			m_rotationAngle += 0.01f;
-		}
-
-		vkCmdEndRendering(cmd);
-
-		VkImageMemoryBarrier2 toPresent = toAttachment;
-		toPresent.srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
-		toPresent.srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
-		toPresent.dstStageMask = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT;
-		toPresent.dstAccessMask = VK_ACCESS_2_NONE;
-		toPresent.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-		toPresent.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-
-		VkDependencyInfo toPresentDep{};
-		toPresentDep.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-		toPresentDep.imageMemoryBarrierCount = 1;
-		toPresentDep.pImageMemoryBarriers = &toPresent;
-		vkCmdPipelineBarrier2(cmd, &toPresentDep);
-
-		m_commands->endRecording(frame);
-
-		VkSemaphoreSubmitInfo waitInfo{};
-		waitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
-		waitInfo.semaphore = m_swapchain->currentImageAvailableSemaphore();
-		waitInfo.stageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
-
-		VkSemaphoreSubmitInfo signalInfo{};
-		signalInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
-		signalInfo.semaphore = m_swapchain->currentRenderFinishedSemaphore();
-		signalInfo.stageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
-
-		VkCommandBufferSubmitInfo cmdSubmitInfo{};
-		cmdSubmitInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
-		cmdSubmitInfo.commandBuffer = cmd;
-
-		VkSubmitInfo2 submitInfo{};
-		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
-		submitInfo.waitSemaphoreInfoCount = 1;
-		submitInfo.pWaitSemaphoreInfos = &waitInfo;
-		submitInfo.commandBufferInfoCount = 1;
-		submitInfo.pCommandBufferInfos = &cmdSubmitInfo;
-		submitInfo.signalSemaphoreInfoCount = 1;
-		submitInfo.pSignalSemaphoreInfos = &signalInfo;
-
-		if (vkQueueSubmit2(m_graphicsQueue, 1, &submitInfo, m_swapchain->currentInFlightFence()) != VK_SUCCESS)
-			LOG_ERROR("Vulkan", "vkQueueSubmit2 failed");
 	}
 
 	QueueFamilyIndices VulkanDevice::findQueueFamilies(VkPhysicalDevice device) const
 	{
 		QueueFamilyIndices indices;
-
 		u32 count = 0;
 		vkGetPhysicalDeviceQueueFamilyProperties(device, &count, nullptr);
 		std::vector<VkQueueFamilyProperties> families(count);
@@ -723,14 +616,10 @@ namespace imp::gfx::vulkan
 
 		for (u32 i = 0; i < count; ++i)
 		{
-			if (families[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)
-				indices.graphics = i;
-
+			if (families[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) indices.graphics = i;
 			VkBool32 presentSupport = VK_FALSE;
 			vkGetPhysicalDeviceSurfaceSupportKHR(device, i, m_surface, &presentSupport);
-			if (presentSupport)
-				indices.present = i;
-
+			if (presentSupport) indices.present = i;
 			if (indices.IsComplete()) break;
 		}
 		return indices;
@@ -773,11 +662,11 @@ namespace imp::gfx::vulkan
 	{
 		u32 glfwExtensionCount = 0;
 		const char** glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
-
 		std::vector<const char*> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
 		if (wantValidation)
 			extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-
 		return extensions;
 	}
 }
+
+#endif // IMP_GFX_VULKAN
