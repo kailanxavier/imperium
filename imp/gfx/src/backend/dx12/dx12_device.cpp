@@ -21,6 +21,12 @@ namespace imp::gfx::dx12
 
 	gfx::IRenderTarget& DX12Device::backBuffer() { std::abort(); }
 	gfx::IRenderTarget* DX12Device::depthBuffer() { return nullptr; }
+
+	bool DX12Device::initImGui() { return false; }
+	void DX12Device::shutdownImGui() {}
+	void DX12Device::newImGuiFrame() {}
+	void DX12Device::renderImGui(ICommandList& cmd) {}
+
 	gfx::ICommandList* DX12Device::beginFrame() { return nullptr; }
 
 	void DX12Device::endFrame() {}

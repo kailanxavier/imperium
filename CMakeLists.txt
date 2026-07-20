@@ -22,6 +22,7 @@ endforeach()
 add_library(imperium_compile_options INTERFACE
         tests/math/math_test_helper.h)
 
+find_package(Vulkan REQUIRED)
 add_library(imgui STATIC
         vendor/imgui/imgui.cpp
         vendor/imgui/imgui_draw.cpp
@@ -38,7 +39,7 @@ target_sources(imgui PRIVATE
         vendor/imgui/backends/imgui_impl_vulkan.cpp
 )
 
-target_link_libraries(imgui PRIVATE glfw)
+target_link_libraries(imgui PRIVATE Vulkan::Vulkan glfw)
 
 target_compile_options(imperium_compile_options INTERFACE
     $<$<CXX_COMPILER_ID:MSVC>:
@@ -75,3 +76,6 @@ add_subdirectory(imp)
 add_subdirectory(tools)
 add_subdirectory(sandbox)
 add_subdirectory(tests)
+
+IMP_ADD_THIRD_PARTY_TARGET(imgui)
+IMP_ADD_THIRD_PARTY_TARGET(glfw)

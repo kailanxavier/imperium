@@ -13,3 +13,17 @@ target_include_directories(imp_memv
 target_link_libraries(imp_memv
     PRIVATE imp_protocol imp_fwk imp_gfx imp_core imgui glfw
 )
+
+if (WIN32)
+    set_target_properties(imp_memv PROPERTIES
+        WIN32_EXECUTABLE TRUE
+    )
+
+    target_link_options(imp_memv PRIVATE
+        "/ENTRY:mainCRTStartup"
+    )
+elseif(APPLE)
+    set_target_properties(imp_memv PROPERTIES
+        MACOSX_BUNDLE TRUE
+    )
+endif()

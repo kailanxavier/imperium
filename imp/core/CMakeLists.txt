@@ -41,3 +41,6 @@ target_link_libraries(imp_core
 		imperium_compile_options
 		fmt::fmt
 )
+
+IMP_ADD_THIRD_PARTY_TARGET(fmt)
+

@@ -49,4 +49,11 @@ if (WIN32)
 	)
 
 	# target_link_libraries(imp_gfx PRIVATE d3d12 dxgi d3dcompiler)
+
+	target_compile_definitions(imp_gfx PRIVATE IMP_GFX_DX11)
+	target_sources(imp_gfx PRIVATE
+		src/backend/dx11/dx11_device.cpp
+	)
+
+	# target_link_libraries(imp_gfx PRIVATE d3d11 dxgi d3dcompiler)
 endif()

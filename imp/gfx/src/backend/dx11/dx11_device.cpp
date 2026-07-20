@@ -23,6 +23,11 @@ namespace imp::gfx::dx11
 	gfx::IRenderTarget* DX11Device::depthBuffer() { return nullptr; }
 	gfx::ICommandList* DX11Device::beginFrame() { return nullptr; }
 
+	bool DX11Device::initImGui() { return false; }
+	void DX11Device::shutdownImGui() {}
+	void DX11Device::newImGuiFrame() {}
+	void DX11Device::renderImGui(ICommandList& cmd) {}
+
 	void DX11Device::endFrame() {}
 }
 
