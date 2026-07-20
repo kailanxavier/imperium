@@ -161,8 +161,8 @@ namespace imp::tools::memv
             snap.peakUsed = alloc->peak_used();
             snap.totalAllocated = alloc->total_allocated();
             snap.totalFreed = alloc->total_freed();
-            snap.allocationCount = alloc->allocation_count();
-            snap.freeCount = alloc->free_count();
+            snap.allocationCount = static_cast<u32>( alloc->allocation_count() );
+            snap.freeCount = static_cast<u32>( alloc->free_count() );
 
             if (const auto *tagBytes = alloc->tag_bytes())
             {

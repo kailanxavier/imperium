@@ -20,5 +20,8 @@ else()
     FetchContent_MakeAvailable(googletest)
 endif()
 
+IMP_ADD_THIRD_PARTY_TARGET(gtest)
+IMP_ADD_THIRD_PARTY_TARGET(gtest_main)
+
 add_subdirectory(math)
 add_subdirectory(protocol)

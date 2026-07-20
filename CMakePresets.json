@@ -12,8 +12,7 @@
       },
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_CXX_STANDARD": "23",
-        "IMP_GFX_BACKEND": "VULKAN"
+        "CMAKE_CXX_STANDARD": "23"
       }
     },
     {
@@ -27,8 +26,7 @@
       },
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
-        "CMAKE_CXX_STANDARD": "23",
-        "IMP_GFX_BACKEND": "DX11"
+        "CMAKE_CXX_STANDARD": "23"
       }
     },
     {
@@ -38,8 +36,7 @@
       "cacheVariables": {
         "CMAKE_OSX_ARCHITECTURES": "arm64",
         "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_CXX_STANDARD": "23",
-        "IMP_GFX_BACKEND": "VULKAN"
+        "CMAKE_CXX_STANDARD": "23"
       }
     },
     {
@@ -48,8 +45,7 @@
       "binaryDir": "${sourceDir}/build/mac-release",
       "cacheVariables": {
         "CMAKE_OSX_ARCHITECTURES": "arm64",
-        "CMAKE_BUILD_TYPE": "Release",
-        "IMP_GFX_BACKEND": "VULKAN"
+        "CMAKE_BUILD_TYPE": "Release"
       }
     }
   ],

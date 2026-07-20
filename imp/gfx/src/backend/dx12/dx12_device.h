@@ -20,6 +20,11 @@ namespace imp::gfx::dx12
 		gfx::IRenderTarget& backBuffer() override;
 		gfx::IRenderTarget* depthBuffer() override;
 
+		bool initImGui() override;
+		void shutdownImGui() override;
+		void newImGuiFrame() override;
+		void renderImGui(ICommandList& cmd) override;
+
 		gfx::ICommandList* beginFrame() override;
 		void endFrame() override;
 
