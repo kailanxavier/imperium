@@ -10,6 +10,9 @@
 #include "vk_shader.h"
 #include "vk_allocator.h"
 
+#include <imgui.h>
+#include <backends/imgui_impl_vulkan.h>
+
 #include <fwk/window.h>
 
 #define GLFW_INCLUDE_NONE
@@ -329,6 +332,84 @@ namespace imp::gfx::vulkan
 		return pipeline;
 	}
 
+	bool VulkanDevice::initImGui()
+	{
+		VkDescriptorPoolSize poolSizes[] = { { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 64 } };
+
+		VkDescriptorPoolCreateInfo poolInfo{};
+		poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+		poolInfo.maxSets = 64;
+		poolInfo.poolSizeCount = static_cast<u32>(std::size(poolSizes));
+		poolInfo.pPoolSizes = poolSizes;
+
+		if (vkCreateDescriptorPool(m_device, &poolInfo, allocationCallbacks(), &m_imguiDescriptorPool) != VK_SUCCESS)
+		{
+			LOG_ERROR("Vulkan", "vkCreateDescriptorPool failed");
+			return false;
+		}
+
+		const VkFormat colourFormat = m_swapchain->imageFormat();
+		const VkFormat depthFormat = m_swapchain->depthFormat();
+
+		VkPipelineRenderingCreateInfo renderingInfo{VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO};
+		renderingInfo.colorAttachmentCount = 1;
+		renderingInfo.pColorAttachmentFormats = &colourFormat;
+		renderingInfo.depthAttachmentFormat = depthFormat;
+
+		ImGui_ImplVulkan_InitInfo initInfo{};
+		initInfo.Instance = m_instance;
+		initInfo.PhysicalDevice = m_physicalDevice;
+		initInfo.Device = m_device;
+		initInfo.QueueFamily = m_queueFamilies.graphics.value();
+		initInfo.Queue = m_graphicsQueue;
+		initInfo.DescriptorPool = m_imguiDescriptorPool;
+		initInfo.MinImageCount = m_swapchain->backBufferCount();
+		initInfo.ImageCount = m_swapchain->backBufferCount();
+		initInfo.PipelineInfoMain.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+		initInfo.UseDynamicRendering = true;
+		initInfo.PipelineInfoMain.PipelineRenderingCreateInfo = renderingInfo;
+		initInfo.Allocator = allocationCallbacks();
+		initInfo.CheckVkResultFn = [](VkResult r)
+		{
+			if (r != VK_SUCCESS)
+				LOG_ERROR("VulkanDevice", "ImGui Vulkan call failed: {}", static_cast<int>(r));
+		};
+
+		if (!ImGui_ImplVulkan_Init(&initInfo))
+			return false;
+
+		m_imguiInitialised = true;
+		return true;
+	}
+
+	void VulkanDevice::shutdownImGui()
+	{
+		if (!m_imguiInitialised)
+			return;
+
+		vkDeviceWaitIdle(m_device);
+		ImGui_ImplVulkan_Shutdown();
+
+		if (m_imguiDescriptorPool != VK_NULL_HANDLE)
+		{
+			vkDestroyDescriptorPool(m_device, m_imguiDescriptorPool, allocationCallbacks());
+			m_imguiDescriptorPool = VK_NULL_HANDLE;
+		}
+
+		m_imguiInitialised = false;
+	}
+
+	void VulkanDevice::newImGuiFrame()
+	{
+		ImGui_ImplVulkan_NewFrame();
+	}
+
+	void VulkanDevice::renderImGui(ICommandList &cmd)
+	{
+		auto& vkCmd = static_cast<VulkanCommandList&>(cmd);
+		ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), vkCmd.commandBuffer());
+	}
+
 	gfx::IRenderTarget& VulkanDevice::backBuffer()
 	{
 		return *m_backBufferTarget;
@@ -344,7 +425,7 @@ namespace imp::gfx::vulkan
 		m_frameActive = false;
 
 		if (!m_swapchain || !m_commands) return nullptr;
-		if (!m_swapchain->beginFrame()) return nullptr;	
+		if (!m_swapchain->beginFrame()) return nullptr;
 
 		u32 frame = m_swapchain->currentFrameIndex();
 		VkCommandBuffer cmd = m_commands->beginRecording(frame);

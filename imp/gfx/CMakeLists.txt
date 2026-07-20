@@ -29,7 +29,7 @@ target_sources(imp_gfx PRIVATE
 		src/backend/vulkan/vk_allocator.cpp
 		src/backend/vulkan/vk_vma_impl.cpp
 )
-target_link_libraries(imp_gfx PRIVATE Vulkan::Vulkan)
+target_link_libraries(imp_gfx PRIVATE Vulkan::Vulkan PUBLIC imgui)
 target_include_directories(imp_gfx SYSTEM PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third_party/vma)
 
 if(IMP_VULKAN_MEM_TEST)

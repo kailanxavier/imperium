@@ -43,6 +43,11 @@ namespace imp::gfx::vulkan
 		[[nodiscard]] std::unique_ptr<gfx::IShader> createShader(const gfx::ShaderDesc& desc) override;
 		[[nodiscard]] std::unique_ptr<gfx::IPipeline> createPipeline(const gfx::PipelineDesc& desc) override;
 
+		bool initImGui() override;
+		void shutdownImGui() override;
+		void newImGuiFrame() override;
+		void renderImGui(ICommandList &cmd) override;
+
 		gfx::IRenderTarget& backBuffer() override;
 		gfx::IRenderTarget* depthBuffer() override;
 		
@@ -87,6 +92,9 @@ namespace imp::gfx::vulkan
 		std::unique_ptr<VulkanCommandList> m_commandList;
 
 		VmaAllocator m_vmaAllocator = VK_NULL_HANDLE;
+
+		VkDescriptorPool m_imguiDescriptorPool = VK_NULL_HANDLE;
+		bool m_imguiInitialised = false;
 
 		VkAllocationCallbacks m_hostAllocationCallbacks{};
 		bool m_hasHostAllocationCallbacks = false;
