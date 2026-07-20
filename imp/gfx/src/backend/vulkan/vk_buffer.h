@@ -1,5 +1,7 @@
 #pragma once
 
+#include <gfx/resources.h>
+
 #include <vulkan/vulkan.h>
 #include <vk_mem_alloc.h>
 
@@ -10,15 +12,14 @@ namespace imp::gfx::vulkan
 		VmaAllocator allocator = VK_NULL_HANDLE;
 		VkDeviceSize size = 0;
 		VkBufferUsageFlags usage = 0;
-
 		bool hostVisible = true;
 	};
 
-	class VulkanBuffer
+	class VulkanBuffer final : public gfx::IBuffer
 	{
 	public:
 		VulkanBuffer() = default;
-		~VulkanBuffer();
+		~VulkanBuffer() override;
 
 		VulkanBuffer(const VulkanBuffer&) = delete;
 		VulkanBuffer& operator=(const VulkanBuffer&) = delete;
@@ -27,9 +28,11 @@ namespace imp::gfx::vulkan
 		void destroy();
 
 		[[nodiscard]] VkBuffer handle() const { return m_buffer; }
-		[[nodiscard]] void* mappedData() const { return m_mappedData; }
-		[[nodiscard]] VkDeviceSize size() const { return m_size; }
 		[[nodiscard]] bool isValid() const { return m_buffer != VK_NULL_HANDLE; }
+
+		[[nodiscard]] void* mappedData() override { return m_mappedData; }
+		[[nodiscard]] const void* mappedData() const override { return m_mappedData; }
+		[[nodiscard]] u64 size() const override { return static_cast<u64>(m_size); }
 
 	private:
 		VmaAllocator m_allocator = VK_NULL_HANDLE;

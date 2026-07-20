@@ -6,9 +6,11 @@
 
 #include <core/memory/int_types.h>
 #include <memory>
+#include <vector>
 
 namespace imp::fwk { class Window; }
 namespace imp::memory { class IAllocator; }
+namespace imp::fs { class VirtualFileSystem; }
 
 namespace imp::gfx
 {
@@ -21,6 +23,7 @@ namespace imp::gfx
         bool enableValidation = false;
         bool vsync = true;
 
+        const fs::VirtualFileSystem* vfs = nullptr;
         memory::IAllocator* allocator = nullptr;
     };
 
@@ -44,7 +47,17 @@ namespace imp::gfx
         virtual ICommandList* beginFrame() = 0;
         virtual void endFrame() = 0;
 
-        virtual GraphicsApi api() const = 0;
-        virtual const char* apiName() const = 0;
+        virtual bool initImGui() = 0;
+        virtual void shutdownImGui() = 0;
+        virtual void newImGuiFrame() = 0;
+        virtual void renderImGui(ICommandList& cmd) = 0;
+
+        [[nodiscard]] virtual GraphicsApi api() const = 0;
+        [[nodiscard]] virtual const char* apiName() const = 0;
     };
+
+    std::unique_ptr<IDevice> createDevice(GraphicsApi api);
+    bool isApiAvailable(GraphicsApi api);
+    std::vector<GraphicsApi> availableApis();
+    const char* toString(GraphicsApi api);
 }

@@ -33,12 +33,13 @@ namespace imp::gfx::vulkan
 		return *this;
 	}
 
-	bool VulkanShaderModule::loadFromFile(VkDevice device,
+	bool VulkanShaderModule::loadFromFile(VkDevice device, gfx::ShaderStage stage,
 		const fs::VirtualFileSystem& vfs,
 		const fs::Path& path, const VkAllocationCallbacks* allocationCallbacks)
 	{
-		m_allocationCallbacks = allocationCallbacks;
 		m_device = device;
+		m_stage = stage;
+		m_allocationCallbacks = allocationCallbacks;
 
 		fs::Bytes raw;
 		if (!vfs.readEntireFile(path, raw))
@@ -80,4 +81,16 @@ namespace imp::gfx::vulkan
 		m_device = VK_NULL_HANDLE;
 	}
 	
+	VkShaderStageFlagBits toVkShaderStage(gfx::ShaderStage stage)
+	{
+		switch (stage)
+		{
+		case imp::gfx::ShaderStage::Vertex: return VK_SHADER_STAGE_VERTEX_BIT;
+		case imp::gfx::ShaderStage::Fragment: return VK_SHADER_STAGE_FRAGMENT_BIT;
+		case imp::gfx::ShaderStage::Compute: return VK_SHADER_STAGE_COMPUTE_BIT;
+		}
+
+		return VK_SHADER_STAGE_ALL;
+	}
+
 }

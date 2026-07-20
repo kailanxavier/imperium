@@ -1,7 +1,7 @@
 #include "core/platform/exe_path.h"
 
 #ifdef _WIN32
-#include <window.h>
+#include <windows.h>
 #elifdef __APPLE__
 #include <mach-o/dyld.h>
 #include <vector>
