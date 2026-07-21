@@ -29,6 +29,7 @@ namespace imp::gfx::vulkan
 		void endRecording(u32 frameIndex);
 
 		[[nodiscard]] VkCommandBuffer commandBuffer(u32 frameIndex) const { return m_commandBuffers[frameIndex]; }
+		[[nodiscard]] VkCommandPool pool() const { return m_commandPool; }
 
 	private:
 		VkDevice m_device = VK_NULL_HANDLE;

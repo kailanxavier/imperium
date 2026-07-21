@@ -7,6 +7,7 @@
 
 #include <memory>
 #include <optional>
+#include <functional>
 #include <vector>
 
 namespace imp::fwk { class Window; }
@@ -17,6 +18,7 @@ namespace imp::gfx::vulkan
 	class VulkanCommandContext;
 	class VulkanCommandList;
 	class VulkanRenderTarget;
+	class VulkanDescriptorAllocator;
 
 	struct QueueFamilyIndices
 	{
@@ -67,6 +69,9 @@ namespace imp::gfx::vulkan
 		bool createAllocator();
 		bool createSwapchainInternal(const gfx::DeviceDesc& desc);
 		bool createCommandsInternal();
+		bool createDescriptorAllocatorInternal();
+
+		void submitOneTimeCommands(const std::function<void(VkCommandBuffer)>& record);
 
 		QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device) const;
 		[[nodiscard]] bool isDeviceSuitable(VkPhysicalDevice device) const;
@@ -87,6 +92,7 @@ namespace imp::gfx::vulkan
 
 		std::unique_ptr<VulkanSwapchain> m_swapchain;
 		std::unique_ptr<VulkanCommandContext> m_commands;
+		std::unique_ptr<VulkanDescriptorAllocator> m_descriptorAllocator;
 		std::unique_ptr<VulkanRenderTarget> m_backBufferTarget;
 		std::unique_ptr<VulkanRenderTarget> m_depthBufferTarget;
 		std::unique_ptr<VulkanCommandList> m_commandList;

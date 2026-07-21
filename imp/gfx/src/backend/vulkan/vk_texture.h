@@ -30,14 +30,14 @@ namespace imp::gfx::vulkan
 		bool create(const VulkanTextureCreateInfo& info);
 		void destroy();
 
-		u32 width() const override { return m_width; }
-		u32 height() const override { return m_height; }
-		gfx::TextureFormat format() const override;
+		[[nodiscard]] u32 width() const override { return m_width; }
+		[[nodiscard]] u32 height() const override { return m_height; }
+		[[nodiscard]] gfx::TextureFormat format() const override;
 
-		VkImage image() const { return m_image; }
-		VkImageView imageView() const { m_imageView; }
-		VkFormat vkFormat() const { return m_vkFormat; }
-		bool isValid() const { return m_image != VK_NULL_HANDLE; }
+		[[nodiscard]] VkImage image() const { return m_image; }
+		[[nodiscard]] VkImageView imageView() const { return m_imageView; }
+		[[nodiscard]] VkFormat vkFormat() const { return m_vkFormat; }
+		[[nodiscard]] bool isValid() const { return m_image != VK_NULL_HANDLE; }
 
 	private:
 		VmaAllocator m_allocator = VK_NULL_HANDLE;

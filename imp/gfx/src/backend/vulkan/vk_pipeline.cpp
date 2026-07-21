@@ -90,12 +90,51 @@ namespace imp::gfx::vulkan
 		pushConstantRange.offset = 0;
 		pushConstantRange.size = info.pushConstantSize;
 
+		std::vector<VkDescriptorSetLayoutBinding> bindings;
+		if (info.hasUniformBuffer)
+		{
+			VkDescriptorSetLayoutBinding b{};
+			b.binding = 0;
+			b.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+			b.descriptorCount = 1;
+			b.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+			bindings.push_back(b);
+		}
+		if (info.hasTexture)
+		{
+			VkDescriptorSetLayoutBinding b{};
+			b.binding = 1;
+			b.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+			b.descriptorCount = 1;
+			b.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+			bindings.push_back(b);
+		}
+
+		if (!bindings.empty())
+		{
+			VkDescriptorSetLayoutCreateInfo layoutInfo{};
+			layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+			layoutInfo.bindingCount = static_cast<uint32_t>( bindings.size() );
+			layoutInfo.pBindings = bindings.data();
+
+			if (vkCreateDescriptorSetLayout(m_device, &layoutInfo, m_allocationCallbacks, &m_descriptorSetLayout) != VK_SUCCESS)
+			{
+				LOG_ERROR("Vulkan", "vkCreateDescriptorSetLayout failed");
+				return false;
+			}
+		}
+
 		VkPipelineLayoutCreateInfo layoutInfo{};
 		layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 		if (info.pushConstantSize > 0)
 		{
 			layoutInfo.pushConstantRangeCount = 1;
 			layoutInfo.pPushConstantRanges = &pushConstantRange;
+		}
+		if (m_descriptorSetLayout != VK_NULL_HANDLE)
+		{
+			layoutInfo.setLayoutCount = 1;
+			layoutInfo.pSetLayouts = &m_descriptorSetLayout;
 		}
 
 		if (vkCreatePipelineLayout(m_device, &layoutInfo, m_allocationCallbacks, &m_layout) != VK_SUCCESS)
