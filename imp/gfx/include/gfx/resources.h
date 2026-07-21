@@ -74,6 +74,8 @@ namespace imp::gfx
         TextureUsage usage = TextureUsage::Sampled;
         u32 mipLevels = 1;
         const char* debugName = nullptr;
+
+        const void* initialData = nullptr;
     };
 
     class ITexture
