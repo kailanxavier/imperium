@@ -114,7 +114,7 @@ namespace imp::gfx::vulkan
 		{
 			VkDescriptorSetLayoutCreateInfo layoutInfo{};
 			layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-			layoutInfo.bindingCount = static_cast<uint32_t>( bindings.size() );
+			layoutInfo.bindingCount = static_cast<u32>( bindings.size() );
 			layoutInfo.pBindings = bindings.data();
 
 			if (vkCreateDescriptorSetLayout(m_device, &layoutInfo, m_allocationCallbacks, &m_descriptorSetLayout) != VK_SUCCESS)
@@ -188,6 +188,11 @@ namespace imp::gfx::vulkan
 		{
 			vkDestroyPipelineLayout(m_device, m_layout, m_allocationCallbacks);
 			m_layout = VK_NULL_HANDLE;
+		}
+		if (m_descriptorSetLayout != VK_NULL_HANDLE)
+		{
+			vkDestroyDescriptorSetLayout(m_device, m_descriptorSetLayout, m_allocationCallbacks);
+			m_descriptorSetLayout = VK_NULL_HANDLE;
 		}
 		m_device = VK_NULL_HANDLE;
 	}

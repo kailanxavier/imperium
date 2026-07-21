@@ -36,16 +36,17 @@ namespace imp::gfx::vulkan
 
 	void VulkanDescriptorAllocator::destroy()
 	{
-		for (VkDescriptorPool& p : m_pools)
+		for (VkDescriptorPool& pool : m_pools)
 		{
-			if (p != VK_NULL_HANDLE)
+			if (pool != VK_NULL_HANDLE)
 			{
-				vkDestroyDescriptorPool(m_device, p, m_allocationCallbacks);
-				p = VK_NULL_HANDLE;
+				vkDestroyDescriptorPool(m_device, pool, m_allocationCallbacks);
+				pool = VK_NULL_HANDLE;
 			}
 		}
 		m_device = VK_NULL_HANDLE;
 	}
+
 	void VulkanDescriptorAllocator::resetFrame(u32 frameIndex)
 	{
 		vkResetDescriptorPool(m_device, m_pools[frameIndex], 0);

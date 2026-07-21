@@ -266,7 +266,7 @@ namespace imp::gfx::vulkan
 		if (m_currentDescriptorSet != VK_NULL_HANDLE)
 			return true;
 
-		if (m_descriptorAllocator || m_currentDescriptorSetLayout == VK_NULL_HANDLE)
+		if (!m_descriptorAllocator || m_currentDescriptorSetLayout == VK_NULL_HANDLE)
 		{
 			// This should only get triggered if the caller did something
 			// wrong, so we don't need to handle this here.

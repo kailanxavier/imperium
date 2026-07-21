@@ -10,6 +10,6 @@ IMP_COMPILE_SHADERS(
 		sandbox
 		"${IMP_OUTPUT_DIR}/bin/sandbox/shaders"
 
-		${CMAKE_CURRENT_SOURCE_DIR}/shaders/vulkan/triangle.frag
-		${CMAKE_CURRENT_SOURCE_DIR}/shaders/vulkan/triangle.vert
+		${CMAKE_CURRENT_SOURCE_DIR}/shaders/vulkan/cube.frag
+		${CMAKE_CURRENT_SOURCE_DIR}/shaders/vulkan/cube.vert
 )
