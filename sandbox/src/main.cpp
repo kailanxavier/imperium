@@ -226,7 +226,7 @@ int main()
 	uboDesc.memoryAccess = gfx::MemoryAccess::HostVisible;
 	std::unique_ptr<gfx::IBuffer> tintBuffer = gfx->createBuffer(uboDesc);
 
-	const u32 kTexSize = 24;
+	const u32 kTexSize = 16;
 	std::vector<u8> checkerPixels = makeCheckerboard(kTexSize, 8);
 
 	gfx::TextureDesc texDesc;
