@@ -41,7 +41,11 @@ namespace imp::gfx
         virtual void bindVertexBuffer(IBuffer& buffer) = 0;
         virtual void bindIndexBuffer(IBuffer& buffer) = 0;
 
+        virtual void bindUniformBuffer(IBuffer& buffer, u32 binding) = 0;
+        virtual void bindUniformTexture(ITexture& texture, ISampler& sampler, u32 binding) = 0;
+
         virtual void pushConstants(const void* data, u32 size, u32 offset = 0) = 0;
+
         virtual void draw(u32 vertexCount, u32 instanceCount = 1) = 0;
         virtual void drawIndexed(u32 indexCount, u32 instanceCount = 1) = 0;
 
