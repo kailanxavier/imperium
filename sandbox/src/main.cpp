@@ -311,7 +311,7 @@ int main()
 		const u32 h = gfx->backBuffer().height();
 		const float aspect = h > 0 ? static_cast<float>( w ) / static_cast<float>( h ) : 1.f;
 
-		Mat4f model = makeRotationY(rotationAngle);
+		Mat4f model = makeRotationAxis(normalise(Vec3{ 5.f, 3.f, 0.f }), rotationAngle);
 		Mat4f view = makeLookAtLH(Vec3f::unitZ() * -1.5f, Vec3f::zero(), Vec3f::up());
 		Mat4f proj = makePerspectiveLH(toRadians(90.f), aspect, 0.1f, 100.f);
 		Mat4f mvp = proj * view * model;
