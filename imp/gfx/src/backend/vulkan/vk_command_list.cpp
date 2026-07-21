@@ -4,14 +4,22 @@
 #include "vk_render_target.h"
 #include "vk_pipeline.h"
 #include "vk_buffer.h"
+#include "vk_desc_alloc.h"
+#include "vk_texture.h"
+#include "vk_sampler.h"
 
 namespace imp::gfx::vulkan
 {
-	void VulkanCommandList::reset(VkCommandBuffer cmd)
+	void VulkanCommandList::reset(VkDevice device, VkCommandBuffer cmd, VulkanDescriptorAllocator* descriptorAllocator, u32 frameIndex)
 	{
 		m_cmd = cmd;
+		m_device = device;
 		m_currentPipelineLayout = VK_NULL_HANDLE;
+		m_currentDescriptorSetLayout = VK_NULL_HANDLE;
+		m_currentDescriptorSet = VK_NULL_HANDLE;
 		m_colourTarget = nullptr;
+		m_descriptorAllocator = descriptorAllocator;
+		m_frameIndex = frameIndex;
 	}
 
 	void VulkanCommandList::beginRenderPass(const gfx::RenderPassDesc& desc)
@@ -170,6 +178,8 @@ namespace imp::gfx::vulkan
 		auto& vkPipeline = static_cast<VulkanGraphicsPipeline&>( pipeline );
 		vkCmdBindPipeline(m_cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, vkPipeline.pipeline());
 		m_currentPipelineLayout = vkPipeline.layout();
+		m_currentDescriptorSetLayout = vkPipeline.descriptorSetLayout();
+		m_currentDescriptorSet = VK_NULL_HANDLE;
 	}
 
 	void VulkanCommandList::bindVertexBuffer(gfx::IBuffer& buffer)
@@ -182,12 +192,62 @@ namespace imp::gfx::vulkan
 
 	void VulkanCommandList::bindIndexBuffer(gfx::IBuffer& buffer)
 	{
+		// TODO: Always UINT16
 		auto& vkBuffer = static_cast<VulkanBuffer&>( buffer );
 		vkCmdBindIndexBuffer(m_cmd, vkBuffer.handle(), 0, VK_INDEX_TYPE_UINT16);
 	}
 
+	void VulkanCommandList::bindUniformBuffer(gfx::IBuffer& buffer, u32 binding)
+	{
+		if (!ensureDescriptorSet())
+			return;
+
+		auto& vkBuffer = static_cast<VulkanBuffer&>( buffer );
+
+		VkDescriptorBufferInfo bufferInfo{};
+		bufferInfo.buffer = vkBuffer.handle();
+		bufferInfo.offset = 0;
+		bufferInfo.range = vkBuffer.size();
+
+		VkWriteDescriptorSet write{};
+		write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		write.dstSet = m_currentDescriptorSet;
+		write.dstBinding = binding;
+		write.descriptorCount = 1;
+		write.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		write.pBufferInfo = &bufferInfo;
+
+		vkUpdateDescriptorSets(m_device, 1, &write, 0, nullptr);
+	}
+
+	void VulkanCommandList::bindTexture(gfx::ITexture& texture, gfx::ISampler& sampler, u32 binding)
+	{
+		if (!ensureDescriptorSet())
+			return;
+
+		auto& vkTexture = static_cast<VulkanTexture&>( texture );
+		auto& vkSampler = static_cast<VulkanSampler&>( sampler );
+
+		VkDescriptorImageInfo imageInfo{};
+		imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		imageInfo.imageView = vkTexture.imageView();
+		imageInfo.sampler = vkSampler.handle();
+
+		VkWriteDescriptorSet write{};
+		write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		write.dstSet = m_currentDescriptorSet;
+		write.dstBinding = binding;
+		write.descriptorCount = 1;
+		write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		write.pImageInfo = &imageInfo;
+
+		vkUpdateDescriptorSets(m_device, 1, &write, 0, nullptr);
+	}
+
 	void VulkanCommandList::pushConstants(const void* data, u32 size, u32 offset)
 	{
+		// TODO: Always VK_SHADER_STAGE_VERTEX_BIT
+		// My simpleton mind was not aware of the implications when I wrote it
 		vkCmdPushConstants(m_cmd, m_currentPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, offset, size, data);
 	}
 
@@ -199,6 +259,28 @@ namespace imp::gfx::vulkan
 	void VulkanCommandList::drawIndexed(u32 indexCount, u32 instanceCount)
 	{
 		vkCmdDrawIndexed(m_cmd, indexCount, instanceCount, 0, 0, 0);
+	}
+
+	bool VulkanCommandList::ensureDescriptorSet()
+	{
+		if (m_currentDescriptorSet != VK_NULL_HANDLE)
+			return true;
+
+		if (!m_descriptorAllocator || m_currentDescriptorSetLayout == VK_NULL_HANDLE)
+		{
+			// This should only get triggered if the caller did something
+			// wrong, so we don't need to handle this here.
+			return false;
+		}
+
+		m_currentDescriptorSet = m_descriptorAllocator->allocate(m_frameIndex, m_currentDescriptorSetLayout);
+		if (m_currentDescriptorSet == VK_NULL_HANDLE)
+			return false;
+
+		vkCmdBindDescriptorSets(m_cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
+			m_currentPipelineLayout, 0, 1, &m_currentDescriptorSet, 0, nullptr);
+
+		return true;
 	}
 }
 

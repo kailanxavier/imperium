@@ -84,6 +84,9 @@ namespace imp::gfx
         TextureFormat depthFormat = TextureFormat::Unknown;
 
         u32 pushConstantSize = 0;
+
+        bool hasUniformBuffer = false;
+        bool hasTexture = false;
     };
 
     class IPipeline

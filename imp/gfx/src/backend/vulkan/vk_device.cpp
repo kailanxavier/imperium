@@ -8,6 +8,9 @@
 #include "vk_pipeline.h"
 #include "vk_buffer.h"
 #include "vk_shader.h"
+#include "vk_texture.h"
+#include "vk_sampler.h"
+#include "vk_desc_alloc.h"
 #include "vk_allocator.h"
 
 #include <imgui.h>
@@ -180,6 +183,7 @@ namespace imp::gfx::vulkan
 		if (!createAllocator()) { shutdown(); return false; }
 		if (!createSwapchainInternal(desc)) { shutdown(); return false; }
 		if (!createCommandsInternal()) { shutdown(); return false; }
+		if (!createDescriptorAllocatorInternal()) { shutdown(); return false; }
 
 		m_backBufferTarget = std::make_unique<VulkanRenderTarget>(*m_swapchain, VulkanRenderTargetKind::Colour);
 		m_depthBufferTarget = std::make_unique<VulkanRenderTarget>(*m_swapchain, VulkanRenderTargetKind::Depth);
@@ -207,6 +211,7 @@ namespace imp::gfx::vulkan
 		m_commandList.reset();
 		m_backBufferTarget.reset();
 		m_depthBufferTarget.reset();
+		m_descriptorAllocator.reset();
 		m_commands.reset();
 		m_swapchain.reset();
 
@@ -262,14 +267,114 @@ namespace imp::gfx::vulkan
 
 	std::unique_ptr<gfx::ITexture> VulkanDevice::createTexture(const gfx::TextureDesc& desc)
 	{
-		LOG_ERROR("Vulkan", "createTexture not implemented yet");
-		return nullptr;
+		VulkanTextureCreateInfo info{};
+		info.allocator = m_vmaAllocator;
+		info.device = m_device;
+		info.width = desc.width;
+		info.height = desc.height;
+		info.format = toVkFormat(desc.format);
+		info.allocationCallbacks = allocationCallbacks();
+
+		auto texture = std::make_unique<VulkanTexture>();
+		if (!texture->create(info))
+		{
+			LOG_ERROR("Vulkan", "createTexture() failed");
+			return nullptr;
+		}
+
+		if (desc.initialData)
+		{
+			// We will assume 4 bytes per pixel for now since since every TextureFormat
+			// we currently have meets this condition. Revisit if for some reason we need
+			// to upload non 4 byte formats.
+			VkDeviceSize imageSize = static_cast<VkDeviceSize>( desc.width ) * desc.height * 4;
+
+			VulkanBufferCreateInfo stagingInfo{};
+			stagingInfo.allocator = m_vmaAllocator;
+			stagingInfo.size = imageSize;
+			stagingInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+			stagingInfo.hostVisible = true;
+
+			VulkanBuffer staging;
+			if (!staging.create(stagingInfo))
+			{
+				LOG_ERROR("Vulkan", "createTexture(): staging buffer creation failed");
+				return nullptr;
+			}
+			std::memcpy(staging.mappedData(), desc.initialData, static_cast<size_t>( imageSize ));
+
+			VkImage textureImage = texture->image();
+			u32 width = desc.width, height = desc.height;
+
+			submitOneTimeCommands([textureImage, &staging, width, height](VkCommandBuffer cmd)
+				{
+					VkImageSubresourceRange range{};
+					range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+					range.levelCount = 1;
+					range.layerCount = 1;
+
+					VkImageMemoryBarrier2 toTransferDst{};
+					toTransferDst.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+					toTransferDst.srcStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;
+					toTransferDst.srcAccessMask = VK_ACCESS_2_NONE;
+					toTransferDst.dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+					toTransferDst.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+					toTransferDst.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+					toTransferDst.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+					toTransferDst.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+					toTransferDst.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+					toTransferDst.image = textureImage;
+					toTransferDst.subresourceRange = range;
+
+					VkDependencyInfo dep1{};
+					dep1.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+					dep1.imageMemoryBarrierCount = 1;
+					dep1.pImageMemoryBarriers = &toTransferDst;
+					vkCmdPipelineBarrier2(cmd, &dep1);
+
+					VkBufferImageCopy region{};
+					region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+					region.imageSubresource.layerCount = 1;
+					region.imageExtent = { width, height, 1 };
+
+					vkCmdCopyBufferToImage(cmd, staging.handle(), textureImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+
+					VkImageMemoryBarrier2 toShaderRead{};
+					toShaderRead.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+					toShaderRead.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+					toShaderRead.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+					toShaderRead.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+					toShaderRead.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;
+					toShaderRead.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+					toShaderRead.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+					toShaderRead.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+					toShaderRead.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+					toShaderRead.image = textureImage;
+					toShaderRead.subresourceRange = range;
+
+					VkDependencyInfo dep2{};
+					dep2.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+					dep2.imageMemoryBarrierCount = 1;
+					dep2.pImageMemoryBarriers = &toShaderRead;
+					vkCmdPipelineBarrier2(cmd, &dep2);
+				});
+			// staging goes out of scope here. safe because submitOneTimeCommands already
+			// blocked until the GPU finished the copy that reads from it.
+		}
+
+		return texture;
 	}
 
 	std::unique_ptr<gfx::ISampler> VulkanDevice::createSampler(const gfx::SamplerDesc& desc)
 	{
-		LOG_ERROR("Vulkan", "createSampler not implemented yet");
-		return nullptr;
+		auto sampler = std::make_unique<VulkanSampler>();
+		if (!sampler->create(m_device, desc, allocationCallbacks()))
+		{
+			LOG_ERROR("Vulkan", "createSampler failed");
+			return nullptr;
+		}
+
+		return sampler;
 	}
 
 	std::unique_ptr<gfx::IShader> VulkanDevice::createShader(const gfx::ShaderDesc& desc)
@@ -320,6 +425,8 @@ namespace imp::gfx::vulkan
 		info.colourAttachmentFormat = toVkFormat(desc.colourFormat);
 		info.depthAttachmentFormat = toVkFormat(desc.depthFormat);
 		info.pushConstantSize = desc.pushConstantSize;
+		info.hasUniformBuffer = desc.hasUniformBuffer;
+		info.hasTexture = desc.hasTexture;
 		info.allocationCallbacks = allocationCallbacks();
 
 		auto pipeline = std::make_unique<VulkanGraphicsPipeline>();
@@ -339,7 +446,7 @@ namespace imp::gfx::vulkan
 		VkDescriptorPoolCreateInfo poolInfo{};
 		poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 		poolInfo.maxSets = 64;
-		poolInfo.poolSizeCount = static_cast<u32>(std::size(poolSizes));
+		poolInfo.poolSizeCount = static_cast<u32>( std::size(poolSizes) );
 		poolInfo.pPoolSizes = poolSizes;
 
 		if (vkCreateDescriptorPool(m_device, &poolInfo, allocationCallbacks(), &m_imguiDescriptorPool) != VK_SUCCESS)
@@ -351,7 +458,7 @@ namespace imp::gfx::vulkan
 		const VkFormat colourFormat = m_swapchain->imageFormat();
 		const VkFormat depthFormat = m_swapchain->depthFormat();
 
-		VkPipelineRenderingCreateInfo renderingInfo{VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO};
+		VkPipelineRenderingCreateInfo renderingInfo{ VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO };
 		renderingInfo.colorAttachmentCount = 1;
 		renderingInfo.pColorAttachmentFormats = &colourFormat;
 		renderingInfo.depthAttachmentFormat = depthFormat;
@@ -370,10 +477,10 @@ namespace imp::gfx::vulkan
 		initInfo.PipelineInfoMain.PipelineRenderingCreateInfo = renderingInfo;
 		initInfo.Allocator = allocationCallbacks();
 		initInfo.CheckVkResultFn = [](VkResult r)
-		{
-			if (r != VK_SUCCESS)
-				LOG_ERROR("VulkanDevice", "ImGui Vulkan call failed: {}", static_cast<int>(r));
-		};
+			{
+				if (r != VK_SUCCESS)
+					LOG_ERROR("VulkanDevice", "ImGui Vulkan call failed: {}", static_cast<int>( r ));
+			};
 
 		if (!ImGui_ImplVulkan_Init(&initInfo))
 			return false;
@@ -404,9 +511,9 @@ namespace imp::gfx::vulkan
 		ImGui_ImplVulkan_NewFrame();
 	}
 
-	void VulkanDevice::renderImGui(ICommandList &cmd)
+	void VulkanDevice::renderImGui(ICommandList& cmd)
 	{
-		auto& vkCmd = static_cast<VulkanCommandList&>(cmd);
+		auto& vkCmd = static_cast<VulkanCommandList&>( cmd );
 		ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), vkCmd.commandBuffer());
 	}
 
@@ -429,7 +536,10 @@ namespace imp::gfx::vulkan
 
 		u32 frame = m_swapchain->currentFrameIndex();
 		VkCommandBuffer cmd = m_commands->beginRecording(frame);
-		m_commandList->reset(cmd);
+
+		m_descriptorAllocator->resetFrame(frame);
+
+		m_commandList->reset(m_device, cmd, m_descriptorAllocator.get(), frame);
 		m_frameActive = true;
 
 		return m_commandList.get();
@@ -685,6 +795,53 @@ namespace imp::gfx::vulkan
 			return false;
 		}
 		return true;
+	}
+
+	bool VulkanDevice::createDescriptorAllocatorInternal()
+	{
+		m_descriptorAllocator = std::make_unique<VulkanDescriptorAllocator>();
+		if (!m_descriptorAllocator->create(m_device, 64, allocationCallbacks()))
+		{
+			LOG_ERROR("Vulkan", "Failed to create descriptor allocator");
+			m_descriptorAllocator.reset();
+			return false;
+		}
+		return true;
+	}
+
+	void VulkanDevice::submitOneTimeCommands(const std::function<void(VkCommandBuffer)>& record)
+	{
+		VkCommandBufferAllocateInfo allocInfo{};
+		allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+		allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+		allocInfo.commandPool = m_commands->pool();
+		allocInfo.commandBufferCount = 1;
+
+		VkCommandBuffer cmd = VK_NULL_HANDLE;
+		if (vkAllocateCommandBuffers(m_device, &allocInfo, &cmd) != VK_SUCCESS)
+		{
+			LOG_ERROR("Vulkan", "submitOneTimeCommands(): vkAllocateCommandBuffers failed");
+			return;
+		}
+
+		VkCommandBufferBeginInfo beginInfo{};
+		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+		beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+		vkBeginCommandBuffer(cmd, &beginInfo);
+
+		record(cmd);
+
+		vkEndCommandBuffer(cmd);
+
+		VkSubmitInfo submitInfo{};
+		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+		submitInfo.commandBufferCount = 1;
+		submitInfo.pCommandBuffers = &cmd;
+
+		vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
+		vkQueueWaitIdle(m_graphicsQueue);
+
+		vkFreeCommandBuffers(m_device, m_commands->pool(), 1, &cmd);
 	}
 
 	QueueFamilyIndices VulkanDevice::findQueueFamilies(VkPhysicalDevice device) const

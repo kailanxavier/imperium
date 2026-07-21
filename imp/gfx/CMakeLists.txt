@@ -26,6 +26,9 @@ target_sources(imp_gfx PRIVATE
 		src/backend/vulkan/vk_buffer.cpp
 		src/backend/vulkan/vk_render_target.cpp
 		src/backend/vulkan/vk_command_list.cpp
+		src/backend/vulkan/vk_texture.cpp
+		src/backend/vulkan/vk_sampler.cpp
+		src/backend/vulkan/vk_desc_alloc.cpp
 		src/backend/vulkan/vk_allocator.cpp
 		src/backend/vulkan/vk_vma_impl.cpp
 )
