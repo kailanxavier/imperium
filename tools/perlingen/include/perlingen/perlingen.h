@@ -16,10 +16,10 @@ namespace imp::tools::perlingen
 		void generate();
 		void write();
 
-		u32 width() const { return m_width; }
-		u32 height() const { return m_height; }
+		[[nodiscard]] u32 width() const { return m_width; }
+		[[nodiscard]] u32 height() const { return m_height; }
 
-		std::vector<u8> pixels() const { return m_pixels; }
+		[[nodiscard]] std::vector<u8> pixels() const { return m_pixels; }
 
 	private:
 		float perlin(float x, float y);
