@@ -25,6 +25,7 @@
 #include <core/log/log.h>
 
 #include <cstring>
+#include <fstream>
 #include <set>
 
 namespace imp::gfx::vulkan
@@ -379,8 +380,15 @@ namespace imp::gfx::vulkan
 
 	std::unique_ptr<gfx::IShader> VulkanDevice::createShader(const gfx::ShaderDesc& desc)
 	{
+		std::vector<u8> bytes;
+		if (!readFileBytes(desc.path, bytes))
+		{
+			LOG_ERROR("Vulkan", "createShader: failed to read {}", desc.path.c_str());
+			return nullptr;
+		}
+
 		auto shader = std::make_unique<VulkanShaderModule>();
-		if (!shader->loadFromFile(m_device, desc.stage, *m_vfs, desc.path, allocationCallbacks()))
+		if (!shader->loadFromBytes(m_device, desc.stage, bytes, allocationCallbacks()))
 		{
 			LOG_ERROR("Vulkan", "createShader failed");
 			return nullptr;
@@ -842,6 +850,25 @@ namespace imp::gfx::vulkan
 		vkQueueWaitIdle(m_graphicsQueue);
 
 		vkFreeCommandBuffers(m_device, m_commands->pool(), 1, &cmd);
+	}
+
+	bool VulkanDevice::readFileBytes(const std::string& path, std::vector<u8>& outBytes) const
+	{
+		if (m_vfs)
+			return m_vfs->readEntireFile(path, outBytes);
+
+		std::ifstream file(path, std::ios::binary | std::ios::ate);
+		if (!file.is_open())
+			return false;
+
+		std::streamsize size = file.tellg();
+		if (size <= 0)
+			return false;
+
+		file.seekg(0, std::ios::beg);
+		
+		outBytes.resize(static_cast<size_t>( size ));
+		return static_cast<bool>( file.read(reinterpret_cast<char*>( outBytes.data() ), size) );
 	}
 
 	QueueFamilyIndices VulkanDevice::findQueueFamilies(VkPhysicalDevice device) const

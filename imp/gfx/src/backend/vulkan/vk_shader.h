@@ -23,10 +23,12 @@ namespace imp::gfx::vulkan
 		VulkanShaderModule(VulkanShaderModule&& other) noexcept;
 		VulkanShaderModule& operator=(VulkanShaderModule&& other) noexcept;
 
-		// Load SPIR-V bytecode through the engine's VFS rather than the OS
-		// filesystem directly, so shader assets are subject to the same
-		// mount/override rules as everything else (that is to come)
+		bool loadFromBytes(VkDevice device, gfx::ShaderStage stage, const std::vector<u8>& code,
+			const VkAllocationCallbacks* allocationCallbacks = nullptr);
+
+		[[deprecated("loadFromFile() has been deprecated. Use loadFromBytes() instead")]]
 		bool loadFromFile(VkDevice device, gfx::ShaderStage stage, const fs::VirtualFileSystem& vfs, const fs::Path& path, const VkAllocationCallbacks* allocationCallbacks);
+
 		void destroy();
 
 		[[nodiscard]] VkShaderModule handle() const { return m_module; }
