@@ -72,6 +72,7 @@ namespace imp::gfx::vulkan
 		bool createDescriptorAllocatorInternal();
 
 		void submitOneTimeCommands(const std::function<void(VkCommandBuffer)>& record);
+		bool readFileBytes(const std::string& path, std::vector<u8>& outBytes) const;
 
 		QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device) const;
 		[[nodiscard]] bool isDeviceSuitable(VkPhysicalDevice device) const;

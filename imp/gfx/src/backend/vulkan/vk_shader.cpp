@@ -33,6 +33,38 @@ namespace imp::gfx::vulkan
 		return *this;
 	}
 
+	bool VulkanShaderModule::loadFromBytes(VkDevice device, gfx::ShaderStage stage, const std::vector<u8>& code, const VkAllocationCallbacks* allocationCallbacks)
+	{
+		if (code.empty() || ( code.size() % 4 ) != 0)
+		{
+			LOG_ERROR("Vulkan", "Shader bytecode has invalid size, not a valid SPIR-V binary");
+			return false;
+		}
+
+		// While every real allocator wouldn't have a problem here,
+		// hypothetically the 4-byte alignment isn't promises to u8
+		// in the standard. So for safety we will copy it into another
+		// vector instead of casting it into u32 later
+		std::vector<u32> alignedCode(code.size() / sizeof(u32));
+		std::memcpy(alignedCode.data(), code.data(), code.size());
+
+		VkShaderModuleCreateInfo createInfo{};
+		createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+		createInfo.codeSize = code.size();
+		createInfo.pCode = alignedCode.data();
+
+		if (vkCreateShaderModule(device, &createInfo, allocationCallbacks, &m_module) != VK_SUCCESS)
+		{
+			LOG_ERROR("Vulkan", "vkCreateShaderModule failed");
+			return false;
+		}
+
+		m_device = device;
+		m_stage = stage;
+		m_allocationCallbacks = allocationCallbacks;
+		return true;
+	}
+
 	bool VulkanShaderModule::loadFromFile(VkDevice device, gfx::ShaderStage stage,
 		const fs::VirtualFileSystem& vfs,
 		const fs::Path& path, const VkAllocationCallbacks* allocationCallbacks)
