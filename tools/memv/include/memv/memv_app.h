@@ -50,15 +50,15 @@ namespace imp::tools::memv
 
         void pollTelemetry();
 
-        ConnectionState state() const { return m_state; }
-        const std::string& lastError() const { return m_lastError; }
-        const std::string& host() const { return m_host; }
-        u16 port() const { return m_port; }
+        [[nodiscard]] ConnectionState state() const { return m_state; }
+        [[nodiscard]] const std::string& lastError() const { return m_lastError; }
+        [[nodiscard]] const std::string& host() const { return m_host; }
+        [[nodiscard]] u16 port() const { return m_port; }
 
-        const std::vector<AllocatorSnapshot>& allocators() const { return m_allocators; }
-        u64 totalUsedBytes() const;
+        [[nodiscard]] const std::vector<AllocatorSnapshot>& allocators() const { return m_allocators; }
+        [[nodiscard]] u64 totalUsedBytes() const;
 
-        std::chrono::steady_clock::time_point lastSnapshotTime() const { return m_lastSnapshotTime; }
+        [[nodiscard]] std::chrono::steady_clock::time_point lastSnapshotTime() const { return m_lastSnapshotTime; }
 
     private:
         void handleMemoryTelemetryFrame(const protocol::FrameReader::Frame& frame);
