@@ -8,8 +8,10 @@ imp_set_runtime_dir(sandbox sandbox)
 
 IMP_COMPILE_SHADERS(
 		sandbox
-		"${IMP_OUTPUT_DIR}/bin/sandbox/shaders"
+		"${IMP_OUTPUT_DIR}/bin/sandbox/assets/shaders"
 
 		${CMAKE_CURRENT_SOURCE_DIR}/shaders/vulkan/cube.frag
 		${CMAKE_CURRENT_SOURCE_DIR}/shaders/vulkan/cube.vert
 )
+
+IMP_COPY_ASSETS(sandbox)

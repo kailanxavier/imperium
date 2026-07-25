@@ -34,6 +34,12 @@ target_sources(imp_gfx PRIVATE
 )
 target_link_libraries(imp_gfx PRIVATE Vulkan::Vulkan PUBLIC imgui)
 target_include_directories(imp_gfx SYSTEM PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third_party/vma)
+target_include_directories(imp_gfx SYSTEM PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb)
+
+target_sources(imp_gfx PRIVATE
+	src/image.cpp
+	src/stb_image_impl.cpp
+)
 
 if(IMP_VULKAN_MEM_TEST)
 	# simple allocator test that doesn't need to go through gtest for now
