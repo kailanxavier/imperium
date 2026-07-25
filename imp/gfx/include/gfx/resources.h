@@ -26,11 +26,14 @@ namespace imp::gfx
         HostVisible,
     };
 
+    enum class IndexFormat : u8 { Uint16, Uint32 };
+
     struct BufferDesc
     {
         u64 size = 0;
         BufferUsage usage = BufferUsage::Vertex;
         MemoryAccess memoryAccess = MemoryAccess::DeviceOnly;
+        IndexFormat indexFormat = IndexFormat::Uint16;
         const char* debugName = nullptr;
     };
 
@@ -42,6 +45,8 @@ namespace imp::gfx
 
         virtual void* mappedData() = 0;
         virtual const void* mappedData() const = 0;
+
+        [[nodiscard]] virtual IndexFormat indexFormat() const = 0;
     };
 
     enum class TextureFormat

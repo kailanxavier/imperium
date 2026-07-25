@@ -12,6 +12,7 @@ namespace imp::gfx::vulkan
 	{
 		m_allocator = info.allocator;
 		m_size = info.size;
+		m_indexFormat = info.indexFormat;
 
 		VkBufferCreateInfo bufferInfo{};
 		bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
