@@ -6,8 +6,13 @@
 
 #include <gfx/gfx.h>
 #include <gfx/image.h>
+#include <gfx/model.h>
+#include <gfx/model_loader.h>
+#include <gfx/lighting.h>
 
 #include <memory>
+#include <functional>
+#include <cstring>
 
 #include <core/math/math.h>
 
@@ -18,90 +23,6 @@
 #include <protocol/memory_telemetry.h>
 
 using namespace imp;
-
-namespace
-{
-	struct Vertex
-	{
-		math::Vec3f position;
-		math::Vec2f uv;
-	};
-
-	// We need 24 vertices now, 4 per face, since
-	// each face needs its own UV between 0 and 1
-	const Vertex kCubeVertices[] = {
-		// -Z face: corners (0, 3, 2, 1)
-		{ { -0.5f, -0.5f, -0.5f }, { 0.f, 0.f } },
-		{ { -0.5f,  0.5f, -0.5f }, { 1.f, 0.f } },
-		{ {  0.5f,  0.5f, -0.5f }, { 1.f, 1.f } },
-		{ {  0.5f, -0.5f, -0.5f }, { 0.f, 1.f } },
-
-		// +Z face: corners (4, 5, 6, 7)
-		{ { -0.5f, -0.5f,  0.5f }, { 0.f, 0.f } },
-		{ {  0.5f, -0.5f,  0.5f }, { 1.f, 0.f } },
-		{ {  0.5f,  0.5f,  0.5f }, { 1.f, 1.f } },
-		{ { -0.5f,  0.5f,  0.5f }, { 0.f, 1.f } },
-
-		// -X face: corners (0, 4, 7, 3)
-		{ { -0.5f, -0.5f, -0.5f }, { 0.f, 0.f } },
-		{ { -0.5f, -0.5f,  0.5f }, { 1.f, 0.f } },
-		{ { -0.5f,  0.5f,  0.5f }, { 1.f, 1.f } },
-		{ { -0.5f,  0.5f, -0.5f }, { 0.f, 1.f } },
-
-		// +X face: corners (1, 2, 6, 5)
-		{ {  0.5f, -0.5f, -0.5f }, { 0.f, 0.f } },
-		{ {  0.5f,  0.5f, -0.5f }, { 1.f, 0.f } },
-		{ {  0.5f,  0.5f,  0.5f }, { 1.f, 1.f } },
-		{ {  0.5f, -0.5f,  0.5f }, { 0.f, 1.f } },
-
-		// -Y face: corners (0, 1, 5, 4)
-		{ { -0.5f, -0.5f, -0.5f }, { 0.f, 0.f } },
-		{ {  0.5f, -0.5f, -0.5f }, { 1.f, 0.f } },
-		{ {  0.5f, -0.5f,  0.5f }, { 1.f, 1.f } },
-		{ { -0.5f, -0.5f,  0.5f }, { 0.f, 1.f } },
-
-		// +Y face: corners (3, 7, 6, 2)
-		{ { -0.5f,  0.5f, -0.5f }, { 0.f, 0.f } },
-		{ { -0.5f,  0.5f,  0.5f }, { 1.f, 0.f } },
-		{ {  0.5f,  0.5f,  0.5f }, { 1.f, 1.f } },
-		{ {  0.5f,  0.5f, -0.5f }, { 0.f, 1.f } },
-
-	};
-
-	const u16 kCubeIndices[] = {
-		0,  1,  2,   0,  2,  3,
-		4,  5,  6,   4,  6,  7,
-		8,  9, 10,   8, 10, 11,
-		12, 13, 14,  12, 14, 15,
-		16, 17, 18,  16, 18, 19,
-		20, 21, 22,  20, 22, 23,
-	};
-
-	struct TintUBO
-	{
-		float tint[4];
-	};
-
-	std::vector<u8> makeCheckerboard(u32 size, u32 squarePx)
-	{
-		std::vector<u8> pixels(static_cast<size_t>( size ) * size * 4);
-		for (u32 y = 0; y < size; ++y)
-		{
-			for (u32 x = 0; x < size; ++x)
-			{
-				bool light = ( ( x / squarePx ) + ( y / squarePx ) ) % 2 == 0;
-				u8 v = light ? 220 : 40;
-				size_t i = ( static_cast<size_t>(y) * size + x ) * 4;
-				pixels[i + 0] = light ? v : static_cast<u8>(80); // faint red tint on dark squares
-				pixels[i + 1] = v;
-				pixels[i + 2] = v;
-				pixels[i + 3] = static_cast<u8>(255);
-			}
-		}
-
-		return pixels;
-	}
-}
 
 int main()
 {
@@ -169,80 +90,51 @@ int main()
 
 	LOG_INFO("Sandbox", "Running with {} device, window ({}, {})", gfx->apiName(), window.width(), window.height());
 
-	// RESOURCE CREATION WAS MOVED HERE
-	gfx::ShaderDesc vertDesc;
-	vertDesc.stage = gfx::ShaderStage::Vertex;
-	vertDesc.path = "assets/shaders/cube.vert.spv";
-	std::unique_ptr<gfx::IShader> vertexShader = gfx->createShader(vertDesc);
+	fwk::Camera camera;
+	camera.setPosition({ 0.f, 0.f, -1.5f });
+	camera.setYawPitch(0.f, 0.f);
 
-	gfx::ShaderDesc fragDesc;
-	fragDesc.stage = gfx::ShaderStage::Fragment;
-	fragDesc.path = "assets/shaders/cube.frag.spv";
-	std::unique_ptr<gfx::IShader> fragmentShader = gfx->createShader(fragDesc);
+	gfx::ShaderDesc meshVertDesc;
+	meshVertDesc.stage = gfx::ShaderStage::Vertex;
+	meshVertDesc.path = "assets/shaders/mesh.vert.spv";
+	std::unique_ptr<gfx::IShader> meshVertShader = gfx->createShader(meshVertDesc);
 
-	if (!vertexShader || !fragmentShader)
+	gfx::ShaderDesc meshFragDesc;
+	meshFragDesc.stage = gfx::ShaderStage::Fragment;
+	meshFragDesc.path = "assets/shaders/mesh.frag.spv";
+	std::unique_ptr<gfx::IShader> meshFragShader = gfx->createShader(meshFragDesc);
+
+	if (!meshFragShader || !meshVertShader)
 	{
-		LOG_FATAL("Sandbox", "Failed to load shaders");
+		LOG_ERROR("Sandbox", "Failed to load mesh shaders");
 		gfx->shutdown();
 		window.destroy();
 		return 1;
 	}
 
-	gfx::VertexAttribute attrs[2] = {
-		{ 0, static_cast<u32>( offsetof(Vertex, position) ), 3, true },
-		{ 1, static_cast<u32>( offsetof(Vertex, uv) ), 2, true },
+	gfx::VertexAttribute attrs[3] = {
+		{ 0, static_cast<u32>( offsetof(gfx::ModelVertex, position) ), 3, true },
+		{ 1, static_cast<u32>( offsetof(gfx::ModelVertex, normal) ), 3, true },
+		{ 2, static_cast<u32>( offsetof(gfx::ModelVertex, uv) ), 2, true },
 	};
 
-	gfx::PipelineDesc pipelineDesc;
-	pipelineDesc.vertexShader = vertexShader.get();
-	pipelineDesc.fragmentShader = fragmentShader.get();
-	pipelineDesc.vertexLayout.stride = sizeof(Vertex);
-	pipelineDesc.vertexLayout.attributes = attrs;
-	pipelineDesc.vertexLayout.attributeCount = 2;
-	pipelineDesc.rasterizerState.cullMode = gfx::CullMode::Back;
-	pipelineDesc.depthStencilState.depthTestEnable = true;
-	pipelineDesc.depthStencilState.depthWriteEnable = true;
-	pipelineDesc.depthStencilState.depthCompareOp = gfx::CompareOp::Less;
-	pipelineDesc.colourFormat = gfx->backBuffer().format();
-	pipelineDesc.depthFormat = gfx->depthBuffer() ? gfx->depthBuffer()->format() : gfx::TextureFormat::Unknown;
-	pipelineDesc.pushConstantSize = sizeof(math::Mat4f);
-	pipelineDesc.hasUniformBuffer = true;
-	pipelineDesc.hasTexture = true;
+	gfx::PipelineDesc meshPipelineDesc;
+	meshPipelineDesc.vertexShader = meshVertShader.get();
+	meshPipelineDesc.fragmentShader = meshFragShader.get();
+	meshPipelineDesc.vertexLayout.stride = sizeof(gfx::ModelVertex);
+	meshPipelineDesc.vertexLayout.attributeCount = 3;
+	meshPipelineDesc.vertexLayout.attributes = attrs;
+	meshPipelineDesc.rasterizerState.cullMode = gfx::CullMode::Back;
+	meshPipelineDesc.depthStencilState.depthTestEnable = true;
+	meshPipelineDesc.depthStencilState.depthWriteEnable = true;
+	meshPipelineDesc.depthStencilState.depthCompareOp = gfx::CompareOp::Less;
+	meshPipelineDesc.colourFormat = gfx->backBuffer().format();
+	meshPipelineDesc.depthFormat = gfx->depthBuffer() ? gfx->depthBuffer()->format() : gfx::TextureFormat::Unknown;
+	meshPipelineDesc.pushConstantSize = sizeof(gfx::MeshPushConstants);
+	meshPipelineDesc.hasUniformBuffer = true;
+	meshPipelineDesc.hasTexture = true;
 
-	std::unique_ptr<gfx::IPipeline> pipeline = gfx->createPipeline(pipelineDesc);
-
-	gfx::BufferDesc vbDesc;
-	vbDesc.size = sizeof(kCubeVertices);
-	vbDesc.usage = gfx::BufferUsage::Vertex;
-	vbDesc.memoryAccess = gfx::MemoryAccess::HostVisible;
-	std::unique_ptr<gfx::IBuffer> vertexBuffer = gfx->createBuffer(vbDesc);
-
-	gfx::BufferDesc ibDesc;
-	ibDesc.size = sizeof(kCubeIndices);
-	ibDesc.usage = gfx::BufferUsage::Index;
-	ibDesc.memoryAccess = gfx::MemoryAccess::HostVisible;
-	std::unique_ptr<gfx::IBuffer> indexBuffer = gfx->createBuffer(ibDesc);
-
-	gfx::BufferDesc uboDesc;
-	uboDesc.size = sizeof(TintUBO);
-	uboDesc.usage = gfx::BufferUsage::Uniform;
-	uboDesc.memoryAccess = gfx::MemoryAccess::HostVisible;
-	std::unique_ptr<gfx::IBuffer> tintBuffer = gfx->createBuffer(uboDesc);
-
-	gfx::ImageData image = gfx::loadImageFromFile("assets/textures/tex.png", &vfsHost);
-	if (!image.isValid())
-	{
-		LOG_ERROR("Sandbox", "Failed to load texture: tex.png");
-		return 1;
-	}
-
-	gfx::TextureDesc texDesc;
-	texDesc.width = image.width;
-	texDesc.height = image.height;
-	texDesc.format = gfx::TextureFormat::RGBA8Unorm;
-	texDesc.usage = gfx::TextureUsage::Sampled;
-	texDesc.initialData = image.pixels.data();
-	std::unique_ptr<gfx::ITexture> texture = gfx->createTexture(texDesc);
+	std::unique_ptr<gfx::IPipeline> pipeline = gfx->createPipeline(meshPipelineDesc);
 
 	gfx::SamplerDesc samplerDesc;
 	samplerDesc.minFilter = gfx::FilterMode::Linear;
@@ -251,30 +143,29 @@ int main()
 	samplerDesc.addressModeV = gfx::AddressMode::Repeat;
 	std::unique_ptr<gfx::ISampler> sampler = gfx->createSampler(samplerDesc);
 
-	if (!pipeline || !vertexBuffer || !indexBuffer || !tintBuffer || !texture || !sampler)
+	gfx::Model model = gfx::loadModel(*gfx, "assets/models/sponza.glb", &vfsHost);
+	if (!model.isValid())
+		LOG_ERROR("Sandbox", "Failed to load model");
+
+	gfx::BufferDesc lightUboDesc;
+	lightUboDesc.size = sizeof(gfx::BlinnPhongLightUBO);
+	lightUboDesc.usage = gfx::BufferUsage::Uniform;
+	lightUboDesc.memoryAccess = gfx::MemoryAccess::HostVisible;
+	std::unique_ptr<gfx::IBuffer> lightBuffer = gfx->createBuffer(lightUboDesc);
+
+	if (!pipeline || !sampler || !lightBuffer || !model.isValid())
 	{
-		LOG_FATAL("Sandbox", "Failed to create pipeline/buffers/texture/sampler");
+		LOG_FATAL("Sandbox", "Failed to create pipeline/sampler/light buffer, or model failed to load");
 		gfx->shutdown();
 		window.destroy();
 		return 1;
 	}
 
-	std::memcpy(vertexBuffer->mappedData(), kCubeVertices, sizeof(kCubeVertices));
-	std::memcpy(indexBuffer->mappedData(), kCubeIndices, sizeof(kCubeIndices));
-
-	TintUBO tint{ { 1.f, 1.f, 1.f, 1.f } };
-	std::memcpy(tintBuffer->mappedData(), &tint, sizeof(tint));
-
 	// Tool server stuff
 	auto lastTelemetryPublish = std::chrono::steady_clock::now();
 	constexpr auto kTelemetryInterval = std::chrono::milliseconds(200);
 
-	fwk::Camera camera;
-	camera.setPosition({ 0.f, 0.f, -1.5f });
-	camera.setYawPitch(0.f, 0.f);
-
 	auto lastFrameTime = std::chrono::steady_clock::now();
-	float rotationAngle = 0.f;
 
 	while (!window.shouldClose())
 	{
@@ -311,6 +202,10 @@ int main()
 
 		camera.update(window.input(), deltaTime);
 
+		gfx::BlinnPhongLightUBO lightData;
+		lightData.cameraPositionWS = { camera.position().x, camera.position().y, camera.position().z, 0.f };
+		std::memcpy(lightBuffer->mappedData(), &lightData, sizeof(lightData));
+
 		gfx::ICommandList* cmd = gfx->beginFrame();
 		if (!cmd)
 			continue;
@@ -329,30 +224,54 @@ int main()
 		const u32 h = gfx->backBuffer().height();
 		const float aspect = h > 0 ? static_cast<float>( w ) / static_cast<float>( h ) : 1.f;
 
-		Mat4f model = makeRotationAxis(normalise(Vec3{ 5.f, 3.f, 0.f }), rotationAngle);
-		Mat4f mvp = camera.projection(aspect) * camera.view() * model;
+		Mat4f viewProj = camera.projection(aspect) * camera.view();
+		Mat4f worldRoot{};
 
-		cmd->pushConstants(mvp.data(), sizeof(Mat4f));
-		cmd->bindUniformBuffer(*tintBuffer, 0);
-		cmd->bindTexture(*texture, *sampler, 1);
-		cmd->bindVertexBuffer(*vertexBuffer);
-		cmd->bindIndexBuffer(*indexBuffer);
-		cmd->drawIndexed(static_cast<u32>( std::size(kCubeIndices) ));
+		std::function<void(u32, const Mat4f&)> drawNode = [&](u32 nodeIdx, const Mat4f& parentWorld)
+			{
+				const gfx::ModelNode& node = model.nodes[nodeIdx];
+				Mat4f world = parentWorld * node.localTransform;
+
+				if (node.meshIndex >= 0)
+				{
+					for (auto& prim : model.meshes[node.meshIndex].primitives)
+					{
+						gfx::MeshPushConstants pc;
+						pc.model = world;
+						pc.mvp = viewProj * world;
+						cmd->pushConstants(&pc, sizeof(pc), 0);
+
+						cmd->bindUniformBuffer(*lightBuffer, 0);
+
+						if (prim.materialIndex >= 0)
+						{
+							i32 texIdx = model.materials[prim.materialIndex].baseColourTextureIndex;
+							if (texIdx >= 0)
+								cmd->bindTexture(*model.textures[texIdx].texture, *sampler, 1);
+						}
+
+						cmd->bindVertexBuffer(*prim.vertexBuffer);
+						cmd->bindIndexBuffer(*prim.indexBuffer);
+						cmd->drawIndexed(prim.indexCount, 1);
+					}
+				}
+
+				for (u32 child : node.children)
+					drawNode(child, world);
+			};
+
+		for (u32 root : model.rootNodes)
+			drawNode(root, worldRoot);
 
 		cmd->endRenderPass();
 		gfx->endFrame();
-
-		rotationAngle += 0.01f;
 	}
-
+	model = gfx::Model{};
+	lightBuffer.reset();
 	sampler.reset();
-	texture.reset();
-	tintBuffer.reset();
-	indexBuffer.reset();
-	vertexBuffer.reset();
 	pipeline.reset();
-	fragmentShader.reset();
-	vertexShader.reset();
+	meshFragShader.reset();
+	meshVertShader.reset();
 
 	gfx->shutdown();
 	window.destroy();

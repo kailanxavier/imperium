@@ -255,6 +255,7 @@ namespace imp::gfx::vulkan
 		info.size = desc.size;
 		info.usage = toVkBufferUsage(desc.usage);
 		info.hostVisible = ( desc.memoryAccess == gfx::MemoryAccess::HostVisible );
+		info.indexFormat = desc.indexFormat;
 
 		auto buffer = std::make_unique<VulkanBuffer>();
 		if (!buffer->create(info))
@@ -808,7 +809,7 @@ namespace imp::gfx::vulkan
 	bool VulkanDevice::createDescriptorAllocatorInternal()
 	{
 		m_descriptorAllocator = std::make_unique<VulkanDescriptorAllocator>();
-		if (!m_descriptorAllocator->create(m_device, 64, allocationCallbacks()))
+		if (!m_descriptorAllocator->create(m_device, 4096, allocationCallbacks()))
 		{
 			LOG_ERROR("Vulkan", "Failed to create descriptor allocator");
 			m_descriptorAllocator.reset();

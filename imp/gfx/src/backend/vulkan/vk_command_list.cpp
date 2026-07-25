@@ -194,7 +194,12 @@ namespace imp::gfx::vulkan
 	{
 		// TODO: Always UINT16
 		auto& vkBuffer = static_cast<VulkanBuffer&>( buffer );
-		vkCmdBindIndexBuffer(m_cmd, vkBuffer.handle(), 0, VK_INDEX_TYPE_UINT16);
+		const VkIndexType indexType = ( vkBuffer.indexFormat() == gfx::IndexFormat::Uint32
+			? VK_INDEX_TYPE_UINT32
+			: VK_INDEX_TYPE_UINT16
+			);
+
+		vkCmdBindIndexBuffer(m_cmd, vkBuffer.handle(), 0, indexType);
 	}
 
 	void VulkanCommandList::bindUniformBuffer(gfx::IBuffer& buffer, u32 binding)
