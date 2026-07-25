@@ -259,11 +259,13 @@ namespace imp::gfx::vulkan
 	void VulkanCommandList::draw(u32 vertexCount, u32 instanceCount)
 	{
 		vkCmdDraw(m_cmd, vertexCount, instanceCount, 0, 0);
+		m_currentDescriptorSet = VK_NULL_HANDLE;
 	}
 
 	void VulkanCommandList::drawIndexed(u32 indexCount, u32 instanceCount)
 	{
 		vkCmdDrawIndexed(m_cmd, indexCount, instanceCount, 0, 0, 0);
+		m_currentDescriptorSet = VK_NULL_HANDLE;
 	}
 
 	bool VulkanCommandList::ensureDescriptorSet()

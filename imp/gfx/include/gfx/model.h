@@ -38,6 +38,12 @@ namespace imp::gfx
 		std::string name;
 		math::Vec4f baseColourFactor{ 1.f, 1.f, 1.f, 1.f };
 		i32 baseColourTextureIndex = -1;
+
+		i32 normalTextureIndex = -1;
+		i32 metallicRoughnessTextureIndex = -1;
+		i32 occlusionTextureIndex = -1;
+		i32 emissiveTextureIndex = -1;
+		math::Vec4f emissiveFactor{ 0.f, 0.f, 0.f, 0.f };
 	};
 
 	struct ModelTexture

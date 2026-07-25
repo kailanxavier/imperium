@@ -319,7 +319,29 @@ namespace imp::gfx
 					dstMat.baseColourTextureIndex = getOrLoadTexture(
 						device, pbr.base_color_texture.texture->image, modelDir, vfs, textureCache, outModel);
 				}
+
+				if (pbr.metallic_roughness_texture.texture)
+				{
+					dstMat.metallicRoughnessTextureIndex = getOrLoadTexture(
+						device, pbr.metallic_roughness_texture.texture->image, modelDir, vfs, textureCache, outModel);
+				}
 			}
+
+			if (srcMat.occlusion_texture.texture)
+			{
+				dstMat.occlusionTextureIndex = getOrLoadTexture(
+					device, srcMat.occlusion_texture.texture->image, modelDir, vfs, textureCache, outModel);
+			}
+
+			if (srcMat.emissive_texture.texture)
+			{
+				dstMat.emissiveTextureIndex = getOrLoadTexture(
+					device, srcMat.emissive_texture.texture->image, modelDir, vfs, textureCache, outModel);
+			}
+
+			dstMat.emissiveFactor = {
+				srcMat.emissive_factor[0], srcMat.emissive_factor[1], srcMat.emissive_factor[2], 0.f
+			};
 		}
 
 		outModel.meshes.resize(data->meshes_count);
