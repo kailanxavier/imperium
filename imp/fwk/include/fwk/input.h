@@ -11,6 +11,8 @@ namespace imp::fwk
 {
 	enum class Key : u32
 	{
+		Invalid = 0,
+
 		Q, W, E, R, T, Y, U, I, O, P,
 		A, S, D, F, G, H, J, K, L,
 		Z, X, C, V, B, N, M,
@@ -21,6 +23,8 @@ namespace imp::fwk
 
 	enum class MouseButton : u32
 	{
+		Invalid = 0,
+
 		Left, Right, Middle,
 		Four, Five,
 

@@ -268,7 +268,7 @@ int main()
 
 	float rotationX = 0.f;
 	float rotationY = 0.f; // temp
-	float zoomMul = 1.f;
+	float zoomMul = 2.f;
 
 	while (!window.shouldClose())
 	{

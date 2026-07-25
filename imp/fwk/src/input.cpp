@@ -41,7 +41,7 @@ namespace imp::fwk
 			case GLFW_KEY_LEFT_SHIFT: return Key::LeftShift;
 			case GLFW_KEY_ESCAPE: return Key::Escape;
 			case GLFW_KEY_LEFT_CONTROL: return Key::LeftControl;
-			default: return Key::Count;
+			default: return Key::Invalid;
 			}
 		}
 
@@ -54,8 +54,18 @@ namespace imp::fwk
 			case GLFW_MOUSE_BUTTON_MIDDLE: return MouseButton::Middle;
 			case GLFW_MOUSE_BUTTON_4: return MouseButton::Four;
 			case GLFW_MOUSE_BUTTON_5: return MouseButton::Five;
-			default: return MouseButton::Count;
+			default: return MouseButton::Invalid;
 			}
+		}
+
+		constexpr size_t toIndex(Key key)
+		{
+			return static_cast<size_t>( key );
+		}
+
+		constexpr size_t toIndex(MouseButton button)
+		{
+			return static_cast<size_t>( button );
 		}
 	}
 
@@ -69,22 +79,22 @@ namespace imp::fwk
 
 	bool Input::isKeyDown(Key key) const
 	{
-		return m_keysDown[static_cast<size_t>( key )];
+		return m_keysDown[toIndex(key)];
 	}
 
 	bool Input::isKeyPressed(Key key) const
 	{
-		return m_keysPressed[static_cast<size_t>( key )];
+		return m_keysPressed[toIndex(key)];
 	}
 
 	bool Input::isKeyReleased(Key key) const
 	{
-		return m_keysReleased[static_cast<size_t>( key )];
+		return m_keysReleased[toIndex(key)];
 	}
 
 	bool Input::isMouseButtonDown(MouseButton button) const
 	{
-		return m_mouseDown[static_cast<size_t>( button )];
+		return m_mouseDown[toIndex(button)];
 	}
 
 	void Input::onKeyEvent(int glfwKey, int action)
@@ -92,7 +102,7 @@ namespace imp::fwk
 		Key mapped = fromGlfwKey(glfwKey);
 		if (mapped == Key::Count) return;
 
-		size_t index = static_cast<size_t>( mapped );
+		size_t index = toIndex(mapped);
 		if (action == GLFW_PRESS)
 		{
 			m_keysDown[index] = true;
@@ -110,7 +120,7 @@ namespace imp::fwk
 		MouseButton mapped = fromGlfwMouseButton(glfwButton);
 		if (mapped == MouseButton::Count) return;
 
-		m_mouseDown[static_cast<size_t>( mapped )] = ( action != GLFW_RELEASE );
+		m_mouseDown[toIndex(mapped)] = ( action != GLFW_RELEASE );
 	}
 
 	void Input::onCursorPosEvent(double x, double y)
