@@ -1,8 +1,8 @@
-#include <core/core.h>
 #include <core/log/log.h>
 #include <core/memory/heap_allocator.h>
 #include <fwk/window.h>
 #include <gfx/gfx.h>
+#include <gfx/image.h>
 
 #include <memory>
 
@@ -110,8 +110,8 @@ int main()
 	memory::HeapAllocator gfxHostAllocator("GfxHost");
 	fs::VirtualFileSystem vfsHost;
 
-	const auto shadersPath = ( imp::platform::executableDir() / "shaders" ).string();
-	if (!vfsHost.mount("shaders/", shadersPath, 0, true, true))
+	const auto shadersPath = ( imp::platform::executableDir() / "assets" ).string();
+	if (!vfsHost.mount("assets/", shadersPath, 0, true, true))
 	{
 		LOG_ERROR("Sandbox", "Failed to mount shaders");
 		return 1;
@@ -169,12 +169,12 @@ int main()
 	// RESOURCE CREATION WAS MOVED HERE
 	gfx::ShaderDesc vertDesc;
 	vertDesc.stage = gfx::ShaderStage::Vertex;
-	vertDesc.path = "shaders/cube.vert.spv";
+	vertDesc.path = "assets/shaders/cube.vert.spv";
 	std::unique_ptr<gfx::IShader> vertexShader = gfx->createShader(vertDesc);
 
 	gfx::ShaderDesc fragDesc;
 	fragDesc.stage = gfx::ShaderStage::Fragment;
-	fragDesc.path = "shaders/cube.frag.spv";
+	fragDesc.path = "assets/shaders/cube.frag.spv";
 	std::unique_ptr<gfx::IShader> fragmentShader = gfx->createShader(fragDesc);
 
 	if (!vertexShader || !fragmentShader)
@@ -186,8 +186,8 @@ int main()
 	}
 
 	gfx::VertexAttribute attrs[2] = {
-		{ 0, static_cast<uint32_t>( offsetof(Vertex, position) ), 3, true },
-		{ 1, static_cast<uint32_t>( offsetof(Vertex, uv) ), 2, true },
+		{ 0, static_cast<u32>( offsetof(Vertex, position) ), 3, true },
+		{ 1, static_cast<u32>( offsetof(Vertex, uv) ), 2, true },
 	};
 
 	gfx::PipelineDesc pipelineDesc;
@@ -226,20 +226,24 @@ int main()
 	uboDesc.memoryAccess = gfx::MemoryAccess::HostVisible;
 	std::unique_ptr<gfx::IBuffer> tintBuffer = gfx->createBuffer(uboDesc);
 
-	const u32 kTexSize = 16;
-	std::vector<u8> checkerPixels = makeCheckerboard(kTexSize, 8);
+	gfx::ImageData image = gfx::loadImageFromFile("assets/textures/tex.png", &vfsHost);
+	if (!image.isValid())
+	{
+		LOG_ERROR("Sandbox", "Failed to load texture: tex.png");
+		return 1;
+	}
 
 	gfx::TextureDesc texDesc;
-	texDesc.width = kTexSize;
-	texDesc.height = kTexSize;
+	texDesc.width = image.width;
+	texDesc.height = image.height;
 	texDesc.format = gfx::TextureFormat::RGBA8Unorm;
 	texDesc.usage = gfx::TextureUsage::Sampled;
-	texDesc.initialData = checkerPixels.data();
+	texDesc.initialData = image.pixels.data();
 	std::unique_ptr<gfx::ITexture> texture = gfx->createTexture(texDesc);
 
 	gfx::SamplerDesc samplerDesc;
-	samplerDesc.minFilter = gfx::FilterMode::Nearest; // nearest so the lines don't blur together
-	samplerDesc.magFilter = gfx::FilterMode::Nearest;
+	samplerDesc.minFilter = gfx::FilterMode::Linear;
+	samplerDesc.magFilter = gfx::FilterMode::Linear;
 	samplerDesc.addressModeU = gfx::AddressMode::Repeat;
 	samplerDesc.addressModeV = gfx::AddressMode::Repeat;
 	std::unique_ptr<gfx::ISampler> sampler = gfx->createSampler(samplerDesc);

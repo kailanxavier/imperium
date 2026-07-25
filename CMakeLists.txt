@@ -52,6 +52,7 @@ target_compile_options(imperium_compile_options INTERFACE
 
 include(cmake/AddThirdParty.cmake)
 include(cmake/CompileShaders.cmake)
+include(cmake/CopyAssets.cmake)
 
 function(imp_set_runtime_dir TARGET SUBDIR)
     set(OUTPUT_DIR "${IMP_OUTPUT_DIR}/bin/${SUBDIR}")
