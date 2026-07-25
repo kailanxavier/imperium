@@ -1,6 +1,9 @@
 #include <core/log/log.h>
 #include <core/memory/heap_allocator.h>
+
 #include <fwk/window.h>
+#include <fwk/camera.h>
+
 #include <gfx/gfx.h>
 #include <gfx/image.h>
 
@@ -266,9 +269,12 @@ int main()
 	auto lastTelemetryPublish = std::chrono::steady_clock::now();
 	constexpr auto kTelemetryInterval = std::chrono::milliseconds(200);
 
-	float rotationX = 0.f;
-	float rotationY = 0.f; // temp
-	float zoomMul = 2.f;
+	fwk::Camera camera;
+	camera.setPosition({ 0.f, 0.f, -1.5f });
+	camera.setYawPitch(0.f, 0.f);
+
+	auto lastFrameTime = std::chrono::steady_clock::now();
+	float rotationAngle = 0.f;
 
 	while (!window.shouldClose())
 	{
@@ -279,6 +285,9 @@ int main()
 			continue;
 
 		const auto now = std::chrono::steady_clock::now();
+		float deltaTime = std::chrono::duration<float>(now - lastFrameTime).count();
+		lastFrameTime = now;
+
 		if (now - lastTelemetryPublish >= kTelemetryInterval &&
 			imp::protocol::ToolServer::instance().hasSubscribers(imp::protocol::MessageType::MemoryTelemetry))
 		{
@@ -300,6 +309,8 @@ int main()
 			lastTelemetryPublish = now;
 		}
 
+		camera.update(window.input(), deltaTime);
+
 		gfx::ICommandList* cmd = gfx->beginFrame();
 		if (!cmd)
 			continue;
@@ -318,17 +329,8 @@ int main()
 		const u32 h = gfx->backBuffer().height();
 		const float aspect = h > 0 ? static_cast<float>( w ) / static_cast<float>( h ) : 1.f;
 
-		if (window.input().isKeyDown(fwk::Key::A)) rotationY += 0.01f;
-		if (window.input().isKeyDown(fwk::Key::D)) rotationY -= 0.01f;
-		if (window.input().isKeyDown(fwk::Key::W)) rotationX -= 0.01f;
-		if (window.input().isKeyDown(fwk::Key::S)) rotationX += 0.01f;
-
-		zoomMul -= window.input().scrollDelta() * 0.1f;
-
-		Mat4f model = makeRotationY(rotationY) * makeRotationX(rotationX);
-		Mat4f view = makeLookAtLH(Vec3f::unitZ() * zoomMul, Vec3f::zero(), Vec3f::up());
-		Mat4f proj = makePerspectiveLH(toRadians(90.f), aspect, 0.1f, 100.f);
-		Mat4f mvp = proj * view * model;
+		Mat4f model = makeRotationAxis(normalise(Vec3{ 5.f, 3.f, 0.f }), rotationAngle);
+		Mat4f mvp = camera.projection(aspect) * camera.view() * model;
 
 		cmd->pushConstants(mvp.data(), sizeof(Mat4f));
 		cmd->bindUniformBuffer(*tintBuffer, 0);
@@ -340,7 +342,7 @@ int main()
 		cmd->endRenderPass();
 		gfx->endFrame();
 
-		//rotationAngle += 0.01f;
+		rotationAngle += 0.01f;
 	}
 
 	sampler.reset();

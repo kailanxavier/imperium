@@ -36,7 +36,8 @@ add_library(imp_fwk STATIC
     src/layer.cpp
     src/window.cpp
     src/input.cpp
-)
+    src/camera.cpp
+ )
 
 target_include_directories(imp_fwk
 	PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
