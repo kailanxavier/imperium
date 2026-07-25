@@ -10,8 +10,6 @@ struct GLFWwindow;
 
 namespace imp::fwk
 {
-	class IGfxDevice;
-
 	struct WindowDesc
 	{
 		std::string title = "Untitled";
