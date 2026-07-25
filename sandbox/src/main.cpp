@@ -266,10 +266,13 @@ int main()
 	auto lastTelemetryPublish = std::chrono::steady_clock::now();
 	constexpr auto kTelemetryInterval = std::chrono::milliseconds(200);
 
-	float rotationAngle = 0.f; // temp
+	float rotationX = 0.f;
+	float rotationY = 0.f; // temp
+	float zoomMul = 1.f;
 
 	while (!window.shouldClose())
 	{
+		window.input().newFrame();
 		window.pollEvents();
 
 		if (window.isMinimised())
@@ -315,8 +318,15 @@ int main()
 		const u32 h = gfx->backBuffer().height();
 		const float aspect = h > 0 ? static_cast<float>( w ) / static_cast<float>( h ) : 1.f;
 
-		Mat4f model = makeRotationAxis(normalise(Vec3{ 5.f, 3.f, 0.f }), rotationAngle);
-		Mat4f view = makeLookAtLH(Vec3f::unitZ() * -1.5f, Vec3f::zero(), Vec3f::up());
+		if (window.input().isKeyDown(fwk::Key::A)) rotationY += 0.01f;
+		if (window.input().isKeyDown(fwk::Key::D)) rotationY -= 0.01f;
+		if (window.input().isKeyDown(fwk::Key::W)) rotationX -= 0.01f;
+		if (window.input().isKeyDown(fwk::Key::S)) rotationX += 0.01f;
+
+		zoomMul -= window.input().scrollDelta() * 0.1f;
+
+		Mat4f model = makeRotationY(rotationY) * makeRotationX(rotationX);
+		Mat4f view = makeLookAtLH(Vec3f::unitZ() * zoomMul, Vec3f::zero(), Vec3f::up());
 		Mat4f proj = makePerspectiveLH(toRadians(90.f), aspect, 0.1f, 100.f);
 		Mat4f mvp = proj * view * model;
 
@@ -330,7 +340,7 @@ int main()
 		cmd->endRenderPass();
 		gfx->endFrame();
 
-		rotationAngle += 0.01f;
+		//rotationAngle += 0.01f;
 	}
 
 	sampler.reset();

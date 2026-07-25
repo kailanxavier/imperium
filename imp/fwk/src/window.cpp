@@ -53,6 +53,11 @@ namespace imp::fwk
 		glfwSetWindowUserPointer(m_handle, this);
 		glfwSetFramebufferSizeCallback(m_handle, &Window::framebufferSizeCallback);
 		glfwSetWindowCloseCallback(m_handle, &Window::windowCloseCallback);
+		glfwSetKeyCallback(m_handle, &Window::keyCallback);
+		glfwSetMouseButtonCallback(m_handle, &Window::mouseButtonCallback);
+		glfwSetCursorPosCallback(m_handle, &Window::cursorPosCallback);
+		glfwSetScrollCallback(m_handle, &Window::scrollCallback);
+
 		return true;
 	}
 
@@ -94,5 +99,33 @@ namespace imp::fwk
 		
 		if (m_onResize)
 			m_onResize(m_width, m_height, m_minimised);
+	}
+
+	void Window::keyCallback(GLFWwindow* w, int key, int scancode, int action, int mods)
+	{
+		auto* self = static_cast<Window*>( glfwGetWindowUserPointer(w) );
+		if (self)
+			self->m_input.onKeyEvent(key, action);
+	}
+
+	void Window::mouseButtonCallback(GLFWwindow* w, int button, int action, int mods)
+	{
+		auto* self = static_cast<Window*>( glfwGetWindowUserPointer(w) );
+		if (self)
+			self->m_input.onMouseButtonEvent(button, action);
+	}
+
+	void Window::cursorPosCallback(GLFWwindow* w, double x, double y)
+	{
+		auto* self = static_cast<Window*>( glfwGetWindowUserPointer(w) );
+		if (self)
+			self->m_input.onCursorPosEvent(x, y);
+	}
+
+	void Window::scrollCallback(GLFWwindow* w, double xoffset, double yoffset)
+	{
+		auto* self = static_cast<Window*>( glfwGetWindowUserPointer(w) );
+		if (self)
+			self->m_input.onScrollEvent(xoffset, yoffset);
 	}
 }
