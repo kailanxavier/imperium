@@ -91,8 +91,8 @@ int main()
 	LOG_INFO("Sandbox", "Running with {} device, window ({}, {})", gfx->apiName(), window.width(), window.height());
 
 	fwk::Camera camera;
-	camera.setPosition({ 0.f, 0.f, -1.5f });
-	camera.setYawPitch(0.f, 0.f);
+	camera.setPosition({ 0.f, 1.f, 0.f });
+	camera.setYawPitch(math::toRadians(90.f), 0.f);
 
 	gfx::ShaderDesc meshVertDesc;
 	meshVertDesc.stage = gfx::ShaderStage::Vertex;
