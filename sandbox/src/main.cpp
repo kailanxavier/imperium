@@ -143,7 +143,7 @@ int main()
 	samplerDesc.addressModeV = gfx::AddressMode::Repeat;
 	std::unique_ptr<gfx::ISampler> sampler = gfx->createSampler(samplerDesc);
 
-	gfx::Model model = gfx::loadModel(*gfx, "assets/models/sponza.glb", &vfsHost);
+	gfx::Model model = gfx::loadModel(*gfx, "assets/models/lonely_watcher_by_artjoms_horosilovs.glb", &vfsHost);
 	if (!model.isValid())
 		LOG_ERROR("Sandbox", "Failed to load model");
 

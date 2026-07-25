@@ -44,7 +44,7 @@ namespace imp::fwk
 		if (input.isKeyDown(Key::LeftControl)) moveDir -= Vec3f::up();
 		if (input.isKeyDown(Key::Space)) moveDir += Vec3f::up();
 
-		const float speedMul = input.isKeyDown(Key::LeftShift) ? moveSpeed * 3.f : moveSpeed;
+		const float speedMul = input.isKeyDown(Key::LeftShift) ? moveSpeed * 100.f : moveSpeed;
 
 		if (dot(moveDir, moveDir) > 0.f)
 			m_position += normalise(moveDir) * ( speedMul * deltaTime );

@@ -25,7 +25,7 @@ namespace imp::fwk
 		float lookSensitivity = 0.0025f;
 		float fovRadians = math::toRadians(90.f);
 		float nearPlane = 0.1f;
-		float farPlane = 100.f;
+		float farPlane = 1000.f;
 
 	private:
 		[[nodiscard]] math::Vec3f forward() const;
