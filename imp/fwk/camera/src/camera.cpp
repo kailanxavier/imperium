@@ -1,5 +1,5 @@
-#include <fwk/camera.h>
-#include <fwk/input.h>
+#include <camera/camera.h>
+#include <input/input.h>
 
 #include <algorithm>
 #include <cmath>

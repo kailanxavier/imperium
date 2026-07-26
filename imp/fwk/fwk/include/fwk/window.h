@@ -1,6 +1,6 @@
 #pragma once
 
-#include <fwk/input.h>
+#include <input/input.h>
 
 #include <core/memory/int_types.h>
 #include <functional>

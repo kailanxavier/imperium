@@ -2,7 +2,7 @@
 #include <core/memory/heap_allocator.h>
 
 #include <fwk/window.h>
-#include <fwk/camera.h>
+#include <camera/camera.h>
 
 #include <gfx/gfx.h>
 #include <gfx/image.h>
