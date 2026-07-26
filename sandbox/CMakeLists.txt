@@ -2,7 +2,7 @@ add_executable(sandbox
 	src/main.cpp
 )
 
-target_link_libraries(sandbox PRIVATE imp_fwk imp_gfx imp_protocol)
+target_link_libraries(sandbox PRIVATE imp_fwk imp_cam imp_input imp_gfx imp_protocol)
 
 imp_set_runtime_dir(sandbox sandbox)
 

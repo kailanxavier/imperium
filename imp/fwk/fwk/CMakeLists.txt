@@ -11,12 +11,7 @@ target_include_directories(imp_fwk
 target_link_libraries(imp_fwk
 	PUBLIC
 		imp_core
-		imp_audio
-		imp_physics
-		imp_net
-		imp_script
-		imp_creature
 		imp_input
-		imp_cam
+	PRIVATE
         glfw
 )
