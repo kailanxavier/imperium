@@ -1,5 +1,6 @@
 add_library(imp_ecs STATIC 
 	src/entity.cpp
+	src/transform_storage.cpp
 )
 
 target_include_directories(imp_ecs
