@@ -84,6 +84,10 @@ namespace imp::jobs
 		};
 
 		void enqueue(QueueJob job);
+
+		// Pushes every job in one lock acquisition, then wakes
+		// up exactly jobs.size() workers.
+		void enqueueBatch(std::vector<QueueJob> jobs);
 		void workerLoop();
 
 		std::vector<std::thread> m_workers;

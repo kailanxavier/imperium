@@ -68,10 +68,17 @@ namespace imp::jobs
 		}
 
 		minChunkSize = std::max(minChunkSize, 1u);
+
 		const u32 workerCap = std::max<u32>(1, workerCount());
 		u32 chunkCount = ( count + minChunkSize - 1 ) / minChunkSize;
 		chunkCount = std::min(chunkCount, workerCap);
 		chunkCount = std::max(chunkCount, 1u);
+
+		if (chunkCount == 1)
+		{
+			fn(0, count);
+			return;
+		}
 
 		const u32 baseChunk = count / chunkCount;
 		const u32 remainder = count % chunkCount;
@@ -79,14 +86,19 @@ namespace imp::jobs
 		auto state = std::make_shared<detail::CounterState>();
 		state->pending.store(chunkCount, std::memory_order_relaxed);
 
+		std::vector<QueueJob> jobs;
+		jobs.reserve(chunkCount);
+
 		u32 start = 0;
 		for (u32 i = 0; i < chunkCount; ++i)
 		{
 			const u32 thisChunk = baseChunk + ( i < remainder ? 1u : 0u );
 			const u32 end = start + thisChunk;
-			enqueue(QueueJob{ [fn, start, end] { fn(start, end); }, state });
+			jobs.push_back(QueueJob{ [fn, start, end] { fn(start, end); }, state });
 			start = end;
 		}
+
+		enqueueBatch(std::move(jobs));
 
 		wait(JobCounter(state));
 	}
@@ -121,6 +133,26 @@ namespace imp::jobs
 			m_queue.push_back(std::move(job));
 		}
 		m_queueCV.notify_one();
+	}
+
+	void JobSystem::enqueueBatch(std::vector<QueueJob> jobs)
+	{
+		if (jobs.empty())
+			return;
+
+		const size_t n = jobs.size();
+		{
+			std::lock_guard<std::mutex> lock(m_queueMutex);
+			for (auto& job : jobs)
+				m_queue.push_back(std::move(job));
+		}
+
+		// n wake signals, enough to service every chunk
+		// just pushed, no more. Released the lock above
+		// so a woken worker doesn't immediately block
+		// on a mutex we're still holding.
+		for (size_t i = 0; i < n; ++i)
+			m_queueCV.notify_one();
 	}
 
 	void JobSystem::workerLoop()

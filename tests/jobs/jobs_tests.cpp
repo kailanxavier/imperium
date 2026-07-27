@@ -183,3 +183,54 @@ TEST(JobSystem, ShutdownThenReinitialiseStillRunsJobs)
 
 	js.shutdown();
 }
+
+TEST(JobSystem, ParallelForRunsInlineWhenWorloadTooSmallToSplit)
+{
+	JobSystem js;
+	js.initialise(8);
+
+	const std::thread::id callerId = std::this_thread::get_id();
+	std::thread::id sawId{};
+
+	js.parallelFor(5, 1000, [&](u32 start, u32 end)
+		{
+			sawId = std::this_thread::get_id();
+			(void)start;
+			(void)end;
+		});
+
+	EXPECT_TRUE(sawId == callerId);
+	js.shutdown();
+}
+
+TEST(JobSystem, BenchTinyWorkloadOverhead)
+{
+	JobSystem js;
+	js.initialise(8);
+
+	const int iterations = 50000;
+
+	{
+		const auto t0 = std::chrono::steady_clock::now();
+		for (int i = 0; i < iterations; ++i)
+			js.parallelFor(4, 1000, [](u32 start, u32 end) {});
+
+		const auto t1 = std::chrono::steady_clock::now();
+		const double ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+		GTEST_LOG_(INFO) << "[Bench] inline fast path (chunkCount=1): " << ms << "ms total, "
+			<< ( ms * 1000.0 ) / iterations << "us/call\n";
+	}
+
+	{
+		const auto t0 = std::chrono::steady_clock::now();
+		for (int i = 0; i < iterations; ++i)
+			js.parallelFor(4, 1, [](u32 start, u32 end) {});
+
+		const auto t1 = std::chrono::steady_clock::now();
+		const double ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+		GTEST_LOG_(INFO) << "[Bench] queued path (chunkCount=4): " << ms << "ms total, "
+			<< ( ms * 1000.0 ) / iterations << "us/call\n";
+	}
+
+	js.shutdown();
+}
