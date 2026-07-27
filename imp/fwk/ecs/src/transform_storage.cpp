@@ -181,7 +181,8 @@ namespace imp::ecs
 		}
 	}
 
-	void TransformStorage::updateWorldMatricesParallel(jobs::JobSystem& jobSystem, u32 minChunkSize)
+	void TransformStorage::updateWorldMatricesParallel(jobs::JobSystem& jobSystem, u32 minChunkSize,
+		const std::function<void(size_t levelIndex, u32 startRange, u32 endRange)>& onLevelComplete)
 	{
 		const size_t n = m_owner.size();
 		if (n == 0)
@@ -190,9 +191,11 @@ namespace imp::ecs
 		m_recomputedThisPass.assign(n, 0);
 		const auto ranges = computeDepthRanges();
 
-		for (const auto& [rangeStart, rangeEnd] : ranges)
+		for (size_t levelIndex = 0; levelIndex < ranges.size(); ++levelIndex)
 		{
+			const auto [rangeStart, rangeEnd] = ranges[levelIndex];
 			const u32 rangeSize = rangeEnd - rangeStart;
+
 			jobSystem.parallelFor(rangeSize, minChunkSize, [this, rangeStart](u32 chunkStart, u32 chunkEnd)
 				{
 					for (u32 offset = chunkStart; offset < chunkEnd; ++offset)
@@ -230,14 +233,16 @@ namespace imp::ecs
 						// indices that happen to share a byte.
 					}
 				});
-
-			// Now we clear it here in one single threaded pass now
-			// that all parallel work is done, using u8 scratch buffer
-			// that **WAS** safe to write concurrently
-			for (size_t i = 0; i < n; ++i)
-				if (m_recomputedThisPass[i])
-					m_dirty[i] = false;
+			if (onLevelComplete)
+				onLevelComplete(levelIndex, rangeStart, rangeEnd);
 		}
+
+		// Now we clear it here in one single threaded pass now
+		// that all parallel work is done, using u8 scratch buffer
+		// that **WAS** safe to write concurrently
+		for (size_t i = 0; i < n; ++i)
+			if (m_recomputedThisPass[i])
+				m_dirty[i] = false;
 	}
 
 	std::vector<std::pair<u32, u32>> TransformStorage::computeDepthRanges() const

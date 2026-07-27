@@ -24,18 +24,21 @@ namespace imp::ecs
 		EntityId create(EntityId entity, const Transform& local, EntityId parent = {});
 		void destroy(EntityId entity);
 
-		bool contains(EntityId entity) const;
+		[[nodiscard]] bool contains(EntityId entity) const;
 		void setLocalTransform(EntityId entity, const Transform& local);
 
-		Transform localTransform(EntityId entity) const;
-		const Mat4f& worldMatrix(EntityId entity) const;
-		EntityId parentOf(EntityId entity) const;
-		u16 depthOf(EntityId entity) const;
+		[[nodiscard]] Transform localTransform(EntityId entity) const;
+		[[nodiscard]] const Mat4f& worldMatrix(EntityId entity) const;
+		[[nodiscard]] EntityId parentOf(EntityId entity) const;
+		[[nodiscard]] u16 depthOf(EntityId entity) const;
 
-		size_t size() const noexcept { return m_owner.size(); }
+		[[nodiscard]] size_t size() const noexcept { return m_owner.size(); }
 
 		void updateWorldMatrices();
-		void updateWorldMatricesParallel(jobs::JobSystem& jobSystem, u32 minChunkSize = 64);
+		void updateWorldMatricesParallel(
+			jobs::JobSystem& jobSystem, 
+			u32 minChunkSize = 64,
+			const std::function<void(size_t levelIndex, u32 startRange, u32 endRange)>& onLevelComplete = {});
 
 		std::vector<std::pair<u32, u32>> computeDepthRanges() const;
 
