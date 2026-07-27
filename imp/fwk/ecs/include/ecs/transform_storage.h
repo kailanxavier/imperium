@@ -5,6 +5,7 @@
 
 #include <ecs/entity.h>
 #include <ecs/transform.h>
+#include <jobs/job_system.h>
 
 #include <utility>
 #include <vector>
@@ -34,6 +35,7 @@ namespace imp::ecs
 		size_t size() const noexcept { return m_owner.size(); }
 
 		void updateWorldMatrices();
+		void updateWorldMatricesParallel(jobs::JobSystem& jobSystem, u32 minChunkSize = 64);
 
 		std::vector<std::pair<u32, u32>> computeDepthRanges() const;
 

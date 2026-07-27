@@ -8,4 +8,4 @@ target_include_directories(imp_ecs
 	PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-target_link_libraries(imp_ecs PUBLIC imp_core)
+target_link_libraries(imp_ecs PUBLIC imp_core imp_jobs)

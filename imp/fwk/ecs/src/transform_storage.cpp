@@ -181,6 +181,65 @@ namespace imp::ecs
 		}
 	}
 
+	void TransformStorage::updateWorldMatricesParallel(jobs::JobSystem& jobSystem, u32 minChunkSize)
+	{
+		const size_t n = m_owner.size();
+		if (n == 0)
+			return;
+
+		m_recomputedThisPass.assign(n, 0);
+		const auto ranges = computeDepthRanges();
+
+		for (const auto& [rangeStart, rangeEnd] : ranges)
+		{
+			const u32 rangeSize = rangeEnd - rangeStart;
+			jobSystem.parallelFor(rangeSize, minChunkSize, [this, rangeStart](u32 chunkStart, u32 chunkEnd)
+				{
+					for (u32 offset = chunkStart; offset < chunkEnd; ++offset)
+					{
+						const u32 i = rangeStart + offset;
+						const u32 parentDense = m_parentDense[i];
+
+						// Safe to read m_recomputedThisPass[parentDense] here even
+						// though it was written by a possible different worker thread:
+						// parentDense is always in an earlier depth range, which already
+						// went through parallelFor's blocking wait()
+						const bool parentRecomputed = ( parentDense != kInvalidDense ) 
+							&& ( m_recomputedThisPass[parentDense] != 0);
+
+						const bool needsUpdate = m_dirty[i] || parentRecomputed;
+
+						if (needsUpdate)
+						{
+							const Mat4f local = makeTRS(m_localPos[i], m_localRot[i], m_localScale[i]);
+							m_worldMatrix[i] = ( parentDense == kInvalidDense ) 
+								? local 
+								: ( m_worldMatrix[parentDense] * local );
+
+							m_recomputedThisPass[i] = 1;
+						}
+						else
+						{
+							m_recomputedThisPass[i] = 0;
+						}
+
+						// NOTE: Deliberatly not touching m_dirty[i] here.
+						// Reason: m_dirty is a bool std::vector, meaning it
+						// is bit packed. Clearing it from inside parallel_for
+						// would race across threads on logically disjoint
+						// indices that happen to share a byte.
+					}
+				});
+
+			// Now we clear it here in one single threaded pass now
+			// that all parallel work is done, using u8 scratch buffer
+			// that **WAS** safe to write concurrently
+			for (size_t i = 0; i < n; ++i)
+				if (m_recomputedThisPass[i])
+					m_dirty[i] = false;
+		}
+	}
+
 	std::vector<std::pair<u32, u32>> TransformStorage::computeDepthRanges() const
 	{
 		std::vector<std::pair<u32, u32>> ranges;
