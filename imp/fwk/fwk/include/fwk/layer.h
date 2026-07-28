@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 
+namespace imp::gfx { class ICommandList; }
 namespace imp::fwk
 {
     class ILayer
@@ -18,6 +19,7 @@ namespace imp::fwk
         virtual void onDetach() {}
 
         virtual void onUpdate(float deltaSeconds) { (void)deltaSeconds; }
+        virtual void onRender(gfx::ICommandList& cmd) { (void)cmd; }
 
         const std::string& name() const { return m_name; }
     private:
@@ -40,6 +42,7 @@ namespace imp::fwk
         void popOverlay(const std::string& name);
 
         void updateAll(float deltaSeconds);
+        void renderAll(gfx::ICommandList& cmd);
 
         [[nodiscard]] size_t layerCount() const { return m_layers.size(); }
         [[nodiscard]] size_t overlayCount() const { return m_overlays.size(); }

@@ -1,11 +1,14 @@
 #pragma once
 
 #include <input/input.h>
-#include "layer.h"
+#include <fwk/layer.h>
 #include <gfx/device.h>
 #include <core/fs/vfs.h>
 
 namespace imp::fwk { class Window; }
+namespace imp::ecs { class World; }
+namespace imp::jobs { class JobSystem; }
+namespace imp::memory { class HeapAllocator; }
 namespace imp::app
 {
 	struct AppContext
@@ -15,6 +18,10 @@ namespace imp::app
 		fwk::Input& input;
 		fwk::LayerStack& layers;
 		fs::VirtualFileSystem& vfs;
+
+		ecs::World& ecs;
+		jobs::JobSystem& jobs;
+		memory::HeapAllocator& gfxAllocator;
 	};
 
 	class IApp

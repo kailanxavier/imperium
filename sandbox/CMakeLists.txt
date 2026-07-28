@@ -1,8 +1,14 @@
 add_executable(sandbox 
 	src/main.cpp
+	src/sandbox_app.cpp
 )
 
-target_link_libraries(sandbox PRIVATE imp_fwk imp_cam imp_input imp_gfx imp_protocol)
+target_include_directories(sandbox
+	PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
+	PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+target_link_libraries(sandbox PUBLIC imp_app PRIVATE imp_fwk imp_cam imp_input imp_gfx imp_protocol)
 
 imp_set_runtime_dir(sandbox sandbox)
 

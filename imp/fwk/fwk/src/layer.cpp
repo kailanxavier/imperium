@@ -1,4 +1,4 @@
-#include "fwk/layer.h"
+#include <fwk/layer.h>
 #include <algorithm>
 
 namespace imp::fwk
@@ -43,6 +43,12 @@ namespace imp::fwk
     {
         for (auto& l : m_layers) l->onUpdate(deltaSeconds);
         for (auto& l : m_overlays) l->onUpdate(deltaSeconds);
+    }
+
+    void LayerStack::renderAll(gfx::ICommandList& cmd)
+    {
+        for (auto& l : m_layers) l->onRender(cmd);
+        for (auto& l : m_overlays) l->onRender(cmd);
     }
 
 }

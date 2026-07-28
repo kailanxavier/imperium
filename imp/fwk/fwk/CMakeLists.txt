@@ -1,6 +1,7 @@
 add_library(imp_fwk STATIC
 	src/fwk.cpp
 	src/window.cpp
+	src/layer.cpp
  )
 
 target_include_directories(imp_fwk

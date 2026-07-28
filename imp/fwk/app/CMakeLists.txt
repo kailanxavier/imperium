@@ -1,6 +1,6 @@
 add_library(imp_app STATIC 
-	src/app.cpp
-	src/layer.cpp
+	src/application.cpp
+	src/telemetry_layer.cpp
 )
 
 target_include_directories(imp_app
@@ -8,4 +8,4 @@ target_include_directories(imp_app
 	PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-target_link_libraries(imp_app PRIVATE imp_core imp_input imp_gfx)
+target_link_libraries(imp_app PUBLIC imp_jobs imp_ecs PRIVATE imp_protocol imp_core imp_gfx imp_input)
