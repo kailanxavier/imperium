@@ -84,7 +84,8 @@ namespace imp::ecs
 			auto it = std::find(siblings.begin(), siblings.end(), idx);
 			// someone lost their kid lol
 			assert(it != siblings.end() && "swapRemoveDense: idx missing from parent's child list");
-			siblings.erase(it);
+			*it = siblings.back();
+			siblings.pop_back();
 		}
 
 		if (idx != last)
@@ -295,6 +296,9 @@ namespace imp::ecs
 
 	void TransformStorage::rebuildUpdateOrder()
 	{
+		if (!m_updateOrderDirty)
+			return;
+
 		const u32 n = static_cast<u32>( m_owner.size() );
 
 		m_updateOrder.resize(n);
