@@ -18,31 +18,27 @@ namespace imp::ecs
 			depth = static_cast<u16>( m_depth[parentDense] + 1 );
 		}
 
-		const auto insertIt = std::upper_bound(m_depth.begin(), m_depth.end(), depth);
-		const u32 insertPos = static_cast<u32>( insertIt - m_depth.begin() );
+		const u32 newDense = static_cast<u32>( m_owner.size() );
 
-		for (u32 i = insertPos; i < m_owner.size(); ++i)
-			m_sparse[m_owner[i].index] = i + 1;
+		m_owner.push_back(entity);
+		m_localPos.push_back(local.position);
+		m_localRot.push_back(local.rotation);
+		m_localScale.push_back(local.scale);
+		m_localMatrix.push_back(makeTRS(local.position, local.rotation, local.scale));
+		m_worldMatrix.push_back(Mat4f::identity());
+		m_parentDense.push_back(parentDense);
+		m_depth.push_back(depth);
+		m_dirty.push_back(1);
+		m_children.emplace_back();
 
-		for (auto& pd : m_parentDense)
-			if (pd != kInvalidDense && pd >= insertPos)
-				++pd;
-
-		m_owner.insert(m_owner.begin() + insertPos, entity);
-		m_localPos.insert(m_localPos.begin() + insertPos, local.position);
-		m_localRot.insert(m_localRot.begin() + insertPos, local.rotation);
-		m_localScale.insert(m_localScale.begin() + insertPos, local.scale);
-		m_worldMatrix.insert(m_worldMatrix.begin() + insertPos, Mat4f::identity());
-		m_localMatrix.insert(m_localMatrix.begin() + insertPos, makeTRS(local.position, local.rotation, local.scale));
-		m_parentDense.insert(m_parentDense.begin() + insertPos, parentDense);
-		m_depth.insert(m_depth.begin() + insertPos, depth);
-		m_dirty.insert(m_dirty.begin() + insertPos, true);
+		if (parentDense != kInvalidDense)
+			m_children[parentDense].push_back(newDense);
 
 		if (entity.index >= m_sparse.size())
 			m_sparse.resize(static_cast<size_t>( entity.index ) + 1, kInvalidDense);
 
-		m_sparse[entity.index] = insertPos;
-		m_depthRangesDirty = true;
+		m_sparse[entity.index] = newDense;
+		m_updateOrderDirty = true;
 
 		return entity;
 	}
@@ -51,42 +47,87 @@ namespace imp::ecs
 	{
 		if (!contains(entity)) return;
 
-		const u32 idx = denseIndexOf(entity);
-		bool hasChildren = false;
+		std::vector<EntityId> subtree;
+		collectSubtree(denseIndexOf(entity), subtree);
 
-		for (u32 pd : m_parentDense)
+		// subtree is parent before child so we destroy in reverse,
+		// meaning all entity's children are already gone by the time we get to them
+		for (auto it = subtree.rbegin(); it != subtree.rend(); ++it)
+			destroySingle(*it);
+	}
+
+	void TransformStorage::collectSubtree(u32 dense, std::vector<EntityId>& out) const
+	{
+		out.push_back(m_owner[dense]);
+		for (u32 child : m_children[dense])
+			collectSubtree(child, out);
+	}
+
+	void TransformStorage::destroySingle(EntityId entity)
+	{
+		const u32 idx = denseIndexOf(entity);
+		assert(idx != kInvalidDense && "TransformStorage::destroySingle: entity not present");
+		assert(m_children[idx].empty() && "TransformStorage::destroySingle: entity still has live children");
+
+		swapRemoveDense(idx);
+		m_sparse[entity.index] = kInvalidDense;
+		m_updateOrderDirty = true;
+	}
+
+	void TransformStorage::swapRemoveDense(u32 idx)
+	{
+		const u32 last = static_cast<u32>( m_owner.size() ) - 1;
+		const u32 parentDense = m_parentDense[idx];
+		if (parentDense != kInvalidDense)
 		{
-			if (pd == idx)
+			auto& siblings = m_children[parentDense];
+			auto it = std::find(siblings.begin(), siblings.end(), idx);
+			// someone lost their kid lol
+			assert(it != siblings.end() && "swapRemoveDense: idx missing from parent's child list");
+			siblings.erase(it);
+		}
+
+		if (idx != last)
+		{
+			m_owner[idx] = m_owner[last];
+			m_localPos[idx] = m_localPos[last];
+			m_localRot[idx] = m_localRot[last];
+			m_localScale[idx] = m_localScale[last];
+			m_localMatrix[idx] = m_localMatrix[last];
+			m_worldMatrix[idx] = m_worldMatrix[last];
+			m_parentDense[idx] = m_parentDense[last];
+			m_depth[idx] = m_depth[last];
+			m_dirty[idx] = m_dirty[last];
+			m_children[idx] = std::move(m_children[last]);
+
+			// The moved entity had its slot changed,
+			// so we point its sparse entry at idx
+			m_sparse[m_owner[idx].index] = idx;
+
+			// New parent slot
+			for (u32 child : m_children[idx])
+				m_parentDense[child] = idx;
+
+			const u32 movedParentDense = m_parentDense[idx];
+			if (movedParentDense != kInvalidDense)
 			{
-				hasChildren = true;
-				break;
+				auto& siblings = m_children[movedParentDense];
+				auto it = std::find(siblings.begin(), siblings.end(), last);
+				assert(it != siblings.end() && "swapRemoveDense: last missing from its parent's child list");
+				*it = idx;
 			}
 		}
 
-		assert(!hasChildren && "TransformStorage::destroy: entity has live children. Cascading destroy not implemented yet so they must be destroyed first.");
-
-		if (hasChildren)
-			return;
-
-		m_owner.erase(m_owner.begin() + idx);
-		m_localPos.erase(m_localPos.begin() + idx);
-		m_localRot.erase(m_localRot.begin() + idx);
-		m_localScale.erase(m_localScale.begin() + idx);
-		m_worldMatrix.erase(m_worldMatrix.begin() + idx);
-		m_localMatrix.erase(m_localMatrix.begin() + idx);
-		m_parentDense.erase(m_parentDense.begin() + idx);
-		m_depth.erase(m_depth.begin() + idx);
-		m_dirty.erase(m_dirty.begin() + idx);
-
-		for (u32 i = idx; i < m_owner.size(); ++i)
-			m_sparse[m_owner[i].index] = i;
-
-		for (auto& pd : m_parentDense)
-			if (pd != kInvalidDense && pd > idx)
-				--pd;
-
-		m_sparse[entity.index] = kInvalidDense;
-		m_depthRangesDirty = true;
+		m_owner.pop_back();
+		m_localPos.pop_back();
+		m_localRot.pop_back();
+		m_localScale.pop_back();
+		m_localMatrix.pop_back();
+		m_worldMatrix.pop_back();
+		m_parentDense.pop_back();
+		m_depth.pop_back();
+		m_dirty.pop_back();
+		m_children.pop_back();
 	}
 
 	bool TransformStorage::contains(EntityId entity) const
@@ -170,30 +211,31 @@ namespace imp::ecs
 		const size_t n = m_owner.size();
 		if (n == 0) return;
 
-		if (m_depthRangesDirty)
-			rebuildDepthRanges();
+		if (m_updateOrderDirty)
+			rebuildUpdateOrder();
 
-		m_recomputedThisPass.assign(n, false);
-		
+		m_worldUpdated.assign(n, false);
+
 		for (const auto& [rangeStart, rangeEnd] : m_depthRanges)
 		{
-			for (u32 i = rangeStart; i < rangeEnd; ++i)
+			for (u32 pos = rangeStart; pos < rangeEnd; ++pos)
 			{
+				const u32 i = m_updateOrder[pos];
 				const u32 parentDense = m_parentDense[i];
-				const bool parentRecomputed = ( parentDense != kInvalidDense ) && m_recomputedThisPass[parentDense];
+				const bool parentRecomputed = ( parentDense != kInvalidDense ) && m_worldUpdated[parentDense];
 				const bool needsUpdate = m_dirty[i] || parentRecomputed;
 
 				if (!needsUpdate)
 				{
-					m_recomputedThisPass[i] = 0;
+					m_worldUpdated[i] = 0;
 					continue;
 				}
 
-				m_worldMatrix[i] = ( parentDense == kInvalidDense ) 
-					? m_localMatrix[i] 
+				m_worldMatrix[i] = ( parentDense == kInvalidDense )
+					? m_localMatrix[i]
 					: ( m_worldMatrix[parentDense] * m_localMatrix[i] );
 
-				m_recomputedThisPass[i] = true;
+				m_worldUpdated[i] = true;
 				m_dirty[i] = 0;
 			}
 		}
@@ -205,10 +247,10 @@ namespace imp::ecs
 		const size_t n = m_owner.size();
 		if (n == 0) return;
 
-		if (m_depthRangesDirty)
-			rebuildDepthRanges();
+		if (m_updateOrderDirty)
+			rebuildUpdateOrder();
 
-		m_recomputedThisPass.assign(n, 0);
+		m_worldUpdated.assign(n, 0);
 
 		for (size_t levelIndex = 0; levelIndex < m_depthRanges.size(); ++levelIndex)
 		{
@@ -219,29 +261,29 @@ namespace imp::ecs
 				{
 					for (u32 offset = chunkStart; offset < chunkEnd; ++offset)
 					{
-						const u32 i = rangeStart + offset;
+						const u32 i = m_updateOrder[rangeStart + offset];
 						const u32 parentDense = m_parentDense[i];
 
-						// Safe to read m_recomputedThisPass[parentDense] here even
+						// Safe to read m_worldUpdated[parentDense] here even
 						// though it was written by a possible different worker thread:
 						// parentDense is always in an earlier depth range, which already
 						// went through parallelFor's blocking wait()
-						const bool parentRecomputed = ( parentDense != kInvalidDense ) 
-							&& ( m_recomputedThisPass[parentDense] != 0);
+						const bool parentRecomputed = ( parentDense != kInvalidDense )
+							&& ( m_worldUpdated[parentDense] != 0 );
 
 						const bool needsUpdate = m_dirty[i] || parentRecomputed;
 
 						if (!needsUpdate)
 						{
-							m_recomputedThisPass[i] = 0;
+							m_worldUpdated[i] = 0;
 							continue;
 						}
 
-						m_worldMatrix[i] = ( parentDense == kInvalidDense ) 
-							? m_localMatrix[i] 
+						m_worldMatrix[i] = ( parentDense == kInvalidDense )
+							? m_localMatrix[i]
 							: ( m_worldMatrix[parentDense] * m_localMatrix[i] );
 
-						m_recomputedThisPass[i] = 1;
+						m_worldUpdated[i] = 1;
 						m_dirty[i] = 0;
 					}
 				});
@@ -251,28 +293,40 @@ namespace imp::ecs
 		}
 	}
 
-	void TransformStorage::rebuildDepthRanges()
+	void TransformStorage::rebuildUpdateOrder()
 	{
+		const u32 n = static_cast<u32>( m_owner.size() );
+
+		m_updateOrder.resize(n);
+		for (u32 i = 0; i < n; ++i)
+			m_updateOrder[i] = i;
+
+		std::stable_sort(m_updateOrder.begin(), m_updateOrder.end(),
+			[this](u32 a, u32 b) { return m_depth[a] < m_depth[b]; });
+		
 		m_depthRanges.clear();
 
-		if (m_depth.empty())
+		if (n == 0)
+		{
+			m_updateOrderDirty = false;
 			return;
+		}
 
 		u32 rangeStart = 0;
-		u16 currentDepth = m_depth[0];
+		u16 currentDepth = m_depth[m_updateOrder[0]];
 
-		for (u32 i = 1; i < m_depth.size(); ++i)
+		for (u32 pos = 1; pos < n; ++pos)
 		{
-			if (m_depth[i] != currentDepth)
+			const u16 d = m_depth[m_updateOrder[pos]];
+			if (d != currentDepth)
 			{
-				m_depthRanges.emplace_back(rangeStart, i);
-
-				rangeStart = i;
-				currentDepth = m_depth[i];
+				m_depthRanges.emplace_back(rangeStart, pos);
+				rangeStart = pos;
+				currentDepth = d;
 			}
 		}
 
-		m_depthRanges.emplace_back(rangeStart, static_cast<u32>(m_depth.size()));
-		m_depthRangesDirty = false;
+		m_depthRanges.emplace_back(rangeStart, n);
+		m_updateOrderDirty = false;
 	}
 }
