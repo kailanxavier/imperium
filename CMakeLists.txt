@@ -78,7 +78,12 @@ target_compile_options(imperium_compile_options INTERFACE
     $<$<CXX_COMPILER_ID:MSVC>:
         /W4 /WX /MP /permissive- /Zc:__cplusplus /wd4201 /Zc:preprocessor /wd4324 /wd4100
     >
-    $<$<CXX_COMPILER_ID:GNU,Clang>:
+
+    $<$<AND:$<CXX_COMPILER_ID:Clang>,$<NOT:$<CXX_COMPILER_FRONTEND_VARIANT:MSVC>>>:
+        -Wall -Wextra -Werror -Wpedantic
+    >
+
+    $<$<CXX_COMPILER_ID:GNU>:
         -Wall -Wextra -Werror -Wpedantic
     >
 )

@@ -110,6 +110,9 @@ TEST(TransformStorage, StressBenchmarkAndCorrectnessAtScale)
 	std::vector<double> parallelTimes;
 	u32 workers = 0;
 
+	JobSystem js;
+	js.initialise(0);
+
 	for (int trial = 0; trial < trials; ++trial)
 	{
 		EntityRegistry regSerial;
@@ -125,16 +128,12 @@ TEST(TransformStorage, StressBenchmarkAndCorrectnessAtScale)
 		TransformStorage tsParallel;
 		buildSyntheticForest(regParallel, tsParallel, targetCount, branching);
 
-		JobSystem js;
-		js.initialise(0);
 		workers = js.workerCount();
 
 		const auto t2 = std::chrono::steady_clock::now();
 		tsParallel.updateWorldMatricesParallel(js, 256);
 		const auto t3 = std::chrono::steady_clock::now();
 		parallelTimes.push_back(std::chrono::duration<double, std::milli>(t3 - t2).count());
-
-		js.shutdown();
 
 		if (trial == 0)
 		{
@@ -171,9 +170,6 @@ TEST(TransformStorage, StressBenchmarkAndCorrectnessAtScale)
 		TransformStorage ts;
 		buildSyntheticForest(reg, ts, targetCount, branching);
 
-		JobSystem js;
-		js.initialise(0);
-
 		std::vector<std::chrono::steady_clock::time_point> levelStamps;
 		auto lastStamp = std::chrono::steady_clock::now();
 
@@ -187,7 +183,8 @@ TEST(TransformStorage, StressBenchmarkAndCorrectnessAtScale)
 					<< "	level " << levelIndex << ": " << rangeEnd - rangeStart << " entities, " << levelMs << "ms\n";
 				lastStamp = now;
 			});
-
-		js.shutdown();
 	}
+
+	js.shutdown();
+
 }
