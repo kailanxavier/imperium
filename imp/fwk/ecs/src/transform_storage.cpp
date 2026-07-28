@@ -33,6 +33,7 @@ namespace imp::ecs
 		m_localRot.insert(m_localRot.begin() + insertPos, local.rotation);
 		m_localScale.insert(m_localScale.begin() + insertPos, local.scale);
 		m_worldMatrix.insert(m_worldMatrix.begin() + insertPos, Mat4f::identity());
+		m_localMatrix.insert(m_localMatrix.begin() + insertPos, makeTRS(local.position, local.rotation, local.scale));
 		m_parentDense.insert(m_parentDense.begin() + insertPos, parentDense);
 		m_depth.insert(m_depth.begin() + insertPos, depth);
 		m_dirty.insert(m_dirty.begin() + insertPos, true);
@@ -72,6 +73,7 @@ namespace imp::ecs
 		m_localRot.erase(m_localRot.begin() + idx);
 		m_localScale.erase(m_localScale.begin() + idx);
 		m_worldMatrix.erase(m_worldMatrix.begin() + idx);
+		m_localMatrix.erase(m_localMatrix.begin() + idx);
 		m_parentDense.erase(m_parentDense.begin() + idx);
 		m_depth.erase(m_depth.begin() + idx);
 		m_dirty.erase(m_dirty.begin() + idx);
@@ -118,6 +120,7 @@ namespace imp::ecs
 		m_localPos[idx] = local.position;
 		m_localRot[idx] = local.rotation;
 		m_localScale[idx] = local.scale;
+		m_localMatrix[idx] = makeTRS(local.position, local.rotation, local.scale);
 		m_dirty[idx] = 1;
 	}
 
@@ -186,8 +189,9 @@ namespace imp::ecs
 					continue;
 				}
 
-				const Mat4f local = makeTRS(m_localPos[i], m_localRot[i], m_localScale[i]);
-				m_worldMatrix[i] = ( parentDense == kInvalidDense ) ? local : ( m_worldMatrix[parentDense] * local );
+				m_worldMatrix[i] = ( parentDense == kInvalidDense ) 
+					? m_localMatrix[i] 
+					: ( m_worldMatrix[parentDense] * m_localMatrix[i] );
 
 				m_recomputedThisPass[i] = true;
 				m_dirty[i] = 0;
@@ -233,10 +237,9 @@ namespace imp::ecs
 							continue;
 						}
 
-						const Mat4f local = makeTRS(m_localPos[i], m_localRot[i], m_localScale[i]);
 						m_worldMatrix[i] = ( parentDense == kInvalidDense ) 
-							? local 
-							: ( m_worldMatrix[parentDense] * local );
+							? m_localMatrix[i] 
+							: ( m_worldMatrix[parentDense] * m_localMatrix[i] );
 
 						m_recomputedThisPass[i] = 1;
 						m_dirty[i] = 0;

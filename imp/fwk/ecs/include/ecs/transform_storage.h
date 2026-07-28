@@ -48,6 +48,7 @@ namespace imp::ecs
 		std::vector<Quaternionf> m_localRot;
 		std::vector<Vec3f> m_localScale;
 		std::vector<Mat4f> m_worldMatrix;
+		std::vector<Mat4f> m_localMatrix;
 		std::vector<u32> m_parentDense;
 		std::vector<u16> m_depth;
 		std::vector<u8> m_dirty;
