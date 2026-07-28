@@ -1,11 +1,11 @@
 #pragma once
 
-#include "window.h"
-#include <fwk/input.h>
-#include <fwk/layer.h>
+#include <input/input.h>
+#include "layer.h"
 #include <gfx/device.h>
 #include <core/fs/vfs.h>
 
+namespace imp::fwk { class Window; }
 namespace imp::app
 {
 	struct AppContext

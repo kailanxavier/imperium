@@ -31,6 +31,7 @@ namespace imp::ecs
 		[[nodiscard]] const Mat4f& worldMatrix(EntityId entity) const;
 		[[nodiscard]] EntityId parentOf(EntityId entity) const;
 		[[nodiscard]] u16 depthOf(EntityId entity) const;
+		[[nodiscard]] const std::vector<std::pair<u32, u32>>& depthRanges() const noexcept { return m_depthRanges; };
 
 		[[nodiscard]] size_t size() const noexcept { return m_owner.size(); }
 
@@ -40,7 +41,7 @@ namespace imp::ecs
 			u32 minChunkSize = 64,
 			const std::function<void(size_t levelIndex, u32 startRange, u32 endRange)>& onLevelComplete = {});
 
-		std::vector<std::pair<u32, u32>> computeDepthRanges() const;
+		void rebuildDepthRanges();
 
 		std::vector<EntityId> m_owner;
 		std::vector<Vec3f> m_localPos;
@@ -49,7 +50,7 @@ namespace imp::ecs
 		std::vector<Mat4f> m_worldMatrix;
 		std::vector<u32> m_parentDense;
 		std::vector<u16> m_depth;
-		std::vector<bool> m_dirty;
+		std::vector<u8> m_dirty;
 
 	private:
 		u32 denseIndexOf(EntityId entity) const;
@@ -58,6 +59,9 @@ namespace imp::ecs
 
 		// Scratch buffer reused across updateWorldMatrices() calls to avoid one
 		// allocation per frame, not persistent state, just sized to match m_owner each call.
-		std::vector<bool> m_recomputedThisPass;
+		std::vector<u8> m_recomputedThisPass;
+
+		std::vector<std::pair<u32, u32>> m_depthRanges;
+		bool m_depthRangesDirty = true;
 	};
 }

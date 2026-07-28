@@ -142,10 +142,11 @@ TEST(TransformStorage, ComputeDepthRanges)
 	(void)c2;
 	(void)gc;
 
-	auto ranges = ts.computeDepthRanges();
+	ts.rebuildDepthRanges();
+	const auto& ranges = ts.depthRanges();
 
-	EXPECT_TRUE(ranges.size() == 3);
-	EXPECT_TRUE(ranges[0].second - ranges[0].first == 2);
-	EXPECT_TRUE(ranges[1].second - ranges[1].first == 2);
-	EXPECT_TRUE(ranges[2].second - ranges[2].first == 1);
+	EXPECT_EQ(ranges.size(), 3u);
+	EXPECT_EQ(ranges[0].second - ranges[0].first, 2u);
+	EXPECT_EQ(ranges[1].second - ranges[1].first, 2u);
+	EXPECT_EQ(ranges[2].second - ranges[2].first, 1u);
 }

@@ -41,6 +41,7 @@ namespace imp::ecs
 			m_sparse.resize(static_cast<size_t>( entity.index ) + 1, kInvalidDense);
 
 		m_sparse[entity.index] = insertPos;
+		m_depthRangesDirty = true;
 
 		return entity;
 	}
@@ -83,6 +84,7 @@ namespace imp::ecs
 				--pd;
 
 		m_sparse[entity.index] = kInvalidDense;
+		m_depthRangesDirty = true;
 	}
 
 	bool TransformStorage::contains(EntityId entity) const
@@ -116,7 +118,7 @@ namespace imp::ecs
 		m_localPos[idx] = local.position;
 		m_localRot[idx] = local.rotation;
 		m_localScale[idx] = local.scale;
-		m_dirty[idx] = true;
+		m_dirty[idx] = 1;
 	}
 
 	Transform TransformStorage::localTransform(EntityId entity) const
@@ -163,21 +165,33 @@ namespace imp::ecs
 	void TransformStorage::updateWorldMatrices()
 	{
 		const size_t n = m_owner.size();
+		if (n == 0) return;
+
+		if (m_depthRangesDirty)
+			rebuildDepthRanges();
+
 		m_recomputedThisPass.assign(n, false);
 		
-		for (size_t i = 0; i < n; ++i)
+		for (const auto& [rangeStart, rangeEnd] : m_depthRanges)
 		{
-			const u32 parentDense = m_parentDense[i];
-			const bool parentRecomputed = ( parentDense != kInvalidDense ) && m_recomputedThisPass[parentDense];
-			const bool needsUpdate = m_dirty[i] || parentRecomputed;
-			if (!needsUpdate)
-				continue;
+			for (u32 i = rangeStart; i < rangeEnd; ++i)
+			{
+				const u32 parentDense = m_parentDense[i];
+				const bool parentRecomputed = ( parentDense != kInvalidDense ) && m_recomputedThisPass[parentDense];
+				const bool needsUpdate = m_dirty[i] || parentRecomputed;
 
-			const Mat4f local = makeTRS(m_localPos[i], m_localRot[i], m_localScale[i]);
-			m_worldMatrix[i] = ( parentDense == kInvalidDense ) ? local : ( m_worldMatrix[parentDense] * local );
+				if (!needsUpdate)
+				{
+					m_recomputedThisPass[i] = 0;
+					continue;
+				}
 
-			m_recomputedThisPass[i] = true;
-			m_dirty[i] = false;
+				const Mat4f local = makeTRS(m_localPos[i], m_localRot[i], m_localScale[i]);
+				m_worldMatrix[i] = ( parentDense == kInvalidDense ) ? local : ( m_worldMatrix[parentDense] * local );
+
+				m_recomputedThisPass[i] = true;
+				m_dirty[i] = 0;
+			}
 		}
 	}
 
@@ -185,15 +199,16 @@ namespace imp::ecs
 		const std::function<void(size_t levelIndex, u32 startRange, u32 endRange)>& onLevelComplete)
 	{
 		const size_t n = m_owner.size();
-		if (n == 0)
-			return;
+		if (n == 0) return;
+
+		if (m_depthRangesDirty)
+			rebuildDepthRanges();
 
 		m_recomputedThisPass.assign(n, 0);
-		const auto ranges = computeDepthRanges();
 
-		for (size_t levelIndex = 0; levelIndex < ranges.size(); ++levelIndex)
+		for (size_t levelIndex = 0; levelIndex < m_depthRanges.size(); ++levelIndex)
 		{
-			const auto [rangeStart, rangeEnd] = ranges[levelIndex];
+			const auto [rangeStart, rangeEnd] = m_depthRanges[levelIndex];
 			const u32 rangeSize = rangeEnd - rangeStart;
 
 			jobSystem.parallelFor(rangeSize, minChunkSize, [this, rangeStart](u32 chunkStart, u32 chunkEnd)
@@ -212,44 +227,33 @@ namespace imp::ecs
 
 						const bool needsUpdate = m_dirty[i] || parentRecomputed;
 
-						if (needsUpdate)
-						{
-							const Mat4f local = makeTRS(m_localPos[i], m_localRot[i], m_localScale[i]);
-							m_worldMatrix[i] = ( parentDense == kInvalidDense ) 
-								? local 
-								: ( m_worldMatrix[parentDense] * local );
-
-							m_recomputedThisPass[i] = 1;
-						}
-						else
+						if (!needsUpdate)
 						{
 							m_recomputedThisPass[i] = 0;
+							continue;
 						}
 
-						// NOTE: Deliberatly not touching m_dirty[i] here.
-						// Reason: m_dirty is a bool std::vector, meaning it
-						// is bit packed. Clearing it from inside parallel_for
-						// would race across threads on logically disjoint
-						// indices that happen to share a byte.
+						const Mat4f local = makeTRS(m_localPos[i], m_localRot[i], m_localScale[i]);
+						m_worldMatrix[i] = ( parentDense == kInvalidDense ) 
+							? local 
+							: ( m_worldMatrix[parentDense] * local );
+
+						m_recomputedThisPass[i] = 1;
+						m_dirty[i] = 0;
 					}
 				});
+
 			if (onLevelComplete)
 				onLevelComplete(levelIndex, rangeStart, rangeEnd);
 		}
-
-		// Now we clear it here in one single threaded pass now
-		// that all parallel work is done, using u8 scratch buffer
-		// that **WAS** safe to write concurrently
-		for (size_t i = 0; i < n; ++i)
-			if (m_recomputedThisPass[i])
-				m_dirty[i] = false;
 	}
 
-	std::vector<std::pair<u32, u32>> TransformStorage::computeDepthRanges() const
+	void TransformStorage::rebuildDepthRanges()
 	{
-		std::vector<std::pair<u32, u32>> ranges;
+		m_depthRanges.clear();
+
 		if (m_depth.empty())
-			return ranges;
+			return;
 
 		u32 rangeStart = 0;
 		u16 currentDepth = m_depth[0];
@@ -258,13 +262,14 @@ namespace imp::ecs
 		{
 			if (m_depth[i] != currentDepth)
 			{
-				ranges.emplace_back(rangeStart, i);
+				m_depthRanges.emplace_back(rangeStart, i);
+
 				rangeStart = i;
 				currentDepth = m_depth[i];
 			}
 		}
 
-		ranges.emplace_back(rangeStart, static_cast<u32>(m_depth.size()));
-		return ranges;
+		m_depthRanges.emplace_back(rangeStart, static_cast<u32>(m_depth.size()));
+		m_depthRangesDirty = false;
 	}
 }

@@ -8,4 +8,4 @@ target_include_directories(imp_app
 	PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-target_link_libraries(imp_app PRIVATE imp_core imp_gfx)
+target_link_libraries(imp_app PRIVATE imp_core imp_input imp_gfx)
