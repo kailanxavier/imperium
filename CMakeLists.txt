@@ -1,6 +1,25 @@
 cmake_minimum_required(VERSION 3.25)
 project(Imperium VERSION 0.1.0 LANGUAGES CXX)
 
+find_package(Doxygen QUIET)
+
+if (DOXYGEN_FOUND)
+    configure_file(
+        ${CMAKE_SOURCE_DIR}/Doxyfile.in
+        ${CMAKE_BINARY_DIR}/Doxyfile
+        @ONLY
+    )
+
+    add_custom_target(docs
+        COMMAND ${DOXYGEN_EXECUTABLE} ${CMAKE_BINARY_DIR}/Doxyfile
+        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+        COMMENT "Generating docs..."
+        VERBATIM
+    )
+else()
+    message(STATUS "Doxygen not found. Documentation will not be generated")
+endif()
+
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)

@@ -86,8 +86,12 @@
       "configuration": "Release"
     },
     {
-      "name": "mac-debug",
+      "name": "MacOS Debug",
       "configurePreset": "mac-debug"
+    },
+    {
+      "name": "MacOS Release",
+      "configurePreset": "mac-release"
     }
   ]
 }
