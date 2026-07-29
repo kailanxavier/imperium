@@ -77,7 +77,7 @@ namespace imp::app
 		samplerDesc.addressModeV = gfx::AddressMode::Repeat;
 		m_sampler = ctx.gfx.createSampler(samplerDesc);
 
-		m_environmentHandle = m_modelRegistry.load(ctx.gfx, "assets/models/lonely_watcher_by_artjoms_horosilovs.glb", &ctx.vfs);
+		m_environmentHandle = m_modelRegistry.load(ctx.gfx, "assets/models/temple.glb", &ctx.vfs);
 		if (!m_environmentHandle.isValid())
 			LOG_ERROR("Sandbox", "Failed to load environment model");
 
@@ -117,9 +117,9 @@ namespace imp::app
 			}
 		}
 
-		ecs::Transform t;
-		t.scale = math::Vec3f{ 0.01f, 0.01f, 0.01f };
 		const ecs::EntityId entity = ctx.ecs.createEntity();
+		ecs::Transform t;
+		t.position = math::Vec3f{ 5.f, 0.f, 5.f };
 		ctx.ecs.transforms.create(entity, t);
 		ctx.ecs.renderables.create(entity, m_environmentHandle);
 		m_instances.push_back(entity);
@@ -141,7 +141,7 @@ namespace imp::app
 		gfx::BlinnPhongLightUBO lightData;
 		lightData.cameraPositionWS = { m_camera.position().x, m_camera.position().y, m_camera.position().z, 0.f };
 		std::memcpy(m_lightBuffer->mappedData(), &lightData, sizeof(lightData));
-
+		
 		ctx.ecs.transforms.updateWorldMatricesParallel(ctx.jobs);
 
 		extractRenderables(ctx.ecs, m_extraction);
