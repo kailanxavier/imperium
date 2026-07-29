@@ -2,6 +2,7 @@ add_library(imp_app STATIC
 	src/application.cpp
 	src/telemetry_layer.cpp
 	src/render_extraction.cpp
+	src/model_renderer.cpp
 )
 
 target_include_directories(imp_app

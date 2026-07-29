@@ -30,10 +30,13 @@ namespace imp::gfx::vulkan
 		stages[1].module = info.fragmentShader;
 		stages[1].pName = "main";
 
+		VkVertexInputBindingDescription bindingDescs[2] = { info.vertexBinding, info.instanceBinding };
+		const u32 bindingCount = info.hasInstanceBinding ? 2u : 1u;
+
 		VkPipelineVertexInputStateCreateInfo vertexInput{};
 		vertexInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-		vertexInput.vertexBindingDescriptionCount = 1;
-		vertexInput.pVertexBindingDescriptions = &info.vertexBinding;
+		vertexInput.vertexBindingDescriptionCount = bindingCount;
+		vertexInput.pVertexBindingDescriptions = bindingDescs;
 		vertexInput.vertexAttributeDescriptionCount = static_cast<u32>( info.vertexAttributes.size() );
 		vertexInput.pVertexAttributeDescriptions = info.vertexAttributes.data();
 

@@ -6,8 +6,8 @@ namespace imp::gfx
 {
 	struct MeshPushConstants
 	{
-		math::Mat4f mvp;
-		math::Mat4f model;
+		math::Mat4f viewProj;
+		math::Mat4f nodeWorld;
 	};
 
 	static_assert( sizeof(MeshPushConstants) == 128 

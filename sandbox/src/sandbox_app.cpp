@@ -2,9 +2,12 @@
 
 #include <core/log/log.h>
 
+#include <algorithm>
 #include <cstddef>
 #include <cstring>
 
+#include <app/model_renderer.h>
+#include <app/render_extraction.h>
 #include <gfx/lighting.h>
 #include <gfx/model.h>
 #include <gfx/model_loader.h>
@@ -32,10 +35,17 @@ namespace imp::app
 			return false;
 		}
 
-		gfx::VertexAttribute attrs[3] = {
+		gfx::VertexAttribute meshAttrs[3] = {
 			{ 0, static_cast<u32>( offsetof(gfx::ModelVertex, position) ), 3, true },
 			{ 1, static_cast<u32>( offsetof(gfx::ModelVertex, normal) ), 3, true },
 			{ 2, static_cast<u32>( offsetof(gfx::ModelVertex, uv) ), 2, true },
+		};
+
+		gfx::VertexAttribute instanceAttrs[4] = {
+			{ 3, static_cast<u32>( sizeof(math::Vec4f) * 0 ), 4, true },
+			{ 4, static_cast<u32>( sizeof(math::Vec4f) * 1 ), 4, true },
+			{ 5, static_cast<u32>( sizeof(math::Vec4f) * 2 ), 4, true },
+			{ 6, static_cast<u32>( sizeof(math::Vec4f) * 3 ), 4, true },
 		};
 
 		gfx::PipelineDesc meshPipelineDesc;
@@ -43,7 +53,10 @@ namespace imp::app
 		meshPipelineDesc.fragmentShader = m_meshFragShader.get();
 		meshPipelineDesc.vertexLayout.stride = sizeof(gfx::ModelVertex);
 		meshPipelineDesc.vertexLayout.attributeCount = 3;
-		meshPipelineDesc.vertexLayout.attributes = attrs;
+		meshPipelineDesc.vertexLayout.attributes = meshAttrs;
+		meshPipelineDesc.instanceLayout.stride = sizeof(math::Mat4f);
+		meshPipelineDesc.instanceLayout.attributeCount = 4;
+		meshPipelineDesc.instanceLayout.attributes = instanceAttrs;
 		meshPipelineDesc.rasterizerState.cullMode = gfx::CullMode::Back;
 		meshPipelineDesc.depthStencilState.depthTestEnable = true;
 		meshPipelineDesc.depthStencilState.depthWriteEnable = true;
@@ -52,6 +65,7 @@ namespace imp::app
 		meshPipelineDesc.depthFormat = ctx.gfx.depthBuffer() ? ctx.gfx.depthBuffer()->format() : gfx::TextureFormat::Unknown;
 		meshPipelineDesc.pushConstantSize = sizeof(gfx::MeshPushConstants);
 		meshPipelineDesc.hasUniformBuffer = true;
+		meshPipelineDesc.hasInstanceBinding = true;
 		meshPipelineDesc.hasTexture = true;
 		
 		m_pipeline = ctx.gfx.createPipeline(meshPipelineDesc);
@@ -63,12 +77,12 @@ namespace imp::app
 		samplerDesc.addressModeV = gfx::AddressMode::Repeat;
 		m_sampler = ctx.gfx.createSampler(samplerDesc);
 
-		m_model = gfx::loadModel(ctx.gfx, "assets/models/lonely_watcher_by_artjoms_horosilovs.glb", &ctx.vfs);
-		if (!m_model.isValid())
+		m_environmentHandle = m_modelRegistry.load(ctx.gfx, "assets/models/lonely_watcher_by_artjoms_horosilovs.glb", &ctx.vfs);
+		if (!m_environmentHandle.isValid())
 			LOG_ERROR("Sandbox", "Failed to load environment model");
 
-		m_statue = gfx::loadModel(ctx.gfx, "assets/models/statue.glb", &ctx.vfs);
-		if (!m_statue.isValid())
+		m_statueHandle = m_modelRegistry.load(ctx.gfx, "assets/models/statue.glb", &ctx.vfs);
+		if (!m_statueHandle.isValid())
 			LOG_ERROR("Sandbox", "Failed to load statue model");
 
 		gfx::BufferDesc lightUboDesc;
@@ -77,7 +91,7 @@ namespace imp::app
 		lightUboDesc.memoryAccess = gfx::MemoryAccess::HostVisible;
 		m_lightBuffer = ctx.gfx.createBuffer(lightUboDesc);
 
-		if (!m_pipeline || !m_sampler || !m_lightBuffer || !m_model.isValid())
+		if (!m_pipeline || !m_sampler || !m_lightBuffer || !m_environmentHandle.isValid())
 		{
 			LOG_FATAL("Sandbox", "Failed to create pipeline/sampler/light buffer, or model failed to load");
 			return false;
@@ -103,9 +117,19 @@ namespace imp::app
 			}
 		}
 
-		/*ecs::Transform t;
+		ecs::Transform t;
 		t.scale = math::Vec3f{ 0.01f, 0.01f, 0.01f };
-		spawnInstance(ctx, t);*/
+		const ecs::EntityId entity = ctx.ecs.createEntity();
+		ctx.ecs.transforms.create(entity, t);
+		ctx.ecs.renderables.create(entity, m_environmentHandle);
+		m_instances.push_back(entity);
+
+		ensureInstanceBufferCapacity(ctx, static_cast<u32>( m_instances.size() ));
+		if (!m_instanceBuffer)
+		{
+			LOG_FATAL("Sandbox", "Failed to create instance buffer");
+			return false;
+		}
 
 		return true;
 	}
@@ -119,6 +143,15 @@ namespace imp::app
 		std::memcpy(m_lightBuffer->mappedData(), &lightData, sizeof(lightData));
 
 		ctx.ecs.transforms.updateWorldMatricesParallel(ctx.jobs);
+
+		extractRenderables(ctx.ecs, m_extraction);
+		ensureInstanceBufferCapacity(ctx, static_cast<u32>( m_extraction.instanceData.size() ));
+		if (m_instanceBuffer && !m_extraction.instanceData.empty())
+		{
+			std::memcpy(m_instanceBuffer->mappedData(), m_extraction.instanceData.data(),
+				m_extraction.instanceData.size() * sizeof(math::Mat4f));
+		}
+
 	}
 
 	void SandboxApp::onRender(AppContext& ctx, gfx::ICommandList& cmd)
@@ -136,18 +169,15 @@ namespace imp::app
 		const u32 h = ctx.gfx.backBuffer().height();
 		const float aspect = h > 0 ? static_cast<float>( w ) / static_cast<float>( h ) : 1.f;
 
-		math::Mat4f viewProj = m_camera.projection(aspect) * m_camera.view();
-		//math::Mat4f worldRoot{};
+		ModelRenderContext renderCtx;
+		renderCtx.cmd = &cmd;
+		renderCtx.modelRegistry = &m_modelRegistry;
+		renderCtx.sampler = m_sampler.get();
+		renderCtx.lightBuffer = m_lightBuffer.get();
+		renderCtx.instanceBuffer = m_instanceBuffer.get();
+		renderCtx.viewProj = m_camera.projection(aspect) * m_camera.view();
 
-		for (ecs::EntityId instance : m_instances)
-		{
-			const math::Mat4f& instanceWorld = ctx.ecs.transforms.worldMatrix(instance);
-			for (u32 root : m_statue.rootNodes)
-				drawNode(cmd, m_statue, viewProj, root, instanceWorld);
-		}
-
-		/*for (u32 root : m_model.rootNodes)
-			drawNode(cmd, m_model, viewProj, root, worldRoot);*/
+		drawModelBatches(renderCtx, m_extraction);
 
 		cmd.endRenderPass();
 	}
@@ -158,10 +188,11 @@ namespace imp::app
 			ctx.ecs.destroyEntity(instance);
 
 		m_instances.clear();
+		m_extraction.clear();
 
-		m_model = gfx::Model{};
-		m_statue = gfx::Model{};
+		m_modelRegistry.clear();
 
+		m_instanceBuffer.reset();
 		m_lightBuffer.reset();
 		m_sampler.reset();
 		m_pipeline.reset();
@@ -169,43 +200,36 @@ namespace imp::app
 		m_meshVertShader.reset();
 	}
 
-	void SandboxApp::drawNode(gfx::ICommandList& cmd, gfx::Model& model, const math::Mat4f& viewProj, u32 nodeIdx, const math::Mat4f& parentWorld)
+	void SandboxApp::ensureInstanceBufferCapacity(AppContext& ctx, u32 instanceCount)
 	{
-		const gfx::ModelNode& node = model.nodes[nodeIdx];
-		math::Mat4f world = parentWorld * node.localTransform;
+		if (m_instanceBuffer && instanceCount <= m_instanceCapacity)
+			return;
 
-		if (node.meshIndex >= 0)
+		u32 newCapacity = std::max<u32>(instanceCount, m_instanceCapacity * 2);
+		newCapacity = std::max<u32>(newCapacity, 16u);
+
+		gfx::BufferDesc desc;
+		desc.size = static_cast<u64>( newCapacity ) * sizeof(math::Mat4f);
+		desc.usage = gfx::BufferUsage::Vertex;
+		desc.memoryAccess = gfx::MemoryAccess::HostVisible;
+		desc.debugName = "SandboxApp instance buffer";
+
+		auto newBuffer = ctx.gfx.createBuffer(desc);
+		if (!newBuffer)
 		{
-			for (auto& prim : model.meshes[node.meshIndex].primitives)
-			{
-				gfx::MeshPushConstants pc;
-				pc.model = world;
-				pc.mvp = viewProj * world;
-				cmd.pushConstants(&pc, sizeof(pc), 0);
-
-				cmd.bindUniformBuffer(*m_lightBuffer, 0);
-
-				if (prim.materialIndex >= 0)
-				{
-					i32 texIdx = model.materials[prim.materialIndex].baseColourTextureIndex;
-					if (texIdx >= 0)
-						cmd.bindTexture(*model.textures[texIdx].texture, *m_sampler, 1);
-				}
-
-				cmd.bindVertexBuffer(*prim.vertexBuffer);
-				cmd.bindIndexBuffer(*prim.indexBuffer);
-				cmd.drawIndexed(prim.indexCount, 1);
-			}
+			LOG_ERROR("Sandbox", "Failed to create instance buffer for capacity {}", newCapacity);
+			return;
 		}
 
-		for (u32 child : node.children)
-			drawNode(cmd, model, viewProj, child, world);
+		m_instanceBuffer = std::move(newBuffer);
+		m_instanceCapacity = newCapacity;
 	}
 
 	ecs::EntityId SandboxApp::spawnInstance(AppContext& ctx, const ecs::Transform& t)
 	{
 		const ecs::EntityId entity = ctx.ecs.createEntity();
 		ctx.ecs.transforms.create(entity, t);
+		ctx.ecs.renderables.create(entity, m_statueHandle);
 		m_instances.push_back(entity);
 		return entity;
 	}

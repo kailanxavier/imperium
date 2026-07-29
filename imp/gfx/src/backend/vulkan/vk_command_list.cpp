@@ -111,19 +111,6 @@ namespace imp::gfx::vulkan
 
 		vkCmdBeginRendering(m_cmd, &renderingInfo);
 
-		// TODO:
-		// y = height, height = -height: Vulkan's NDC is natively
-		// Y-down, so a "normal" positive-height viewport combined
-		// with this engine's Y-up LH math library renders
-		// everything upside-down
-		//
-		// Side effect worth remembering in the future here
-		// is that when culling gets turned on, this flip
-		// also reverses the effective winding order the
-		// rasterizer sees, so whichever frontFace looks correct
-		// without culling will need to be inverted once
-		// VK_CULL_MODE_BACK_BIT is enabled
-
 		VkViewport viewport{};
 		viewport.x = 0.f;
 		viewport.y = static_cast<float>( extent.height );;
@@ -182,17 +169,16 @@ namespace imp::gfx::vulkan
 		m_currentDescriptorSet = VK_NULL_HANDLE;
 	}
 
-	void VulkanCommandList::bindVertexBuffer(gfx::IBuffer& buffer)
+	void VulkanCommandList::bindVertexBuffer(gfx::IBuffer& buffer, u32 binding)
 	{
 		auto& vkBuffer = static_cast<VulkanBuffer&>( buffer );
 		VkBuffer buffers[] = { vkBuffer.handle() };
 		VkDeviceSize offsets[] = { 0 };
-		vkCmdBindVertexBuffers(m_cmd, 0, 1, buffers, offsets);
+		vkCmdBindVertexBuffers(m_cmd, binding, 1, buffers, offsets);
 	}
 
 	void VulkanCommandList::bindIndexBuffer(gfx::IBuffer& buffer)
 	{
-		// TODO: Always UINT16
 		auto& vkBuffer = static_cast<VulkanBuffer&>( buffer );
 		const VkIndexType indexType = ( vkBuffer.indexFormat() == gfx::IndexFormat::Uint32
 			? VK_INDEX_TYPE_UINT32
@@ -262,9 +248,9 @@ namespace imp::gfx::vulkan
 		m_currentDescriptorSet = VK_NULL_HANDLE;
 	}
 
-	void VulkanCommandList::drawIndexed(u32 indexCount, u32 instanceCount)
+	void VulkanCommandList::drawIndexed(u32 indexCount, u32 instanceCount, u32 firstInstance)
 	{
-		vkCmdDrawIndexed(m_cmd, indexCount, instanceCount, 0, 0, 0);
+		vkCmdDrawIndexed(m_cmd, indexCount, instanceCount, 0, 0, firstInstance);
 		m_currentDescriptorSet = VK_NULL_HANDLE;
 	}
 

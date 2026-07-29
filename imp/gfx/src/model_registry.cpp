@@ -2,6 +2,8 @@
 #include <gfx/model_loader.h>
 #include <core/log/log.h>
 
+#include <gfx/resources.h>
+
 #include <utility>
 
 namespace imp::gfx

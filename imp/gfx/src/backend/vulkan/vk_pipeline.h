@@ -12,10 +12,12 @@ namespace imp::gfx::vulkan
 		VkDevice device = VK_NULL_HANDLE;
 		VkShaderModule vertexShader = VK_NULL_HANDLE;
 		VkShaderModule fragmentShader = VK_NULL_HANDLE;
-
 		VkVertexInputBindingDescription vertexBinding{};
-		std::vector<VkVertexInputAttributeDescription> vertexAttributes;
 
+		bool hasInstanceBinding = false;
+		VkVertexInputBindingDescription instanceBinding{};
+
+		std::vector<VkVertexInputAttributeDescription> vertexAttributes;
 		VkCullModeFlags cullMode = VK_CULL_MODE_NONE;
 
 		bool depthTestEnable = false;

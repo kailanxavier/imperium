@@ -426,6 +426,22 @@ namespace imp::gfx::vulkan
 			info.vertexAttributes.push_back(attr);
 		}
 
+		if (desc.hasInstanceBinding)
+		{
+			for (u32 i = 0; i < desc.instanceLayout.attributeCount; ++i)
+			{
+				const auto& src = desc.instanceLayout.attributes[i];
+
+				VkVertexInputAttributeDescription attr{};
+				attr.location = src.location;
+				attr.binding = 1;
+				attr.offset = src.offset;
+				attr.format = toVkAttributeFormat(src.componentCount, src.isFloat);
+
+				info.vertexAttributes.push_back(attr);
+			}
+		}
+
 		info.vfs = m_vfs;
 		info.cullMode = toVkCullMode(desc.rasterizerState.cullMode);
 		info.depthTestEnable = desc.depthStencilState.depthTestEnable;
@@ -436,6 +452,10 @@ namespace imp::gfx::vulkan
 		info.pushConstantSize = desc.pushConstantSize;
 		info.hasUniformBuffer = desc.hasUniformBuffer;
 		info.hasTexture = desc.hasTexture;
+		info.instanceBinding.binding = 1;
+		info.instanceBinding.stride = desc.instanceLayout.stride;
+		info.instanceBinding.inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
+		info.hasInstanceBinding = desc.hasInstanceBinding;
 		info.allocationCallbacks = allocationCallbacks();
 
 		auto pipeline = std::make_unique<VulkanGraphicsPipeline>();
