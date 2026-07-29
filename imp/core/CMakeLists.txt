@@ -29,7 +29,7 @@ add_library(imp_core STATIC
 	include/core/log/log.cpp
 	include/core/fs/vfs.cpp
 	include/core/platform/exe_path.cpp
- )
+)
 
 target_include_directories(imp_core
 	PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include

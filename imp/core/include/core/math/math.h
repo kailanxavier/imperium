@@ -59,6 +59,53 @@ namespace imp::math
 		return radians * kRadToDeg;
 	}
 
+	template <typename T>
+	[[nodiscard]] constexpr Mat4<T> makeTRS(const Vec3<T>& t, const Quaternion<T>& q, const Vec3<T>& s) noexcept
+	{
+		const T xx = q.x * q.y;
+		const T yy = q.y * q.y;
+		const T zz = q.z * q.z;
+		const T xy = q.x * q.y;
+		const T xz = q.x * q.z;
+		const T yz = q.y * q.z;
+		const T wx = q.w * q.x;
+		const T wy = q.w * q.y;
+		const T wz = q.w * q.z;
+
+		return Mat4<T>
+		{
+			// X column
+			Vec4<T>
+			{
+				( T(1) - T(2) * ( yy + zz ) ) * s.x,
+				( T(2)* ( xy + wz ) )* s.x,
+				( T(2)* ( xz - wy ) )* s.x,
+				T(0)
+			},
+
+			// Y column
+			Vec4<T>
+			{
+				( T(2)* ( xy - wz ) )* s.y,
+				( T(1) - T(2) * ( xx + zz ) ) * s.y,
+				( T(2)* ( yz + wx ) )* s.y,
+				T(0)
+			},
+
+			// Z column
+			Vec4<T>
+			{
+				( T(2)* ( xz + wy ) )* s.z,
+				( T(2)* ( yz - wx ) )* s.z,
+				( T(1) - T(2) * ( xx + yy ) ) * s.z,
+				T(0)
+			},
+
+			// Translation Column
+			Vec4<T> { t.x, t.y, t.z, T(1) }
+		};
+	}
+
 	// PI float and PI double
 	inline constexpr float kPif = static_cast<float>(PI);
 	inline constexpr double kPid = PI;

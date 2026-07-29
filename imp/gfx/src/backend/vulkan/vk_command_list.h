@@ -17,7 +17,7 @@ namespace imp::gfx::vulkan
 		void endRenderPass() override;
 
 		void bindPipeline(gfx::IPipeline& pipeline) override;
-		void bindVertexBuffer(gfx::IBuffer& buffer) override;
+		void bindVertexBuffer(gfx::IBuffer& buffer, u32 binding) override;
 		void bindIndexBuffer(gfx::IBuffer& buffer) override;
 		void bindUniformBuffer(gfx::IBuffer& buffer, u32 binding) override;
 		void bindTexture(gfx::ITexture& texture, gfx::ISampler& sampler, u32 binding) override;
@@ -25,7 +25,7 @@ namespace imp::gfx::vulkan
 		void pushConstants(const void* data, u32 size, u32 offset) override;
 
 		void draw(u32 vertexCount, u32 instanceCount) override;
-		void drawIndexed(u32 indexCount, u32 instanceCount) override;
+		void drawIndexed(u32 indexCount, u32 instanceCount, u32 firstInstance) override;
 
 		VkCommandBuffer commandBuffer() const { return m_cmd; }
 

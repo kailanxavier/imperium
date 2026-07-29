@@ -1,0 +1,63 @@
+PROJECT_NAME = @PROJECT_NAME@
+PROJECT_NUMBER = @PROJECT_VERSION@
+
+OUTPUT_DIRECTORY = @CMAKE_BINARY_DIR@/docs
+
+INPUT = \
+"@CMAKE_SOURCE_DIR@/imp/core/include" \
+"@CMAKE_SOURCE_DIR@/imp/audio/include" \
+"@CMAKE_SOURCE_DIR@/imp/gfx/include" \
+"@CMAKE_SOURCE_DIR@/imp/jobs/include" \
+"@CMAKE_SOURCE_DIR@/imp/net/include" \
+"@CMAKE_SOURCE_DIR@/imp/physics/include" \
+"@CMAKE_SOURCE_DIR@/imp/script/include" \
+"@CMAKE_SOURCE_DIR@/protocol/include" \
+"@CMAKE_SOURCE_DIR@/imp/fwk/app/include" \
+"@CMAKE_SOURCE_DIR@/imp/fwk/camera/include" \
+"@CMAKE_SOURCE_DIR@/imp/fwk/creature/include" \
+"@CMAKE_SOURCE_DIR@/imp/fwk/ecs/include" \
+"@CMAKE_SOURCE_DIR@/imp/fwk/fwk/include" \
+"@CMAKE_SOURCE_DIR@/imp/fwk/input/include" \
+"@CMAKE_SOURCE_DIR@/imp/fwk/scene/include"
+
+EXCLUDE_PATTERNS = \
+*/src/* \
+*/vendor/* \
+*/third_party/* \
+*/tests/* \
+*/build/*
+
+FILE_PATTERNS = *.h *.hpp *.c *.cpp
+
+RECURSIVE = YES
+
+GENERATE_HTML = YES
+GENERATE_LATEX = NO
+
+EXTRACT_ALL = YES
+EXTRACT_PRIVATE = YES
+EXTRACT_STATIC = YES
+
+SOURCE_BROWSER = YES
+INLINE_SOURCES = YES
+
+HAVE_DOT = YES
+CALL_GRAPH = YES
+CALLER_GRAPH = YES
+
+QUIET = YES
+
+OPTIMIZE_OUTPUT_FOR_C = NO
+JAVADOC_AUTOBRIEF = YES
+
+GENERATE_TREEVIEW = YES
+FULL_SIDEBAR = YES
+
+REFERENCED_BY_RELATION = YES
+REFERENCES_RELATION = YES
+
+UML_LOOK = YES
+DOT_IMAGE_FORMAT = svg
+INTERACTIVE_SVG = YES
+
+DOT_PATH = "C:/Program Files/Graphviz/bin"

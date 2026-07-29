@@ -25,3 +25,5 @@ IMP_ADD_THIRD_PARTY_TARGET(gtest_main)
 
 add_subdirectory(math)
 add_subdirectory(protocol)
+add_subdirectory(ecs)
+add_subdirectory(jobs)

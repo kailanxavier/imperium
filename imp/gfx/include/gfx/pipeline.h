@@ -76,6 +76,8 @@ namespace imp::gfx
         IShader* fragmentShader = nullptr;
 
         VertexLayoutDesc vertexLayout;
+        VertexLayoutDesc instanceLayout;
+
         RasterizerStateDesc rasterizerState;
         DepthStencilStateDesc depthStencilState;
         BlendStateDesc blendState;
@@ -85,6 +87,7 @@ namespace imp::gfx
 
         u32 pushConstantSize = 0;
 
+        bool hasInstanceBinding = false;
         bool hasUniformBuffer = false;
         bool hasTexture = false;
     };

@@ -22,7 +22,7 @@ namespace imp::protocol
         bool connect(const char* address, u16 port);
 
         // Non-blocking send & receive
-        [[nodiscard]] bool send(std::span<const u8> data);
+        bool send(std::span<const u8> data);
         bool flush();
 
         [[nodiscard]] size_t pendingSendBytes() const { return m_sendBuffer.size(); }

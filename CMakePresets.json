@@ -45,22 +45,53 @@
       "binaryDir": "${sourceDir}/build/mac-release",
       "cacheVariables": {
         "CMAKE_OSX_ARCHITECTURES": "arm64",
-        "CMAKE_BUILD_TYPE": "Release"
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_CXX_STANDARD": "23"
+      }
+    },
+    {
+      "name": "windows-debug-clang",
+      "displayName": "Windows Debug (Clang)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/windows-release-clang",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_CXX_STANDARD": "23",
+        "CMAKE_C_COMPILER": "clang-cl",
+        "CMAKE_CXX_COMPILER": "clang-cl"
+      }
+    },
+    {
+      "name": "windows-release-clang",
+      "displayName": "Windows Release (Clang)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/windows-release-clang",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_CXX_STANDARD": "23",
+        "CMAKE_C_COMPILER": "clang-cl",
+        "CMAKE_CXX_COMPILER": "clang-cl"
       }
     }
   ],
   "buildPresets": [
     {
-      "name": "windows-debug",
-      "configurePreset": "windows-debug"
+      "name": "Windows Debug (MSVC x64)",
+      "configurePreset": "windows-debug",
+      "configuration": "Debug"
     },
     {
-      "name": "windows-release",
-      "configurePreset": "windows-release"
+      "name": "Windows Release (MSVC x64)",
+      "configurePreset": "windows-release",
+      "configuration": "Release"
     },
     {
-      "name": "mac-debug",
+      "name": "MacOS Debug",
       "configurePreset": "mac-debug"
+    },
+    {
+      "name": "MacOS Release",
+      "configurePreset": "mac-release"
     }
   ]
 }

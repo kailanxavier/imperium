@@ -39,7 +39,7 @@ namespace imp::gfx
         virtual void endRenderPass() = 0;
 
         virtual void bindPipeline(IPipeline& pipeline) = 0;
-        virtual void bindVertexBuffer(IBuffer& buffer) = 0;
+        virtual void bindVertexBuffer(IBuffer& buffer, u32 binding) = 0;
         virtual void bindIndexBuffer(IBuffer& buffer) = 0;
 
         virtual void bindUniformBuffer(IBuffer& buffer, u32 binding) = 0;
@@ -48,7 +48,7 @@ namespace imp::gfx
         virtual void pushConstants(const void* data, u32 size, u32 offset = 0) = 0;
 
         virtual void draw(u32 vertexCount, u32 instanceCount = 1) = 0;
-        virtual void drawIndexed(u32 indexCount, u32 instanceCount = 1) = 0;
+        virtual void drawIndexed(u32 indexCount, u32 instanceCount, u32 firstInstance) = 0;
 
         // Compute dispatch and explicit resource barriers will go here
         // but since no backend implements compute yet, I won't do it rn
