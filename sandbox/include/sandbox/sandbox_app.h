@@ -5,6 +5,7 @@
 #include <gfx/model.h>
 #include <core/memory/int_types.h>
 #include <core/math/math.h>
+#include <ecs/world.h>
 
 #include <memory>
 
@@ -27,7 +28,10 @@ namespace imp::app
 		void onShutdown(AppContext& ctx) override;
 
 	private:
-		void drawNode(gfx::ICommandList& cmd, const math::Mat4f& viewProj, u32 nodeIdx, const math::Mat4f& parentWorld);
+		void drawNode(gfx::ICommandList& cmd, gfx::Model& model, const math::Mat4f& viewProj, u32 nodeIdx, const math::Mat4f& parentWorld);
+
+		ecs::EntityId spawnInstance(AppContext& ctx, const ecs::Transform& t);
+
 		fwk::Camera m_camera;
 
 		std::unique_ptr<gfx::IShader> m_meshVertShader;
@@ -35,6 +39,10 @@ namespace imp::app
 		std::unique_ptr<gfx::IPipeline> m_pipeline;
 		std::unique_ptr<gfx::ISampler> m_sampler;
 		std::unique_ptr<gfx::IBuffer> m_lightBuffer;
+
 		gfx::Model m_model;
+		gfx::Model m_statue;
+
+		std::vector<ecs::EntityId> m_instances;
 	};
 }

@@ -65,7 +65,11 @@ namespace imp::app
 
 		m_model = gfx::loadModel(ctx.gfx, "assets/models/lonely_watcher_by_artjoms_horosilovs.glb", &ctx.vfs);
 		if (!m_model.isValid())
-			LOG_ERROR("Sandbox", "Failed to load model");
+			LOG_ERROR("Sandbox", "Failed to load environment model");
+
+		m_statue = gfx::loadModel(ctx.gfx, "assets/models/statue.glb", &ctx.vfs);
+		if (!m_statue.isValid())
+			LOG_ERROR("Sandbox", "Failed to load statue model");
 
 		gfx::BufferDesc lightUboDesc;
 		lightUboDesc.size = sizeof(gfx::BlinnPhongLightUBO);
@@ -79,6 +83,30 @@ namespace imp::app
 			return false;
 		}
 
+		constexpr int kGridSize = 3;
+		constexpr float kSpacing = 30.f;
+		for (int x = 0; x < kGridSize; ++x)
+		{
+			for (int z = 0; z < kGridSize; ++z)
+			{
+				const math::Vec3f position
+				{
+					static_cast<float>(x - kGridSize / 2.f) * kSpacing,
+					0.f,
+					static_cast<float>(z - kGridSize / 2.f) * kSpacing
+				};
+
+				ecs::Transform t;
+				t.position = position;
+				t.scale = math::Vec3f{ 10.f, 10.f, 10.f };
+				spawnInstance(ctx, t);
+			}
+		}
+
+		/*ecs::Transform t;
+		t.scale = math::Vec3f{ 0.01f, 0.01f, 0.01f };
+		spawnInstance(ctx, t);*/
+
 		return true;
 	}
 
@@ -89,6 +117,8 @@ namespace imp::app
 		gfx::BlinnPhongLightUBO lightData;
 		lightData.cameraPositionWS = { m_camera.position().x, m_camera.position().y, m_camera.position().z, 0.f };
 		std::memcpy(m_lightBuffer->mappedData(), &lightData, sizeof(lightData));
+
+		ctx.ecs.transforms.updateWorldMatricesParallel(ctx.jobs);
 	}
 
 	void SandboxApp::onRender(AppContext& ctx, gfx::ICommandList& cmd)
@@ -107,17 +137,31 @@ namespace imp::app
 		const float aspect = h > 0 ? static_cast<float>( w ) / static_cast<float>( h ) : 1.f;
 
 		math::Mat4f viewProj = m_camera.projection(aspect) * m_camera.view();
-		math::Mat4f worldRoot{};
+		//math::Mat4f worldRoot{};
 
-		for (u32 root : m_model.rootNodes)
-			drawNode(cmd, viewProj, root, worldRoot);
+		for (ecs::EntityId instance : m_instances)
+		{
+			const math::Mat4f& instanceWorld = ctx.ecs.transforms.worldMatrix(instance);
+			for (u32 root : m_statue.rootNodes)
+				drawNode(cmd, m_statue, viewProj, root, instanceWorld);
+		}
+
+		/*for (u32 root : m_model.rootNodes)
+			drawNode(cmd, m_model, viewProj, root, worldRoot);*/
 
 		cmd.endRenderPass();
 	}
 
-	void SandboxApp::onShutdown(AppContext&)
+	void SandboxApp::onShutdown(AppContext& ctx)
 	{
+		for (ecs::EntityId instance : m_instances)
+			ctx.ecs.destroyEntity(instance);
+
+		m_instances.clear();
+
 		m_model = gfx::Model{};
+		m_statue = gfx::Model{};
+
 		m_lightBuffer.reset();
 		m_sampler.reset();
 		m_pipeline.reset();
@@ -125,14 +169,14 @@ namespace imp::app
 		m_meshVertShader.reset();
 	}
 
-	void SandboxApp::drawNode(gfx::ICommandList& cmd, const math::Mat4f& viewProj, u32 nodeIdx, const math::Mat4f& parentWorld)
+	void SandboxApp::drawNode(gfx::ICommandList& cmd, gfx::Model& model, const math::Mat4f& viewProj, u32 nodeIdx, const math::Mat4f& parentWorld)
 	{
-		const gfx::ModelNode& node = m_model.nodes[nodeIdx];
+		const gfx::ModelNode& node = model.nodes[nodeIdx];
 		math::Mat4f world = parentWorld * node.localTransform;
 
 		if (node.meshIndex >= 0)
 		{
-			for (auto& prim : m_model.meshes[node.meshIndex].primitives)
+			for (auto& prim : model.meshes[node.meshIndex].primitives)
 			{
 				gfx::MeshPushConstants pc;
 				pc.model = world;
@@ -143,9 +187,9 @@ namespace imp::app
 
 				if (prim.materialIndex >= 0)
 				{
-					i32 texIdx = m_model.materials[prim.materialIndex].baseColourTextureIndex;
+					i32 texIdx = model.materials[prim.materialIndex].baseColourTextureIndex;
 					if (texIdx >= 0)
-						cmd.bindTexture(*m_model.textures[texIdx].texture, *m_sampler, 1);
+						cmd.bindTexture(*model.textures[texIdx].texture, *m_sampler, 1);
 				}
 
 				cmd.bindVertexBuffer(*prim.vertexBuffer);
@@ -155,6 +199,14 @@ namespace imp::app
 		}
 
 		for (u32 child : node.children)
-			drawNode(cmd, viewProj, child, world);
+			drawNode(cmd, model, viewProj, child, world);
+	}
+
+	ecs::EntityId SandboxApp::spawnInstance(AppContext& ctx, const ecs::Transform& t)
+	{
+		const ecs::EntityId entity = ctx.ecs.createEntity();
+		ctx.ecs.transforms.create(entity, t);
+		m_instances.push_back(entity);
+		return entity;
 	}
 }
