@@ -2,6 +2,7 @@
 
 #include <ecs/entity.h>
 #include <ecs/transform_storage.h>
+#include <ecs/renderable_storage.h>
 
 namespace imp::ecs
 {
@@ -10,12 +11,16 @@ namespace imp::ecs
 	public:
 		EntityRegistry registry;
 		TransformStorage transforms;
+		RenderableStorage renderables;
 
 		EntityId createEntity() { return registry.create(); }
+
 		void destroyEntity(EntityId entity)
 		{
 			if (transforms.contains(entity))
 				transforms.destroy(entity);
+			if (renderables.contains(entity))
+				renderables.destroy(entity);
 
 			registry.destroy(entity);
 		}

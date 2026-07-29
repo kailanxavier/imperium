@@ -42,6 +42,7 @@ target_sources(imp_gfx PRIVATE
 	src/cgltf_impl.cpp
 	src/image.cpp
 	src/model_loader.cpp
+	src/model_registry.cpp
 )
 
 if(IMP_VULKAN_MEM_TEST)
