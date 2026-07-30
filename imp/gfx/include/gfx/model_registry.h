@@ -8,16 +8,21 @@
 #include <vector>
 
 namespace imp::fs { class VirtualFileSystem; }
+namespace imp::jobs { class JobSystem; }
+
 namespace imp::gfx
 {
 	class IDevice;
+	class TextureCache;
 
 	class ModelRegistry
 	{
 	public:
 		ModelRegistry() = default;
+		~ModelRegistry();
 
-		ModelHandle load(IDevice& device, const std::string& path, const fs::VirtualFileSystem* vfs = nullptr);
+		ModelHandle load(IDevice& device, const std::string& path, jobs::JobSystem& jobSystem, 
+			const fs::VirtualFileSystem* vfs = nullptr);
 
 		[[nodiscard]] bool isValid(ModelHandle handle) const;
 		[[nodiscard]] Model* tryGet(ModelHandle handle);
@@ -25,6 +30,7 @@ namespace imp::gfx
 
 		void unload(ModelHandle handle);
 		void clear();
+		void shutdown();
 
 		[[nodiscard]] size_t residentCount() const noexcept { return m_slots.size() - m_freeList.size(); }
 
@@ -40,5 +46,6 @@ namespace imp::gfx
 		std::vector<Slot> m_slots;
 		std::unordered_map<std::string, u32> m_pathToIndex;
 		std::vector<u32> m_freeList;
+		std::unique_ptr<TextureCache> m_textureCache;
 	};
 }

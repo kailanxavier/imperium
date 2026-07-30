@@ -11,6 +11,8 @@ target_link_libraries(imp_gfx
 	PUBLIC 
 		imp_core
 		imp_fwk
+	PRIVATE
+		imp_jobs
 )
 
 option(IMP_VULKAN_MEM_TEST "Compile and link memory allocation tests for Vulkan backend" ON)
@@ -43,6 +45,7 @@ target_sources(imp_gfx PRIVATE
 	src/image.cpp
 	src/model_loader.cpp
 	src/model_registry.cpp
+	src/texture_cache.cpp
 )
 
 if(IMP_VULKAN_MEM_TEST)

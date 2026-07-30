@@ -15,6 +15,7 @@ namespace imp::gfx::dx11
 
 	std::unique_ptr<gfx::IBuffer> DX11Device::createBuffer(const gfx::BufferDesc& desc) { return nullptr; }
 	std::unique_ptr<gfx::ITexture> DX11Device::createTexture(const gfx::TextureDesc& desc) { return nullptr; }
+	std::vector<std::unique_ptr<ITexture>> DX11Device::createTextures(const std::vector<gfx::TextureDesc>& descs) { return std::vector<std::unique_ptr<ITexture>>(); }
 	std::unique_ptr<gfx::ISampler> DX11Device::createSampler(const gfx::SamplerDesc& desc) { return nullptr; }
 	std::unique_ptr<gfx::IShader> DX11Device::createShader(const gfx::ShaderDesc& desc) { return nullptr; }
 	std::unique_ptr<gfx::IPipeline> DX11Device::createPipeline(const gfx::PipelineDesc& desc) { return nullptr; }

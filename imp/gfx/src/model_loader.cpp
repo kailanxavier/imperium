@@ -2,16 +2,20 @@
 
 #include <gfx/gfx.h>
 #include <gfx/image.h>
+#include <gfx/texture_cache.h>
 
 #include <core/fs/vfs.h>
 #include <core/log/log.h>
 #include <core/memory/int_types.h>
+
+#include <jobs/job_system.h>
 
 #include <cgltf.h>
 
 #include <cstring>
 #include <fstream>
 #include <functional>
+#include <map>
 #include <unordered_map>
 
 namespace imp::gfx
@@ -54,97 +58,43 @@ namespace imp::gfx
 			return static_cast<u32>( cgltf_accessor_read_index(accessor, i) );
 		}
 
-		i32 getOrLoadTexture(IDevice& device, const cgltf_image* image, const std::string& modelDir,
-			const fs::VirtualFileSystem* vfs, bool isSrgb, std::unordered_map<const cgltf_image*, i32>& cache, Model& outModel)
+		struct TextureSlotRequest
 		{
-			if (!image)
-				return -1;
+			const cgltf_image* image = nullptr;
+			bool isSrgb = false;
+			std::string cacheKey;
+		};
 
-			if (auto it = cache.find(image); it != cache.end())
-				return it->second;
+		std::string resolveCacheKey(const cgltf_image& image, const std::string& modelDir, bool isSrgb)
+		{
+			if (image.uri && std::strncmp(image.uri, "data:", 5) != 0)
+				return modelDir + image.uri + ( isSrgb ? "#srgb" : "#linear" );
 
-			ImageData imageData;
-			if (image->uri && std::strncmp(image->uri, "data:", 5) != 0)
+			return {};
+		}
+
+		ImageData decodeImage(const cgltf_image& image, const std::string& modelDir, const fs::VirtualFileSystem* vfs)
+		{
+			if (image.uri && std::strncmp(image.uri, "data:", 5) != 0)
 			{
-				std::string texPath = modelDir + image->uri;
-				imageData = loadImageFromFile(texPath, vfs);
+				std::string texPath = modelDir + image.uri;
+				return loadImageFromFile(texPath, vfs);
 			}
-			else if (image->buffer_view)
+
+			if (image.buffer_view)
 			{
-				const cgltf_buffer_view* view = image->buffer_view;
+				const cgltf_buffer_view* view = image.buffer_view;
 
 				std::vector<u8> bytes(
 					static_cast<const u8*>( view->buffer->data ) + view->offset,
 					static_cast<const u8*>( view->buffer->data ) + view->offset + view->size
 				);
 
-				imageData = loadImageFromMemory(bytes);
-			}
-			else
-			{
-				LOG_WARN("Model Loader", "Skipping base64 data-URI image: {}. (unsupported)", image->name ? image->name : "<unnamed>");
-				cache[image] = -1;
-				return -1;
+				return loadImageFromMemory(bytes);
 			}
 
-			if (!imageData.isValid())
-			{
-				LOG_ERROR("Model Loader", "Failed to load glTF image: {}", image->uri ? image->uri : "<embedded>");
-				cache[image] = -1;
-				return -1;
-			}
-
-			TextureDesc texDesc;
-			texDesc.width = imageData.width;
-			texDesc.height = imageData.height;
-			texDesc.format = isSrgb ? TextureFormat::RGBA8Srgb : TextureFormat::RGBA8Unorm;
-			texDesc.usage = TextureUsage::Sampled;
-			texDesc.initialData = imageData.pixels.data();
-
-			ModelTexture modelTex;
-			modelTex.texture = device.createTexture(texDesc);
-			if (!modelTex.texture)
-			{
-				LOG_ERROR("Model Loader", "createTexture() failed for glTF image '{}'", image->uri ? image->uri : "<embedded>");
-				cache[image] = -1;
-				return -1;
-			}
-
-			outModel.textures.push_back(std::move(modelTex));
-			i32 index = static_cast<i32>( outModel.textures.size() - 1 );
-			cache[image] = index;
-			return index;
-		}
-
-		i32 createFallbackTexture(IDevice& device, u8 r, u8 g, u8 b, u8 a, Model& outModel)
-		{
-			const u8 pixel[4] = { r, g, b, a };
-
-			TextureDesc texDesc;
-			texDesc.width = 1;
-			texDesc.height = 1;
-			texDesc.format = TextureFormat::RGBA8Unorm;
-			texDesc.usage = TextureUsage::Sampled;
-			texDesc.initialData = pixel;
-
-			ModelTexture modelTex;
-			modelTex.texture = device.createTexture(texDesc);
-			if (!modelTex.texture)
-			{
-				LOG_ERROR("Model Loader", "createTexture() failed for fallback texture");
-				return -1;
-			}
-
-			outModel.textures.push_back(std::move(modelTex));
-			return static_cast<i32>( outModel.textures.size() - 1 );
-		}
-
-		void createFallbackTextures(IDevice& device, Model& outModel)
-		{
-			outModel.fallbackAlbedoTextureIndex = createFallbackTexture(device, 255, 255, 255, 255, outModel);
-			outModel.fallbackMetallicRoughnessTextureIndex = createFallbackTexture(device, 0, 255, 0, 255, outModel);
-			outModel.fallbackNormalTextureIndex = createFallbackTexture(device, 128, 128, 255, 255, outModel);
-			outModel.fallbackOcclusionTextureIndex = createFallbackTexture(device, 255, 255, 255, 255, outModel);
+			LOG_WARN("Model Loader", "Skipping base64 data-URI image: {}. (unsupported)", image.name ? image.name : "<unnamed>");
+			return {};
 		}
 
 		bool loadPrimitive(IDevice& device, const cgltf_primitive& prim, const cgltf_data* data, MeshPrimitive& out)
@@ -295,9 +245,20 @@ namespace imp::gfx
 					dstNode.children.push_back(nodeIndexMap[srcNode.children[c]]);
 			}
 		}
+
+		struct MaterialTextureRefs
+		{
+			i64 baseColour = -1;
+			i64 metallicRoughness = -1;
+			i64 normal = -1;
+			i64 occlusion = -1;
+			i64 emissive = -1;
+		};
+
 	} // namespace
 
-	Model loadModel(IDevice& device, const std::string& path, const fs::VirtualFileSystem* vfs)
+	Model loadModel(IDevice& device, const std::string& path, jobs::JobSystem& jobSystem,
+		TextureCache& textureCache, const fs::VirtualFileSystem* vfs)
 	{
 		Model outModel;
 
@@ -329,14 +290,37 @@ namespace imp::gfx
 		if (cgltf_validate(data) != cgltf_result_success)
 			LOG_WARN("Model Loader", "cgltf_validate reported issues for: {}; continuing anyway", path.c_str());
 
-		createFallbackTextures(device, outModel);
+		std::vector<TextureSlotRequest> requests;
+		std::map<std::pair<const cgltf_image*, bool>, size_t> requestIndexByImageAndSpace;
 
-		std::unordered_map<const cgltf_image*, i32> textureCache;
+		auto getOrAddRequest = [&](const cgltf_image* image, bool isSrgb) -> i64
+			{
+				if (!image)
+					return -1;
+
+				const auto key = std::make_pair(image, isSrgb);
+				if (auto it = requestIndexByImageAndSpace.find(key); it != requestIndexByImageAndSpace.end())
+					return static_cast<i64>( it->second );
+
+				TextureSlotRequest req;
+				req.image = image;
+				req.isSrgb = isSrgb;
+				req.cacheKey = resolveCacheKey(*image, modelDir, isSrgb);
+
+				requests.push_back(std::move(req));
+				const size_t index = requests.size() - 1;
+				requestIndexByImageAndSpace[key] = index;
+				return static_cast<i64>( index );
+			};
+
+		std::vector<MaterialTextureRefs> materialRefs(data->materials_count);
 		outModel.materials.resize(data->materials_count);
+
 		for (cgltf_size i = 0; i < data->materials_count; ++i)
 		{
 			const cgltf_material& srcMat = data->materials[i];
 			Material& dstMat = outModel.materials[i];
+			MaterialTextureRefs& refs = materialRefs[i];
 			dstMat.name = srcMat.name ? srcMat.name : "";
 
 			if (srcMat.has_pbr_metallic_roughness)
@@ -350,44 +334,136 @@ namespace imp::gfx
 				dstMat.roughnessFactor = pbr.roughness_factor;
 
 				if (pbr.base_color_texture.texture)
-				{
-					dstMat.baseColourTextureIndex = getOrLoadTexture(
-						device, pbr.base_color_texture.texture->image, modelDir, vfs, 
-						/*isSrgb=*/true, textureCache, outModel);
-				}
+					refs.baseColour = getOrAddRequest(pbr.base_color_texture.texture->image, /*isSrgb=*/true);
 
 				if (pbr.metallic_roughness_texture.texture)
-				{
-					dstMat.metallicRoughnessTextureIndex = getOrLoadTexture(
-						device, pbr.metallic_roughness_texture.texture->image, modelDir, vfs,
-						/*isSrgb=*/false, textureCache, outModel);
-				}
+					refs.baseColour = getOrAddRequest(pbr.metallic_roughness_texture.texture->image, /*isSrgb=*/false);
 			}
 
 			if (srcMat.normal_texture.texture)
-			{
-				dstMat.normalTextureIndex = getOrLoadTexture(
-					device, srcMat.normal_texture.texture->image, modelDir, vfs,
-					/*isSrgb=*/false, textureCache, outModel);
-			}
+				refs.normal = getOrAddRequest(srcMat.normal_texture.texture->image, /*isSrgb=*/false);
 
 			if (srcMat.occlusion_texture.texture)
-			{
-				dstMat.occlusionTextureIndex = getOrLoadTexture(
-					device, srcMat.occlusion_texture.texture->image, modelDir, vfs,
-					/*isSrgb=*/false, textureCache, outModel);
-			}
+				refs.occlusion = getOrAddRequest(srcMat.occlusion_texture.texture->image, /*isSrgb=*/false);
 
 			if (srcMat.emissive_texture.texture)
-			{
-				dstMat.emissiveTextureIndex = getOrLoadTexture(
-					device, srcMat.emissive_texture.texture->image, modelDir, vfs,
-					/*isSrgb=*/true, textureCache, outModel);
-			}
+				refs.emissive = getOrAddRequest(srcMat.emissive_texture.texture->image, /*isSrgb=*/true);
 
 			dstMat.emissiveFactor = {
 				srcMat.emissive_factor[0], srcMat.emissive_factor[1], srcMat.emissive_factor[2], 0.f
 			};
+		}
+
+		std::vector<std::shared_ptr<ITexture>> resolvedTextures(requests.size());
+		std::vector<size_t> pendingRequestIndices;
+		pendingRequestIndices.reserve(requests.size());
+
+		for (size_t i = 0; i < requests.size(); ++i)
+		{
+			if (!requests[i].cacheKey.empty())
+			{
+				if (auto cached = textureCache.find(requests[i].cacheKey))
+				{
+					resolvedTextures[i] = std::move(cached);
+					continue;
+				}
+			}
+
+			pendingRequestIndices.push_back(i);
+		}
+
+		std::vector<ImageData> decoded(pendingRequestIndices.size());
+		jobSystem.parallelFor(static_cast<u32>( pendingRequestIndices.size() ), 1,
+			[&](u32 start, u32 end)
+			{
+				for (u32 i = start; i < end; ++i)
+				{
+					const TextureSlotRequest& req = requests[pendingRequestIndices[i]];
+					decoded[i] = decodeImage(*req.image, modelDir, vfs);
+				}
+			});
+
+		std::vector<TextureDesc> uploadDescs;
+		std::vector<size_t> uploadRequestIndices;
+		uploadDescs.reserve(pendingRequestIndices.size());
+		uploadRequestIndices.reserve(pendingRequestIndices.size());
+
+		for (size_t i = 0; i < pendingRequestIndices.size(); ++i)
+		{
+			const TextureSlotRequest& req = requests[pendingRequestIndices[i]];
+			if (!decoded[i].isValid())
+			{
+				LOG_ERROR("Model Loader", "Failed to decode glTF image: {}", req.image->uri ? req.image->uri : "<embedded>");
+				continue;
+			}
+
+			TextureDesc desc;
+			desc.width = decoded[i].width;
+			desc.height = decoded[i].height;
+			desc.format = req.isSrgb ? TextureFormat::RGBA8Srgb : TextureFormat::RGBA8Unorm;
+			desc.usage = TextureUsage::Sampled;
+			desc.initialData = decoded[i].pixels.data();
+
+			uploadDescs.push_back(desc);
+			uploadRequestIndices.push_back(pendingRequestIndices[i]);
+		}
+
+		if (!uploadDescs.empty())
+		{
+			std::vector<std::unique_ptr<ITexture>> uploaded = device.createTextures(uploadDescs);
+
+			for (size_t i = 0; i < uploaded.size(); ++i)
+			{
+				const size_t requestIndex = uploadRequestIndices[i];
+				if (!uploaded[i])
+				{
+					LOG_ERROR("Model Loader", "createTextures(): upload failed for {}",
+						requests[requestIndex].image->uri ? requests[requestIndex].image->uri : "<embedded>");
+					continue;
+				}
+
+				std::shared_ptr<ITexture> shared = std::move(uploaded[i]);
+				const TextureSlotRequest& req = requests[requestIndex];
+
+				if (!req.cacheKey.empty())
+					shared = textureCache.insert(req.cacheKey, shared);
+
+				resolvedTextures[requestIndex] = std::move(shared);
+			}
+		}
+
+		std::vector<i32> modelTextureIndexForRequest(requests.size(), -1);
+		for (size_t i = 0; i < requests.size(); ++i)
+		{
+			if (!resolvedTextures[i])
+				continue; // decode or upload failed, material falls back to -1
+
+			outModel.textures.push_back(ModelTexture{ resolvedTextures[i] });
+			modelTextureIndexForRequest[i] = static_cast<i32>( outModel.textures.size() - 1 );
+		}
+
+		outModel.textures.push_back(ModelTexture{ textureCache.fallbackAlbedo() });
+		outModel.fallbackAlbedoTextureIndex = static_cast<i32>( outModel.textures.size() - 1 );
+
+		outModel.textures.push_back(ModelTexture{ textureCache.fallbackMetallicRoughness() });
+		outModel.fallbackMetallicRoughnessTextureIndex = static_cast<i32>( outModel.textures.size() - 1 );
+
+		outModel.textures.push_back(ModelTexture{ textureCache.fallbackNormal() });
+		outModel.fallbackNormalTextureIndex = static_cast<i32>( outModel.textures.size() - 1 );
+
+		outModel.textures.push_back(ModelTexture{ textureCache.fallbackOcclusion() });
+		outModel.fallbackOcclusionTextureIndex = static_cast<i32>( outModel.textures.size() - 1 );
+
+		for (cgltf_size i = 0; i < data->materials_count; ++i)
+		{
+			Material& dstMat = outModel.materials[i];
+			const MaterialTextureRefs& refs = materialRefs[i];
+
+			if (refs.baseColour >= 0) dstMat.baseColourTextureIndex = modelTextureIndexForRequest[refs.baseColour];
+			if (refs.metallicRoughness >= 0) dstMat.metallicRoughnessTextureIndex = modelTextureIndexForRequest[refs.metallicRoughness];
+			if (refs.normal >= 0) dstMat.normalTextureIndex = modelTextureIndexForRequest[refs.normal];
+			if (refs.occlusion >= 0) dstMat.occlusionTextureIndex = modelTextureIndexForRequest[refs.occlusion];
+			if (refs.emissive >= 0) dstMat.emissiveTextureIndex = modelTextureIndexForRequest[refs.emissive];
 		}
 
 		outModel.meshes.resize(data->meshes_count);

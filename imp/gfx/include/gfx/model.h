@@ -49,7 +49,7 @@ namespace imp::gfx
 
 	struct ModelTexture
 	{
-		std::unique_ptr<ITexture> texture;
+		std::shared_ptr<ITexture> texture;
 	};
 
 	struct ModelNode

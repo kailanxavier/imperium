@@ -367,6 +367,134 @@ namespace imp::gfx::vulkan
 		return texture;
 	}
 
+	std::vector<std::unique_ptr<ITexture>> VulkanDevice::createTextures(const std::vector<gfx::TextureDesc>& descs)
+	{
+		std::vector<std::unique_ptr<ITexture>> results;
+		results.reserve(descs.size());
+
+		std::vector<VkDeviceSize> stagingOffsets(descs.size(), 0);
+		VkDeviceSize totalSize = 0;
+
+		for (size_t i = 0; i < descs.size(); ++i)
+		{
+			const auto& desc = descs[i];
+
+			VulkanTextureCreateInfo info{};
+			info.allocator = m_vmaAllocator;
+			info.device = m_device;
+			info.width = desc.width;
+			info.height = desc.height;
+			info.format = toVkFormat(desc.format);
+			info.allocationCallbacks = allocationCallbacks();
+
+			auto texture = std::make_unique<VulkanTexture>();
+			if (!texture->create(info))
+			{
+				LOG_ERROR("Vulkan", "createTextures(): texture {} creation failed", i);
+				results.push_back(nullptr);
+				continue;
+			}
+
+			if (desc.initialData)
+			{
+				stagingOffsets[i] = totalSize;
+				totalSize += static_cast<VkDeviceSize>( desc.width ) * desc.height * 4;
+			}
+
+			results.push_back(std::move(texture));
+		}
+
+		if (totalSize == 0)
+			return results;
+
+		VulkanBufferCreateInfo stagingInfo{};
+		stagingInfo.allocator = m_vmaAllocator;
+		stagingInfo.size = totalSize;
+		stagingInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+		stagingInfo.hostVisible = true;
+
+		VulkanBuffer staging;
+		if (!staging.create(stagingInfo))
+		{
+			LOG_ERROR("Vulkan", "createTextures(): staging buffer creation failed");
+			return results;
+		}
+
+		u8* stagingBase = static_cast<u8*>( staging.mappedData() );
+		for (size_t i = 0; i < descs.size(); ++i)
+		{
+			if (!descs[i].initialData || !results[i])
+				continue;
+
+			const VkDeviceSize size = static_cast<VkDeviceSize>( descs[i].width ) * descs[i].height * 4;
+			std::memcpy(stagingBase + stagingOffsets[i], descs[i].initialData, static_cast<size_t>( size ));
+		}
+
+		submitOneTimeCommands([&](VkCommandBuffer cmd)
+			{
+				for (size_t i = 0; i < descs.size(); ++i)
+				{
+					if (!descs[i].initialData || !results[i])
+						continue;
+
+					auto* vkTexture = static_cast<VulkanTexture*>( results[i].get() );
+					VkImage image = vkTexture->image();
+
+					VkImageSubresourceRange range{};
+					range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+					range.levelCount = 1;
+					range.layerCount = 1;
+
+					VkImageMemoryBarrier2 toTransferDst{};
+					toTransferDst.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+					toTransferDst.srcStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;
+					toTransferDst.srcAccessMask = VK_ACCESS_2_NONE;
+					toTransferDst.dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+					toTransferDst.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+					toTransferDst.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+					toTransferDst.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+					toTransferDst.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+					toTransferDst.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+					toTransferDst.image = image;
+					toTransferDst.subresourceRange = range;
+
+					VkDependencyInfo dep1{};
+					dep1.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+					dep1.imageMemoryBarrierCount = 1;
+					dep1.pImageMemoryBarriers = &toTransferDst;
+					vkCmdPipelineBarrier2(cmd, &dep1);
+
+					VkBufferImageCopy region{};
+					region.bufferOffset = stagingOffsets[i];
+					region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+					region.imageSubresource.layerCount = 1;
+					region.imageExtent = { descs[i].width, descs[i].height, 1 };
+					vkCmdCopyBufferToImage(cmd, staging.handle(), image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+
+					VkImageMemoryBarrier2 toShaderRead{};
+					toShaderRead.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+					toShaderRead.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+					toShaderRead.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+					toShaderRead.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+					toShaderRead.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;
+					toShaderRead.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+					toShaderRead.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+					toShaderRead.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+					toShaderRead.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+					toShaderRead.image = image;
+					toShaderRead.subresourceRange = range;
+
+					VkDependencyInfo dep2{};
+					dep2.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+					dep2.imageMemoryBarrierCount = 1;
+					dep2.pImageMemoryBarriers = &toShaderRead;
+					vkCmdPipelineBarrier2(cmd, &dep2);
+				}
+			});
+
+		return results;
+	}
+
 	std::unique_ptr<gfx::ISampler> VulkanDevice::createSampler(const gfx::SamplerDesc& desc)
 	{
 		auto sampler = std::make_unique<VulkanSampler>();

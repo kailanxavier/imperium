@@ -77,11 +77,11 @@ namespace imp::app
 		samplerDesc.addressModeV = gfx::AddressMode::Repeat;
 		m_sampler = ctx.gfx.createSampler(samplerDesc);
 
-		m_environmentHandle = m_modelRegistry.load(ctx.gfx, "assets/models/temple.glb", &ctx.vfs);
+		m_environmentHandle = m_modelRegistry.load(ctx.gfx, "assets/models/sponza.glb", ctx.jobs, &ctx.vfs);
 		if (!m_environmentHandle.isValid())
 			LOG_ERROR("Sandbox", "Failed to load environment model");
 
-		m_statueHandle = m_modelRegistry.load(ctx.gfx, "assets/models/statue.glb", &ctx.vfs);
+		m_statueHandle = m_modelRegistry.load(ctx.gfx, "assets/models/statue.glb", ctx.jobs, &ctx.vfs);
 		if (!m_statueHandle.isValid())
 			LOG_ERROR("Sandbox", "Failed to load statue model");
 
@@ -190,6 +190,7 @@ namespace imp::app
 		m_instances.clear();
 		m_extraction.clear();
 
+		m_modelRegistry.shutdown();
 		m_modelRegistry.clear();
 
 		m_instanceBuffer.reset();

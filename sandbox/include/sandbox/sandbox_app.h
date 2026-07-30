@@ -12,6 +12,7 @@
 #include <ecs/world.h>
 
 #include <app/render_extraction.h>
+#include <gfx/texture_cache.h>
 
 #include <memory>
 

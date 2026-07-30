@@ -14,7 +14,10 @@ namespace imp::gfx::dx12
 	void DX12Device::shutdown() { m_initialised = false; }
 
 	std::unique_ptr<gfx::IBuffer> DX12Device::createBuffer(const gfx::BufferDesc& desc) { return nullptr; }
+
 	std::unique_ptr<gfx::ITexture> DX12Device::createTexture(const gfx::TextureDesc& desc) { return nullptr; }
+	std::vector<std::unique_ptr<ITexture>> DX12Device::createTextures(const std::vector<gfx::TextureDesc>& descs) { return std::vector<std::unique_ptr<ITexture>>(); }
+
 	std::unique_ptr<gfx::ISampler> DX12Device::createSampler(const gfx::SamplerDesc& desc) { return nullptr; }
 	std::unique_ptr<gfx::IShader> DX12Device::createShader(const gfx::ShaderDesc& desc) { return nullptr; }
 	std::unique_ptr<gfx::IPipeline> DX12Device::createPipeline(const gfx::PipelineDesc& desc) { return nullptr; }
