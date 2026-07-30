@@ -38,12 +38,13 @@ namespace imp::gfx
 		std::string name;
 		math::Vec4f baseColourFactor{ 1.f, 1.f, 1.f, 1.f };
 		i32 baseColourTextureIndex = -1;
-
 		i32 normalTextureIndex = -1;
 		i32 metallicRoughnessTextureIndex = -1;
 		i32 occlusionTextureIndex = -1;
 		i32 emissiveTextureIndex = -1;
 		math::Vec4f emissiveFactor{ 0.f, 0.f, 0.f, 0.f };
+		float metallicFactor = 1.f;
+		float roughnessFactor = 1.f;
 	};
 
 	struct ModelTexture
@@ -66,6 +67,11 @@ namespace imp::gfx
 		std::vector<ModelTexture> textures;
 		std::vector<ModelNode> nodes;
 		std::vector<u32> rootNodes;
+
+		i32 fallbackAlbedoTextureIndex = -1;
+		i32 fallbackMetallicRoughnessTextureIndex = -1;
+		i32 fallbackNormalTextureIndex = -1;
+		i32 fallbackOcclusionTextureIndex = -1;
 
 		[[nodiscard]] bool isValid() const { return !meshes.empty(); }
 	};

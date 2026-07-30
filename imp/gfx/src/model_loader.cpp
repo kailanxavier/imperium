@@ -55,7 +55,7 @@ namespace imp::gfx
 		}
 
 		i32 getOrLoadTexture(IDevice& device, const cgltf_image* image, const std::string& modelDir,
-			const fs::VirtualFileSystem* vfs, std::unordered_map<const cgltf_image*, i32>& cache, Model& outModel)
+			const fs::VirtualFileSystem* vfs, bool isSrgb, std::unordered_map<const cgltf_image*, i32>& cache, Model& outModel)
 		{
 			if (!image)
 				return -1;
@@ -97,7 +97,7 @@ namespace imp::gfx
 			TextureDesc texDesc;
 			texDesc.width = imageData.width;
 			texDesc.height = imageData.height;
-			texDesc.format = TextureFormat::RGBA8Unorm;
+			texDesc.format = isSrgb ? TextureFormat::RGBA8Srgb : TextureFormat::RGBA8Unorm;
 			texDesc.usage = TextureUsage::Sampled;
 			texDesc.initialData = imageData.pixels.data();
 
@@ -114,6 +114,37 @@ namespace imp::gfx
 			i32 index = static_cast<i32>( outModel.textures.size() - 1 );
 			cache[image] = index;
 			return index;
+		}
+
+		i32 createFallbackTexture(IDevice& device, u8 r, u8 g, u8 b, u8 a, Model& outModel)
+		{
+			const u8 pixel[4] = { r, g, b, a };
+
+			TextureDesc texDesc;
+			texDesc.width = 1;
+			texDesc.height = 1;
+			texDesc.format = TextureFormat::RGBA8Unorm;
+			texDesc.usage = TextureUsage::Sampled;
+			texDesc.initialData = pixel;
+
+			ModelTexture modelTex;
+			modelTex.texture = device.createTexture(texDesc);
+			if (!modelTex.texture)
+			{
+				LOG_ERROR("Model Loader", "createTexture() failed for fallback texture");
+				return -1;
+			}
+
+			outModel.textures.push_back(std::move(modelTex));
+			return static_cast<i32>( outModel.textures.size() - 1 );
+		}
+
+		void createFallbackTextures(IDevice& device, Model& outModel)
+		{
+			outModel.fallbackAlbedoTextureIndex = createFallbackTexture(device, 255, 255, 255, 255, outModel);
+			outModel.fallbackMetallicRoughnessTextureIndex = createFallbackTexture(device, 0, 255, 0, 255, outModel);
+			outModel.fallbackNormalTextureIndex = createFallbackTexture(device, 128, 128, 255, 255, outModel);
+			outModel.fallbackOcclusionTextureIndex = createFallbackTexture(device, 255, 255, 255, 255, outModel);
 		}
 
 		bool loadPrimitive(IDevice& device, const cgltf_primitive& prim, const cgltf_data* data, MeshPrimitive& out)
@@ -298,6 +329,8 @@ namespace imp::gfx
 		if (cgltf_validate(data) != cgltf_result_success)
 			LOG_WARN("Model Loader", "cgltf_validate reported issues for: {}; continuing anyway", path.c_str());
 
+		createFallbackTextures(device, outModel);
+
 		std::unordered_map<const cgltf_image*, i32> textureCache;
 		outModel.materials.resize(data->materials_count);
 		for (cgltf_size i = 0; i < data->materials_count; ++i)
@@ -313,30 +346,43 @@ namespace imp::gfx
 					pbr.base_color_factor[0], pbr.base_color_factor[1],
 					pbr.base_color_factor[2], pbr.base_color_factor[3]
 				};
+				dstMat.metallicFactor = pbr.metallic_factor;
+				dstMat.roughnessFactor = pbr.roughness_factor;
 
 				if (pbr.base_color_texture.texture)
 				{
 					dstMat.baseColourTextureIndex = getOrLoadTexture(
-						device, pbr.base_color_texture.texture->image, modelDir, vfs, textureCache, outModel);
+						device, pbr.base_color_texture.texture->image, modelDir, vfs, 
+						/*isSrgb=*/true, textureCache, outModel);
 				}
 
 				if (pbr.metallic_roughness_texture.texture)
 				{
 					dstMat.metallicRoughnessTextureIndex = getOrLoadTexture(
-						device, pbr.metallic_roughness_texture.texture->image, modelDir, vfs, textureCache, outModel);
+						device, pbr.metallic_roughness_texture.texture->image, modelDir, vfs,
+						/*isSrgb=*/false, textureCache, outModel);
 				}
+			}
+
+			if (srcMat.normal_texture.texture)
+			{
+				dstMat.normalTextureIndex = getOrLoadTexture(
+					device, srcMat.normal_texture.texture->image, modelDir, vfs,
+					/*isSrgb=*/false, textureCache, outModel);
 			}
 
 			if (srcMat.occlusion_texture.texture)
 			{
 				dstMat.occlusionTextureIndex = getOrLoadTexture(
-					device, srcMat.occlusion_texture.texture->image, modelDir, vfs, textureCache, outModel);
+					device, srcMat.occlusion_texture.texture->image, modelDir, vfs,
+					/*isSrgb=*/false, textureCache, outModel);
 			}
 
 			if (srcMat.emissive_texture.texture)
 			{
 				dstMat.emissiveTextureIndex = getOrLoadTexture(
-					device, srcMat.emissive_texture.texture->image, modelDir, vfs, textureCache, outModel);
+					device, srcMat.emissive_texture.texture->image, modelDir, vfs,
+					/*isSrgb=*/true, textureCache, outModel);
 			}
 
 			dstMat.emissiveFactor = {
