@@ -337,7 +337,7 @@ namespace imp::gfx
 					refs.baseColour = getOrAddRequest(pbr.base_color_texture.texture->image, /*isSrgb=*/true);
 
 				if (pbr.metallic_roughness_texture.texture)
-					refs.baseColour = getOrAddRequest(pbr.metallic_roughness_texture.texture->image, /*isSrgb=*/false);
+					refs.metallicRoughness = getOrAddRequest(pbr.metallic_roughness_texture.texture->image, /*isSrgb=*/false);
 			}
 
 			if (srcMat.normal_texture.texture)
