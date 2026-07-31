@@ -53,7 +53,7 @@
       "name": "windows-debug-clang",
       "displayName": "Windows Debug (Clang)",
       "generator": "Ninja",
-      "binaryDir": "${sourceDir}/build/windows-release-clang",
+      "binaryDir": "${sourceDir}/build/windows-debug-clang",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_CXX_STANDARD": "23",

@@ -25,6 +25,9 @@ namespace imp::gfx::vulkan
 		VulkanBuffer(const VulkanBuffer&) = delete;
 		VulkanBuffer& operator=(const VulkanBuffer&) = delete;
 
+		VulkanBuffer(VulkanBuffer&& other) noexcept;
+		VulkanBuffer& operator=(VulkanBuffer&& other) noexcept;
+
 		bool create(const VulkanBufferCreateInfo& info);
 		void destroy();
 

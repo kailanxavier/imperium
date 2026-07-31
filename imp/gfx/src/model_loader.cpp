@@ -9,6 +9,7 @@
 #include <core/memory/int_types.h>
 
 #include <jobs/job_system.h>
+#include <chrono>
 
 #include <cgltf.h>
 
@@ -263,6 +264,7 @@ namespace imp::gfx
 		Model outModel;
 
 		std::vector<u8> fileBytes;
+		auto t0 = std::chrono::steady_clock::now();
 		if (!readFileBytes(path, vfs, fileBytes))
 		{
 			LOG_ERROR("Model Loader", "Failed to read glTF file: {}", path.c_str());
@@ -271,6 +273,7 @@ namespace imp::gfx
 
 		cgltf_options options{};
 		cgltf_data* data = nullptr;
+		auto t1 = std::chrono::steady_clock::now();
 		cgltf_result result = cgltf_parse(&options, fileBytes.data(), fileBytes.size(), &data);
 		if (result != cgltf_result_success)
 		{
@@ -373,6 +376,7 @@ namespace imp::gfx
 		}
 
 		std::vector<ImageData> decoded(pendingRequestIndices.size());
+		auto t2 = std::chrono::steady_clock::now();
 		jobSystem.parallelFor(static_cast<u32>( pendingRequestIndices.size() ), 1,
 			[&](u32 start, u32 end)
 			{
@@ -408,6 +412,7 @@ namespace imp::gfx
 			uploadRequestIndices.push_back(pendingRequestIndices[i]);
 		}
 
+		auto t3 = std::chrono::steady_clock::now();
 		if (!uploadDescs.empty())
 		{
 			std::vector<std::unique_ptr<ITexture>> uploaded = device.createTextures(uploadDescs);
@@ -466,6 +471,8 @@ namespace imp::gfx
 			if (refs.emissive >= 0) dstMat.emissiveTextureIndex = modelTextureIndexForRequest[refs.emissive];
 		}
 
+		auto t4 = std::chrono::steady_clock::now();
+
 		outModel.meshes.resize(data->meshes_count);
 		for (cgltf_size i = 0; i < data->meshes_count; ++i)
 		{
@@ -500,6 +507,13 @@ namespace imp::gfx
 			LOG_INFO("Model Loader", "Loaded {}: {} mesh(es), {} material(s), {} texture(s), {} node(s)",
 				path.c_str(), outModel.meshes.size(), outModel.materials.size(),
 				outModel.textures.size(), outModel.nodes.size());
+
+		const float read = std::chrono::duration<float, std::milli>(t1 - t0).count();
+		const float parse = std::chrono::duration<float, std::milli>(t2 - t1).count();
+		const float decode = std::chrono::duration<float, std::milli>(t3 - t2).count();
+		const float upload = std::chrono::duration<float, std::milli>(t4 - t3).count();
+
+		LOG_INFO("Model Loader", "read={}ms parse={}ms decode={}ms upload={}ms", read, parse, decode, upload);
 
 		return outModel;
 	}

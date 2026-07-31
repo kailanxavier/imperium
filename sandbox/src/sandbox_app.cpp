@@ -77,7 +77,7 @@ namespace imp::app
 		samplerDesc.addressModeV = gfx::AddressMode::Repeat;
 		m_sampler = ctx.gfx.createSampler(samplerDesc);
 
-		m_environmentHandle = m_modelRegistry.load(ctx.gfx, "assets/models/sponza.glb", ctx.jobs, &ctx.vfs);
+		m_environmentHandle = m_modelRegistry.load(ctx.gfx, "assets/models/temple.glb", ctx.jobs, &ctx.vfs);
 		if (!m_environmentHandle.isValid())
 			LOG_ERROR("Sandbox", "Failed to load environment model");
 

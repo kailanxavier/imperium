@@ -10,6 +10,8 @@
 #include <functional>
 #include <vector>
 
+#include "vk_buffer.h"
+
 namespace imp::fwk { class Window; }
 namespace imp::fs { class VirtualFileSystem; }
 namespace imp::gfx::vulkan
@@ -86,6 +88,8 @@ namespace imp::gfx::vulkan
 			return m_hasHostAllocationCallbacks ? &m_hostAllocationCallbacks : nullptr;
 		}
 
+		bool ensureStagingBuffer(VkDeviceSize minSize);
+
 		VkInstance m_instance = VK_NULL_HANDLE;
 		VkDebugUtilsMessengerEXT m_debugMessenger = VK_NULL_HANDLE;
 		VkSurfaceKHR m_surface = VK_NULL_HANDLE;
@@ -93,6 +97,7 @@ namespace imp::gfx::vulkan
 		VkDevice m_device = VK_NULL_HANDLE;
 		VkQueue m_graphicsQueue = VK_NULL_HANDLE;
 		VkQueue m_presentQueue = VK_NULL_HANDLE;
+		VulkanBuffer m_stagingBuffer;
 
 		std::unique_ptr<VulkanSwapchain> m_swapchain;
 		std::unique_ptr<VulkanCommandContext> m_commands;
