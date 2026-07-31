@@ -215,7 +215,8 @@ namespace imp::gfx::vulkan
 		m_descriptorAllocator.reset();
 		m_commands.reset();
 		m_swapchain.reset();
-
+		m_stagingBuffer.destroy();
+		
 		if (m_vmaAllocator != VK_NULL_HANDLE)
 		{
 			vmaDestroyAllocator(m_vmaAllocator);
