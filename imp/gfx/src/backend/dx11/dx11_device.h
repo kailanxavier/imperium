@@ -21,6 +21,8 @@ namespace imp::gfx::dx11
 		[[nodiscard]] std::unique_ptr<gfx::IShader> createShader(const gfx::ShaderDesc& desc) override;
 		[[nodiscard]] std::unique_ptr<gfx::IPipeline> createPipeline(const gfx::PipelineDesc& desc) override;
 
+		std::unique_ptr<gfx::IRenderTarget> createRenderTarget(const gfx::TextureDesc& desc) override;
+
 		gfx::IRenderTarget& backBuffer() override;
 		gfx::IRenderTarget* depthBuffer() override;
 

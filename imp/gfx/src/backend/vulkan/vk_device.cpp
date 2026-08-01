@@ -275,6 +275,7 @@ namespace imp::gfx::vulkan
 		info.device = m_device;
 		info.width = desc.width;
 		info.height = desc.height;
+		info.usage = desc.usage;
 		info.format = toVkFormat(desc.format);
 		info.allocationCallbacks = allocationCallbacks();
 
@@ -637,6 +638,27 @@ namespace imp::gfx::vulkan
 		}
 
 		return pipeline;
+	}
+
+	std::unique_ptr<gfx::IRenderTarget> VulkanDevice::createRenderTarget(const gfx::TextureDesc& desc)
+	{
+		VulkanTextureCreateInfo info{};
+		info.allocator = m_vmaAllocator;
+		info.device = m_device;
+		info.width = desc.width;
+		info.height = desc.height;
+		info.format = toVkFormat(desc.format);
+		info.usage = desc.usage;
+		info.allocationCallbacks = allocationCallbacks();
+
+		auto texture = std::make_shared<VulkanTexture>();
+		if (!texture->create(info))
+		{
+			LOG_ERROR("Vulkan", "createRenderTarget(): texture creation failed");
+			return nullptr;
+		}
+
+		return std::make_unique<VulkanOwnedColourTarget>(std::move(texture));
 	}
 
 	bool VulkanDevice::initImGui()

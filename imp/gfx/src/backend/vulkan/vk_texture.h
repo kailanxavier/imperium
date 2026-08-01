@@ -14,6 +14,7 @@ namespace imp::gfx::vulkan
 		u32 width = 0;
 		u32 height = 0;
 		VkFormat format = VK_FORMAT_R8G8B8A8_UNORM;
+		gfx::TextureUsage usage = gfx::TextureUsage::Sampled;
 
 		const VkAllocationCallbacks* allocationCallbacks = nullptr;
 	};

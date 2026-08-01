@@ -29,9 +29,19 @@ namespace imp::app
 		meshFragDesc.path = "assets/shaders/mesh.frag.spv";
 		m_meshFragShader = ctx.gfx.createShader(meshFragDesc);
 
-		if (!m_meshFragShader || !m_meshVertShader)
+		gfx::ShaderDesc tonemapVertDesc;
+		tonemapVertDesc.stage = gfx::ShaderStage::Vertex;
+		tonemapVertDesc.path = "assets/shaders/tonemap.vert.spv";
+		m_tonemapVertShader = ctx.gfx.createShader(tonemapVertDesc);
+
+		gfx::ShaderDesc tonemapFragDesc;
+		tonemapFragDesc.stage = gfx::ShaderStage::Fragment;
+		tonemapFragDesc.path = "assets/shaders/tonemap.frag.spv";
+		m_tonemapFragShader = ctx.gfx.createShader(tonemapFragDesc);
+
+		if (!m_meshFragShader || !m_meshVertShader || !m_tonemapVertShader || !m_tonemapFragShader)
 		{
-			LOG_ERROR("Sandbox", "Failed to load mesh shaders");
+			LOG_ERROR("Sandbox", "Failed to load shaders.");
 			return false;
 		}
 
@@ -78,6 +88,16 @@ namespace imp::app
 		blendPipelineDesc.depthStencilState.depthWriteEnable = false;
 		m_blendPipeline = ctx.gfx.createPipeline(blendPipelineDesc);
 
+		ensureHdrTargetSize(ctx);
+
+		gfx::PipelineDesc tonemapPipelineDesc;
+		tonemapPipelineDesc.vertexShader = m_tonemapVertShader.get();
+		tonemapPipelineDesc.fragmentShader = m_tonemapFragShader.get();
+		tonemapPipelineDesc.colourFormat = ctx.gfx.backBuffer().format();
+		tonemapPipelineDesc.depthFormat = gfx::TextureFormat::Unknown;
+		tonemapPipelineDesc.textureCount = 1;
+		m_tonemapPipeline = ctx.gfx.createPipeline(tonemapPipelineDesc);
+
 		gfx::SamplerDesc samplerDesc{};
 		samplerDesc.minFilter = gfx::FilterMode::Linear;
 		samplerDesc.magFilter = gfx::FilterMode::Linear;
@@ -99,9 +119,9 @@ namespace imp::app
 		lightUboDesc.memoryAccess = gfx::MemoryAccess::HostVisible;
 		m_lightBuffer = ctx.gfx.createBuffer(lightUboDesc);
 
-		if (!m_pipeline || !m_blendPipeline || !m_sampler || !m_lightBuffer || !m_environmentHandle.isValid())
+		if (!m_pipeline || !m_blendPipeline || !m_hdrTarget || !m_tonemapPipeline || !m_sampler || !m_lightBuffer || !m_environmentHandle.isValid())
 		{
-			LOG_FATAL("Sandbox", "Failed to create pipeline/sampler/light buffer, or model failed to load");
+			LOG_FATAL("Sandbox", "Failed to create pipelines/sampler/light buffer, or model failed to load");
 			return false;
 		}
 
@@ -164,12 +184,14 @@ namespace imp::app
 
 	void SandboxApp::onRender(AppContext& ctx, gfx::ICommandList& cmd)
 	{
-		gfx::RenderPassDesc passDesc{};
-		passDesc.colourTarget = &ctx.gfx.backBuffer();
-		passDesc.depthTarget = ctx.gfx.depthBuffer();
-		passDesc.clearColourValue = { 0.023153f, 0.000911f, 0.004391f, 1.f };
-		passDesc.clearDepthValue = 1.f;
-		cmd.beginRenderPass(passDesc);
+		ensureHdrTargetSize(ctx);
+
+		gfx::RenderPassDesc hdrPassDesc{};
+		hdrPassDesc.colourTarget = m_hdrTarget.get();
+		hdrPassDesc.depthTarget = ctx.gfx.depthBuffer();
+		hdrPassDesc.clearColourValue = { 0.023153f, 0.000911f, 0.004391f, 1.f };
+		hdrPassDesc.clearDepthValue = 1.f;
+		cmd.beginRenderPass(hdrPassDesc);
 
 		const u32 w = ctx.gfx.backBuffer().width();
 		const u32 h = ctx.gfx.backBuffer().height();
@@ -193,6 +215,18 @@ namespace imp::app
 		}
 
 		cmd.endRenderPass();
+
+		gfx::RenderPassDesc tonemapPassDesc{};
+		tonemapPassDesc.colourTarget = &ctx.gfx.backBuffer();
+		tonemapPassDesc.depthTarget = nullptr;
+		tonemapPassDesc.clearColour = false;
+		cmd.beginRenderPass(tonemapPassDesc);
+
+		cmd.bindPipeline(*m_tonemapPipeline);
+		cmd.bindTexture(*m_hdrTarget->asTexture(), *m_sampler, 1);
+		cmd.draw(3, 1);
+
+		cmd.endRenderPass();
 	}
 
 	void SandboxApp::onShutdown(AppContext& ctx)
@@ -210,7 +244,11 @@ namespace imp::app
 		m_lightBuffer.reset();
 		m_sampler.reset();
 		m_pipeline.reset();
+		m_tonemapPipeline.reset();
 		m_blendPipeline.reset();
+		m_hdrTarget.reset();
+		m_tonemapFragShader.reset();
+		m_tonemapVertShader.reset();
 		m_meshFragShader.reset();
 		m_meshVertShader.reset();
 	}
@@ -247,5 +285,28 @@ namespace imp::app
 		ctx.ecs.renderables.create(entity, m_statueHandle);
 		m_instances.push_back(entity);
 		return entity;
+	}
+
+	void SandboxApp::ensureHdrTargetSize(AppContext& ctx)
+	{
+		const u32 w = ctx.gfx.backBuffer().width();
+		const u32 h = ctx.gfx.backBuffer().height();
+
+		if (m_hdrTarget && m_hdrTarget->width() == w && m_hdrTarget->height() == h)
+			return;
+
+		if (w == 0 || h == 0)
+			return;
+
+		gfx::TextureDesc hdrDesc;
+		hdrDesc.width = w;
+		hdrDesc.height = h;
+		hdrDesc.format = gfx::TextureFormat::RGBA16Float;
+		hdrDesc.usage = gfx::TextureUsage::Sampled | gfx::TextureUsage::RenderTarget;
+		auto newTarget = ctx.gfx.createRenderTarget(hdrDesc);
+		if (newTarget)
+			m_hdrTarget = std::move(newTarget);
+		else
+			LOG_ERROR("Sandbox", "Failed to recreate HDR target at {}x{}", w, h);
 	}
 }

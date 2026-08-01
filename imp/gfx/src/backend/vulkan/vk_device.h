@@ -21,6 +21,7 @@ namespace imp::gfx::vulkan
 	class VulkanCommandList;
 	class VulkanRenderTarget;
 	class VulkanDescriptorAllocator;
+	class VulkanTexture;
 
 	struct QueueFamilyIndices
 	{
@@ -49,6 +50,9 @@ namespace imp::gfx::vulkan
 		[[nodiscard]] std::unique_ptr<gfx::ISampler> createSampler(const gfx::SamplerDesc& desc) override;
 		[[nodiscard]] std::unique_ptr<gfx::IShader> createShader(const gfx::ShaderDesc& desc) override;
 		[[nodiscard]] std::unique_ptr<gfx::IPipeline> createPipeline(const gfx::PipelineDesc& desc) override;
+
+		[[nodiscard]] std::unique_ptr<gfx::IRenderTarget> createRenderTarget(const gfx::TextureDesc& desc) override;
+
 
 		bool initImGui() override;
 		void shutdownImGui() override;
@@ -105,6 +109,10 @@ namespace imp::gfx::vulkan
 		std::unique_ptr<VulkanRenderTarget> m_backBufferTarget;
 		std::unique_ptr<VulkanRenderTarget> m_depthBufferTarget;
 		std::unique_ptr<VulkanCommandList> m_commandList;
+
+		std::unique_ptr<gfx::IShader> m_tonemapVertShader;
+		std::unique_ptr<VulkanTexture> m_hrdColourTexture;
+		std::unique_ptr<VulkanRenderTarget> m_hrdRenderTarget;
 
 		VmaAllocator m_vmaAllocator = VK_NULL_HANDLE;
 

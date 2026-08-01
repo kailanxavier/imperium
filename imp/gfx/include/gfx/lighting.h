@@ -15,7 +15,7 @@ namespace imp::gfx
 
 	struct BlinnPhongLightUBO
 	{
-		math::Vec4f lightDirectionWS{ -0.4f, 1.f, -0.3f, 0.f };
+		math::Vec4f lightDirectionWS{ 1.4f, -1.6f, -0.3f, 0.f };
 		math::Vec4f lightColour{ 1.f, 1.f, 1.f, 0.f };
 		math::Vec4f ambientColour{ 0.08f, 0.08f, 0.1f, 0.f };
 		math::Vec4f cameraPositionWS{ 0.f, 0.f, 0.f, 0.f };

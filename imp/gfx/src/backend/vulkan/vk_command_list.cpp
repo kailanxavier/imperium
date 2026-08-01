@@ -137,24 +137,36 @@ namespace imp::gfx::vulkan
 			colourRange.levelCount = 1;
 			colourRange.layerCount = 1;
 
-			VkImageMemoryBarrier2 toPresent{};
-			toPresent.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
-			toPresent.srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
-			toPresent.srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
-			toPresent.dstStageMask = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT;
-			toPresent.dstAccessMask = VK_ACCESS_2_NONE;
-			toPresent.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-			toPresent.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-			toPresent.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-			toPresent.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-			toPresent.image = m_colourTarget->image();
-			toPresent.subresourceRange = colourRange;
+			const bool isSwapchainTarget = ( m_colourTarget->kind() != VulkanRenderTargetKind::OwnedTexture );
 
-			VkDependencyInfo toPresentDep{};
-			toPresentDep.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-			toPresentDep.imageMemoryBarrierCount = 1;
-			toPresentDep.pImageMemoryBarriers = &toPresent;
-			vkCmdPipelineBarrier2(m_cmd, &toPresentDep);
+			VkImageMemoryBarrier2 toNext{};
+			toNext.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+			toNext.srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+			toNext.srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+			toNext.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+			toNext.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+			toNext.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+			toNext.image = m_colourTarget->image();
+			toNext.subresourceRange = colourRange;
+
+			if (isSwapchainTarget)
+			{
+				toNext.dstStageMask = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT;
+				toNext.dstAccessMask = VK_ACCESS_2_NONE;
+				toNext.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+			}
+			else
+			{
+				toNext.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+				toNext.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;
+				toNext.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			}
+
+			VkDependencyInfo dep{};
+			dep.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+			dep.imageMemoryBarrierCount = 1;
+			dep.pImageMemoryBarriers = &toNext;
+			vkCmdPipelineBarrier2(m_cmd, &dep);
 		}
 
 		m_colourTarget = nullptr;

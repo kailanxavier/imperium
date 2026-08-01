@@ -22,6 +22,10 @@ namespace imp::gfx::dx12
 	std::unique_ptr<gfx::IShader> DX12Device::createShader(const gfx::ShaderDesc& desc) { return nullptr; }
 	std::unique_ptr<gfx::IPipeline> DX12Device::createPipeline(const gfx::PipelineDesc& desc) { return nullptr; }
 
+	std::unique_ptr<gfx::IRenderTarget> DX12Device::createRenderTarget(const gfx::TextureDesc& desc) { return nullptr; }
+
+	
+
 	gfx::IRenderTarget& DX12Device::backBuffer() { std::abort(); }
 	gfx::IRenderTarget* DX12Device::depthBuffer() { return nullptr; }
 

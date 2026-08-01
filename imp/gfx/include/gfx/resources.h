@@ -55,8 +55,8 @@ namespace imp::gfx
         RGBA8Unorm,
         RGBA8Srgb,
         BGRA8Srgb,
+        RGBA16Float,
         Depth32Float,
-        // not adding any more for now, but they will go here
     };
 
     enum class TextureUsage : u32
@@ -69,6 +69,11 @@ namespace imp::gfx
     inline TextureUsage operator|(TextureUsage a, TextureUsage b)
     {
         return static_cast<TextureUsage>(static_cast<u32>(a) | static_cast<u32>(b));
+    }
+
+    inline bool hasFlag(TextureUsage value, TextureUsage flag)
+    {
+        return ( static_cast<u32>( value ) & static_cast<u32>( flag ) ) != 0;
     }
 
     struct TextureDesc
@@ -118,6 +123,7 @@ namespace imp::gfx
         virtual u32 width() const = 0;
         virtual u32 height() const = 0;
         virtual TextureFormat format() const = 0;
+        virtual ITexture* asTexture() { return nullptr; }
     };
 
 }

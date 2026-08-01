@@ -38,6 +38,8 @@ namespace imp::app
 		void drawNode(gfx::ICommandList& cmd, gfx::Model& model, const math::Mat4f& viewProj, u32 nodeIdx, const math::Mat4f& parentWorld);
 
 		void ensureInstanceBufferCapacity(AppContext& ctx, u32 instanceCount);
+		void ensureHdrTargetSize(AppContext& ctx);
+
 		ecs::EntityId spawnInstance(AppContext& ctx, const ecs::Transform& t);
 
 		fwk::Camera m_camera;
@@ -51,6 +53,11 @@ namespace imp::app
 		std::unique_ptr<gfx::ISampler> m_sampler;
 		std::unique_ptr<gfx::IBuffer> m_lightBuffer;
 		std::unique_ptr<gfx::IBuffer> m_instanceBuffer;
+
+		std::unique_ptr<gfx::IRenderTarget> m_hdrTarget;
+		std::unique_ptr<gfx::IShader> m_tonemapVertShader;
+		std::unique_ptr<gfx::IShader> m_tonemapFragShader;
+		std::unique_ptr<gfx::IPipeline> m_tonemapPipeline;
 
 		/*gfx::Model m_model;
 		gfx::Model m_statue;*/

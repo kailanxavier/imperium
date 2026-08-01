@@ -20,6 +20,8 @@ namespace imp::gfx::dx11
 	std::unique_ptr<gfx::IShader> DX11Device::createShader(const gfx::ShaderDesc& desc) { return nullptr; }
 	std::unique_ptr<gfx::IPipeline> DX11Device::createPipeline(const gfx::PipelineDesc& desc) { return nullptr; }
 
+	std::unique_ptr<gfx::IRenderTarget> DX11Device::createRenderTarget(const gfx::TextureDesc& desc) { return nullptr; }
+
 	gfx::IRenderTarget& DX11Device::backBuffer() { std::abort(); }
 	gfx::IRenderTarget* DX11Device::depthBuffer() { return nullptr; }
 	gfx::ICommandList* DX11Device::beginFrame() { return nullptr; }

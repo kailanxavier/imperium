@@ -16,6 +16,14 @@ namespace imp::gfx::vulkan
 		m_height = info.height;
 		m_vkFormat = info.format;
 
+		VkImageUsageFlags usageFlags = VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+		if (gfx::hasFlag(info.usage, gfx::TextureUsage::Sampled))
+			usageFlags |= VK_IMAGE_USAGE_SAMPLED_BIT;
+		if (gfx::hasFlag(info.usage, gfx::TextureUsage::RenderTarget))
+			usageFlags |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+		if (gfx::hasFlag(info.usage, gfx::TextureUsage::DepthStencil))
+			usageFlags |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+
 		VkImageCreateInfo imageInfo{};
 		imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 		imageInfo.imageType = VK_IMAGE_TYPE_2D;
@@ -25,7 +33,7 @@ namespace imp::gfx::vulkan
 		imageInfo.format = m_vkFormat;
 		imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
 		imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		imageInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+		imageInfo.usage = usageFlags;
 		imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
 		imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
