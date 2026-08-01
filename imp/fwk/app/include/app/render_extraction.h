@@ -2,6 +2,7 @@
 #include <core/math/math.h>
 #include <core/types/int_types.h>
 #include <gfx/model_handle.h>
+#include <gfx/lighting.h>
 #include <vector>
 
 namespace imp::ecs { class World; }
@@ -27,12 +28,13 @@ namespace imp::app
 		std::vector<math::Mat4f> instanceData;
 		std::vector<ModelBatch> batches;
 		std::vector<BlendInstance> blendInstances;
-
+		gfx::LightUBO lightData;
 		void clear()
 		{
 			instanceData.clear();
 			batches.clear();
 			blendInstances.clear();
+			lightData = gfx::LightUBO{};
 		}
 	};
 

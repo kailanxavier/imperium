@@ -1,6 +1,7 @@
 #pragma once
 
 #include <core/math/math.h>
+#include <core/types/int_types.h>
 
 namespace imp::gfx
 {
@@ -13,15 +14,26 @@ namespace imp::gfx
 	static_assert( sizeof(MeshPushConstants) == 128 
 		&& "MeshPushConstants must stay within the guaranteed 128-byte push constant range" );
 
-	struct BlinnPhongLightUBO
+	constexpr u32 kMaxLights = 16;
+
+	struct GPULight
 	{
-		math::Vec4f lightDirectionWS{ 1.4f, -1.6f, -0.3f, 0.f };
-		math::Vec4f lightColour{ 1.f, 1.f, 1.f, 0.f };
-		math::Vec4f ambientColour{ 0.08f, 0.08f, 0.1f, 0.f };
+		math::Vec4f positionOrDirWS{ 0.f, 0.f, 0.f, 0.f };
+		math::Vec4f colourIntensity{ 1.f, 1.f, 1.f, 1.f };
+	};
+	static_assert( sizeof(GPULight) == 32 && "GPULight must stay std140 friendly" );
+
+	struct LightUBO
+	{
 		math::Vec4f cameraPositionWS{ 0.f, 0.f, 0.f, 0.f };
+		math::Vec4f ambientColour{ 0.08f, 0.08f, 0.1f, 0.f };
 		float specularStrength = 0.5f;
 		float shininess = 32.f;
-		float _pad0 = 0.f;
-		float _pad1 = 0.f;
+		u32 lightCount = 0;
+		u32 _pad0 = 0;
+		GPULight lights[kMaxLights];
 	};
+
+	constexpr size_t kLightUBOAssertSize = 2 * sizeof(math::Vec4f) + 4 * sizeof(float) + kMaxLights * sizeof(GPULight);
+	static_assert( sizeof(LightUBO) == kLightUBOAssertSize && "LightUBO layout must stay std140 consistent" );
 }

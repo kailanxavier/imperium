@@ -11,6 +11,38 @@ namespace imp::app
 		{
 			return math::Vec3f{ worldMatrix.col[3][0], worldMatrix.col[3][1], worldMatrix.col[3][2] };
 		}
+
+		void extractLights(const ecs::World& world, gfx::LightUBO& out)
+		{
+			const ecs::LightStorage& lights = world.lights;
+			const std::vector<ecs::EntityId>& owners = lights.owners();
+			const std::vector<ecs::LightType>& types = lights.types();
+			const std::vector<math::Vec3f>& colours = lights.colours();
+			const std::vector<float>& intensities = lights.intensities();
+
+			const u32 count = std::min<u32>( static_cast<u32>( owners.size() ), gfx::kMaxLights );
+			out.lightCount = count;
+
+			for (u32 i = 0; i < count; ++i)
+			{
+				const ecs::EntityId owner = owners[i];
+				const math::Mat4f worldMatrix = world.transforms.worldMatrix(owner);
+				gfx::GPULight& gpuLight = out.lights[i];
+
+				if (types[i] == ecs::LightType::Directional)
+				{
+					const math::Vec3f worldDir = math::rotate(world.transforms.localTransform(owner).rotation, math::Vec3f::forward());
+					gpuLight.positionOrDirWS = math::Vec4f{ worldDir, 0.f };
+				}
+				else
+				{
+					gpuLight.positionOrDirWS = math::Vec4f{ translationOf(worldMatrix), 1.f };
+				}
+
+				gpuLight.colourIntensity = math::Vec4f{ colours[i], intensities[i] };
+			}
+		}
+
 	}
 
 	void extractRenderables(const ecs::World& world, const gfx::ModelRegistry& modelRegistry,
@@ -57,9 +89,10 @@ namespace imp::app
 				out.batches.push_back(ModelBatch{ range.model, firstInstance, instanceCount });
 		}
 
-		std::sort(out.blendInstances.begin(), out.blendInstances.end(), [](const BlendInstance& a, const BlendInstance& b)
-			{
-				return a.cameraDistanceSq > b.cameraDistanceSq;
-			});
+		std::sort(out.blendInstances.begin(), out.blendInstances.end(), 
+			[](const BlendInstance& a, const BlendInstance& b) { return a.cameraDistanceSq > b.cameraDistanceSq; });
+
+		out.lightData.cameraPositionWS = math::Vec4f{ cameraPositionWS, 0.f };
+		extractLights(world, out.lightData);
 	}
 }

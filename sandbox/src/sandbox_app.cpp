@@ -114,7 +114,7 @@ namespace imp::app
 			LOG_ERROR("Sandbox", "Failed to load statue model");
 
 		gfx::BufferDesc lightUboDesc{};
-		lightUboDesc.size = sizeof(gfx::BlinnPhongLightUBO);
+		lightUboDesc.size = sizeof(gfx::LightUBO);
 		lightUboDesc.usage = gfx::BufferUsage::Uniform;
 		lightUboDesc.memoryAccess = gfx::MemoryAccess::HostVisible;
 		m_lightBuffer = ctx.gfx.createBuffer(lightUboDesc);
@@ -124,6 +124,21 @@ namespace imp::app
 			LOG_FATAL("Sandbox", "Failed to create pipelines/sampler/light buffer, or model failed to load");
 			return false;
 		}
+
+		const ecs::EntityId sunEntity = ctx.ecs.createEntity();
+		ecs::Transform sunTransform;
+		sunTransform.rotation = math::Quaternionf::fromAxisAngle(math::Vec3f::unitX(), math::toRadians(50.f))
+			* math::Quaternionf::fromAxisAngle(math::Vec3f::unitY(), math::toRadians(30.f));
+		ctx.ecs.transforms.create(sunEntity, sunTransform);
+		ctx.ecs.lights.create(sunEntity, ecs::LightType::Directional, math::Vec3f{ 1.f, 1.f, 1.f }, 1.f);
+		m_instances.push_back(sunEntity);
+
+		const ecs::EntityId pointEntity = ctx.ecs.createEntity();
+		ecs::Transform pointTransform;
+		pointTransform.position = math::Vec3f{ 0.f, 5.f, 0.f };
+		ctx.ecs.transforms.create(pointEntity, pointTransform);
+		ctx.ecs.lights.create(pointEntity, ecs::LightType::Point, math::Vec3f{ 1.f, 0.6f, 0.3f }, 4.f);
+		m_instances.push_back(pointEntity);
 
 		constexpr int kGridSize = 3;
 		constexpr float kSpacing = 30.f;
@@ -166,13 +181,11 @@ namespace imp::app
 	{
 		m_camera.update(ctx.input, deltaSeconds);
 
-		gfx::BlinnPhongLightUBO lightData{};
-		lightData.cameraPositionWS = { m_camera.position().x, m_camera.position().y, m_camera.position().z, 0.f };
-		std::memcpy(m_lightBuffer->mappedData(), &lightData, sizeof(lightData));
-		
 		ctx.ecs.transforms.updateWorldMatricesParallel(ctx.jobs);
 
 		extractRenderables(ctx.ecs, m_modelRegistry, m_camera.position(), m_extraction);
+		std::memcpy(m_lightBuffer->mappedData(), &m_extraction.lightData, sizeof(gfx::LightUBO));
+
 		ensureInstanceBufferCapacity(ctx, static_cast<u32>( m_extraction.instanceData.size() ));
 		if (m_instanceBuffer && !m_extraction.instanceData.empty())
 		{
