@@ -89,7 +89,9 @@ namespace imp::gfx
 
         bool hasInstanceBinding = false;
         bool hasUniformBuffer = false;
-        bool hasTexture = false;
+
+        u32 textureCount = 0;
+        bool hasMaterialUniformBuffer = false;
     };
 
     class IPipeline

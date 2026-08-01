@@ -357,6 +357,27 @@ namespace imp::gfx
 			};
 		}
 
+		for (cgltf_size i = 0; i < data->materials_count; ++i)
+		{
+			Material& dstMat = outModel.materials[i];
+
+			MaterialFactorsUBO factors;
+			factors.baseColourFactor = dstMat.baseColourFactor;
+			factors.metallicFactor = dstMat.metallicFactor;
+			factors.roughnessFactor = dstMat.roughnessFactor;
+
+			BufferDesc factorsDesc;
+			factorsDesc.size = sizeof(MaterialFactorsUBO);
+			factorsDesc.usage = BufferUsage::Uniform;
+			factorsDesc.memoryAccess = MemoryAccess::HostVisible;
+			dstMat.factorsBuffer = device.createBuffer(factorsDesc);
+
+			if (dstMat.factorsBuffer)
+				std::memcpy(dstMat.factorsBuffer->mappedData(), &factors, sizeof(factors));
+			else
+				LOG_ERROR("Model Loader", "Failed to create material factors buffer for material {}", dstMat.name.c_str());
+		}
+
 		std::vector<std::shared_ptr<ITexture>> resolvedTextures(requests.size());
 		std::vector<size_t> pendingRequestIndices;
 		pendingRequestIndices.reserve(requests.size());
@@ -458,6 +479,21 @@ namespace imp::gfx
 
 		outModel.textures.push_back(ModelTexture{ textureCache.fallbackOcclusion() });
 		outModel.fallbackOcclusionTextureIndex = static_cast<i32>( outModel.textures.size() - 1 );
+
+		{
+			MaterialFactorsUBO defaultFactors;
+
+			BufferDesc factorsDesc;
+			factorsDesc.size = sizeof(MaterialFactorsUBO);
+			factorsDesc.usage = BufferUsage::Uniform;
+			factorsDesc.memoryAccess = MemoryAccess::HostVisible;
+			outModel.defaultMaterialFactorsBuffer = device.createBuffer(factorsDesc);
+
+			if (outModel.defaultMaterialFactorsBuffer)
+				std::memcpy(outModel.defaultMaterialFactorsBuffer->mappedData(), &defaultFactors, sizeof(defaultFactors));
+			else
+				LOG_ERROR("Model Loader", "Failed to create default material factors buffer");
+		}
 
 		for (cgltf_size i = 0; i < data->materials_count; ++i)
 		{

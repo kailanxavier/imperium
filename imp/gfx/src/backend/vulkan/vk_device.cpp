@@ -620,7 +620,8 @@ namespace imp::gfx::vulkan
 		info.depthAttachmentFormat = toVkFormat(desc.depthFormat);
 		info.pushConstantSize = desc.pushConstantSize;
 		info.hasUniformBuffer = desc.hasUniformBuffer;
-		info.hasTexture = desc.hasTexture;
+		info.textureCount = desc.textureCount;
+		info.hasMaterialUniformBuffer = desc.hasMaterialUniformBuffer;
 		info.instanceBinding.binding = 1;
 		info.instanceBinding.stride = desc.instanceLayout.stride;
 		info.instanceBinding.inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;

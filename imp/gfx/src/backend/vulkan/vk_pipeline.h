@@ -30,7 +30,9 @@ namespace imp::gfx::vulkan
 		u32 pushConstantSize = 0;
 
 		bool hasUniformBuffer = false;
-		bool hasTexture = false;
+
+		u32 textureCount = 0;
+		bool hasMaterialUniformBuffer = false;
 
 		const fs::VirtualFileSystem* vfs = nullptr;
 		const VkAllocationCallbacks* allocationCallbacks = nullptr;

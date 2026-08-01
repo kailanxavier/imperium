@@ -103,11 +103,20 @@ namespace imp::gfx::vulkan
 			b.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
 			bindings.push_back(b);
 		}
-		if (info.hasTexture)
+		for (u32 i = 0; i < info.textureCount; ++i)
 		{
 			VkDescriptorSetLayoutBinding b{};
-			b.binding = 1;
+			b.binding = 1 + i;
 			b.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+			b.descriptorCount = 1;
+			b.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+			bindings.push_back(b);
+		}
+		if (info.hasMaterialUniformBuffer)
+		{
+			VkDescriptorSetLayoutBinding b{};
+			b.binding = 1 + info.textureCount;
+			b.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 			b.descriptorCount = 1;
 			b.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 			bindings.push_back(b);

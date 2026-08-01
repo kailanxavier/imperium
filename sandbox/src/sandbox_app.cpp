@@ -66,7 +66,8 @@ namespace imp::app
 		meshPipelineDesc.pushConstantSize = sizeof(gfx::MeshPushConstants);
 		meshPipelineDesc.hasUniformBuffer = true;
 		meshPipelineDesc.hasInstanceBinding = true;
-		meshPipelineDesc.hasTexture = true;
+		meshPipelineDesc.textureCount = 4;
+		meshPipelineDesc.hasMaterialUniformBuffer = true;
 		
 		m_pipeline = ctx.gfx.createPipeline(meshPipelineDesc);
 

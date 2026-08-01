@@ -33,6 +33,17 @@ namespace imp::gfx
 		std::vector<MeshPrimitive> primitives;
 	};
 
+	struct MaterialFactorsUBO
+	{
+		math::Vec4f baseColourFactor{ 1.f, 1.f, 1.f, 1.f };
+		float metallicFactor = 1.f;
+		float roughnessFactor = 1.f;
+		float _pad0 = 0.f;
+		float _pad1 = 0.f;
+	};
+
+	static_assert( sizeof(MaterialFactorsUBO) == 32 && "MaterialFactorsUBO must stay std140 friendly" );
+
 	struct Material
 	{
 		std::string name;
@@ -45,6 +56,7 @@ namespace imp::gfx
 		math::Vec4f emissiveFactor{ 0.f, 0.f, 0.f, 0.f };
 		float metallicFactor = 1.f;
 		float roughnessFactor = 1.f;
+		std::unique_ptr<IBuffer> factorsBuffer;
 	};
 
 	struct ModelTexture
@@ -72,6 +84,8 @@ namespace imp::gfx
 		i32 fallbackMetallicRoughnessTextureIndex = -1;
 		i32 fallbackNormalTextureIndex = -1;
 		i32 fallbackOcclusionTextureIndex = -1;
+
+		std::unique_ptr<IBuffer> defaultMaterialFactorsBuffer;
 
 		[[nodiscard]] bool isValid() const { return !meshes.empty(); }
 	};
