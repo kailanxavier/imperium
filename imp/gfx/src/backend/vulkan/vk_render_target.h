@@ -3,7 +3,7 @@
 #include <gfx/resources.h>
 #include <vulkan/vulkan.h>
 
-#include <core/memory/int_types.h>
+#include <core/types/int_types.h>
 
 namespace imp::gfx::vulkan
 {

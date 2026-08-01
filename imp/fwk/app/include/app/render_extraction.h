@@ -1,6 +1,6 @@
 #pragma once
 #include <core/math/math.h>
-#include <core/memory/int_types.h>
+#include <core/types/int_types.h>
 #include <gfx/model_handle.h>
 #include <vector>
 

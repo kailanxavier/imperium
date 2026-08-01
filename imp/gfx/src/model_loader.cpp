@@ -6,7 +6,7 @@
 
 #include <core/fs/vfs.h>
 #include <core/log/log.h>
-#include <core/memory/int_types.h>
+#include <core/types/int_types.h>
 
 #include <jobs/job_system.h>
 #include <chrono>

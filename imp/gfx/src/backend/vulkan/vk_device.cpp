@@ -21,7 +21,7 @@
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 
-#include <core/memory/int_types.h>
+#include <core/types/int_types.h>
 #include <core/log/log.h>
 
 #include <cstring>

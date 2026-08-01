@@ -4,7 +4,7 @@
 #include "pipeline.h"
 #include "commands.h"
 
-#include <core/memory/int_types.h>
+#include <core/types/int_types.h>
 #include <memory>
 #include <vector>
 

@@ -2,7 +2,7 @@
 #include <vector>
 #include <span>
 #include <optional>
-#include "int_types.h"
+#include <core/types/int_types.h>
 #include "message_type.h"
 
 namespace imp::protocol

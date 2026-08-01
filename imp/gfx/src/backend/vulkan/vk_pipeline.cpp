@@ -4,7 +4,7 @@
 
 #include <core/log/log.h>
 #include <core/math/mat4.h>
-#include <core/memory/int_types.h>
+#include <core/types/int_types.h>
 #include <core/fs/vfs.h>
 
 namespace imp::gfx::vulkan

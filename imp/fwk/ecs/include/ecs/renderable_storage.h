@@ -1,6 +1,6 @@
 #pragma once
 #include <core/types/handle.h>
-#include <core/memory/int_types.h>
+#include <core/types/int_types.h>
 #include <ecs/entity.h>
 #include <vector>
 

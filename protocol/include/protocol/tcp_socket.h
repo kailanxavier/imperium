@@ -1,7 +1,7 @@
 #pragma once
 
 #include <vector>
-#include "int_types.h"
+#include <core/types/int_types.h>
 #include <span>
 
 namespace imp::protocol

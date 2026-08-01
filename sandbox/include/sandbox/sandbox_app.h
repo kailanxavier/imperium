@@ -6,7 +6,7 @@
 #include <gfx/model.h>
 #include <gfx/model_registry.h>
 
-#include <core/memory/int_types.h>
+#include <core/types/int_types.h>
 #include <core/math/math.h>
 
 #include <ecs/world.h>

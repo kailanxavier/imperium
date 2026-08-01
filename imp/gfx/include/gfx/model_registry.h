@@ -2,7 +2,7 @@
 #include <gfx/model.h>
 #include <gfx/model_handle.h>
 
-#include <core/memory/int_types.h>
+#include <core/types/int_types.h>
 #include <string>
 #include <unordered_map>
 #include <vector>
