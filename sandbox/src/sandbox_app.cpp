@@ -16,8 +16,8 @@ namespace imp::app
 {
 	bool SandboxApp::onInit(AppContext& ctx)
 	{
-		m_camera.setPosition({ 0.f, 1.f, 0.f });
-		m_camera.setYawPitch(math::toRadians(90.f), 0.f);
+		m_camera.setPosition({ 25.f, 1.f, 4.f });
+		m_camera.setYawPitch(math::toRadians(-90.f), 0.f);
 
 		gfx::ShaderDesc meshVertDesc;
 		meshVertDesc.stage = gfx::ShaderStage::Vertex;
