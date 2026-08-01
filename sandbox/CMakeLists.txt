@@ -20,6 +20,8 @@ IMP_COMPILE_SHADERS(
 		${CMAKE_CURRENT_SOURCE_DIR}/shaders/vulkan/mesh.vert
 		${CMAKE_CURRENT_SOURCE_DIR}/shaders/vulkan/tonemap.vert
 		${CMAKE_CURRENT_SOURCE_DIR}/shaders/vulkan/tonemap.frag
+		${CMAKE_CURRENT_SOURCE_DIR}/shaders/vulkan/shadow.vert
+		${CMAKE_CURRENT_SOURCE_DIR}/shaders/vulkan/shadow.frag
 )
 
 IMP_COPY_ASSETS(sandbox)

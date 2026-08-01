@@ -42,6 +42,20 @@ namespace imp::app
 
 		ecs::EntityId spawnInstance(AppContext& ctx, const ecs::Transform& t);
 
+	private:
+		void updateSunViewProj();
+		static constexpr u32 kShadowMapSize = 2048;
+
+		std::unique_ptr<gfx::IShader> m_shadowVertShader;
+		std::unique_ptr<gfx::IShader> m_shadowFragShader;
+		std::unique_ptr<gfx::IPipeline> m_shadowPipeline;
+		std::unique_ptr<gfx::IRenderTarget> m_shadowTarget;
+		std::unique_ptr<gfx::ISampler> m_shadowSampler;
+
+		math::Vec3f m_sunDirection = math::Vec3f::zero();
+		math::Mat4f m_sunViewProj = math::Mat4f::identity();
+
+	private:
 		fwk::Camera m_camera;
 
 		std::unique_ptr<gfx::IShader> m_meshVertShader;

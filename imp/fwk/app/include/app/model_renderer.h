@@ -6,6 +6,7 @@ namespace imp::gfx
 {
 	class ICommandList;
 	class IBuffer;
+	class ITexture;
 	class ISampler;
 	class ModelRegistry;
 }
@@ -19,6 +20,8 @@ namespace imp::app
 		gfx::ISampler* sampler = nullptr;
 		gfx::IBuffer* lightBuffer = nullptr;
 		gfx::IBuffer* instanceBuffer = nullptr;
+		gfx::ITexture* shadowMap = nullptr;
+		gfx::ISampler* shadowSampler = nullptr;
 		math::Mat4f viewProj;
 	};
 

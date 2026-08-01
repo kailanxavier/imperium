@@ -40,26 +40,33 @@ namespace imp::app
 					pc.viewProj = ctx.viewProj;
 					pc.nodeWorld = nodeWorld;
 					ctx.cmd->pushConstants(&pc, sizeof(pc), 0);
-					ctx.cmd->bindUniformBuffer(*ctx.lightBuffer, 0);
 
-					auto resolveTexture = [&](i32 materialTexIndex, i32 fallbackTexIndex) -> gfx::ITexture*
-						{
-							const i32 texIdx = (materialTexIndex >= 0) ? materialTexIndex : fallbackTexIndex;
-							return (texIdx >= 0 && model.textures[texIdx].texture) ? model.textures[texIdx].texture.get() : nullptr;
-						};
+					if (ctx.lightBuffer)
+					{
+						ctx.cmd->bindUniformBuffer(*ctx.lightBuffer, 0);
 
-					if (gfx::ITexture* albedo = resolveTexture(mat ? mat->baseColourTextureIndex : -1, model.fallbackAlbedoTextureIndex))
-						ctx.cmd->bindTexture(*albedo, *ctx.sampler, 1);
-					if (gfx::ITexture* mr = resolveTexture(mat ? mat->metallicRoughnessTextureIndex : -1, model.fallbackMetallicRoughnessTextureIndex))
-						ctx.cmd->bindTexture(*mr, *ctx.sampler, 2);
-					if (gfx::ITexture* normal = resolveTexture(mat ? mat->normalTextureIndex : -1, model.fallbackNormalTextureIndex))
-						ctx.cmd->bindTexture(*normal, *ctx.sampler, 3);
-					if (gfx::ITexture* occlusion = resolveTexture(mat ? mat->occlusionTextureIndex : -1, model.fallbackOcclusionTextureIndex))
-						ctx.cmd->bindTexture(*occlusion, *ctx.sampler, 4);
+						auto resolveTexture = [&](i32 materialTexIndex, i32 fallbackTexIndex) -> gfx::ITexture*
+							{
+								const i32 texIdx = (materialTexIndex >= 0) ? materialTexIndex : fallbackTexIndex;
+								return (texIdx >= 0 && model.textures[texIdx].texture) ? model.textures[texIdx].texture.get() : nullptr;
+							};
 
-					gfx::IBuffer* factors = (mat && mat->factorsBuffer) ? mat->factorsBuffer.get() : model.defaultMaterialFactorsBuffer.get();
-					if (factors)
-						ctx.cmd->bindUniformBuffer(*factors, 5);
+						if (gfx::ITexture* albedo = resolveTexture(mat ? mat->baseColourTextureIndex : -1, model.fallbackAlbedoTextureIndex))
+							ctx.cmd->bindTexture(*albedo, *ctx.sampler, 1);
+						if (gfx::ITexture* mr = resolveTexture(mat ? mat->metallicRoughnessTextureIndex : -1, model.fallbackMetallicRoughnessTextureIndex))
+							ctx.cmd->bindTexture(*mr, *ctx.sampler, 2);
+						if (gfx::ITexture* normal = resolveTexture(mat ? mat->normalTextureIndex : -1, model.fallbackNormalTextureIndex))
+							ctx.cmd->bindTexture(*normal, *ctx.sampler, 3);
+						if (gfx::ITexture* occlusion = resolveTexture(mat ? mat->occlusionTextureIndex : -1, model.fallbackOcclusionTextureIndex))
+							ctx.cmd->bindTexture(*occlusion, *ctx.sampler, 4);
+
+						gfx::IBuffer* factors = (mat && mat->factorsBuffer) ? mat->factorsBuffer.get() : model.defaultMaterialFactorsBuffer.get();
+						if (factors)
+							ctx.cmd->bindUniformBuffer(*factors, 6);
+
+						if (ctx.shadowMap)
+							ctx.cmd->bindTexture(*ctx.shadowMap, *ctx.shadowSampler, 5);
+					}
 
 					ctx.cmd->bindVertexBuffer(*prim.vertexBuffer, 0);
 					ctx.cmd->bindIndexBuffer(*prim.indexBuffer);

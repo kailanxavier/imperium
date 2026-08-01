@@ -31,9 +31,11 @@ namespace imp::gfx
 		float shininess = 32.f;
 		u32 lightCount = 0;
 		u32 _pad0 = 0;
+		math::Mat4f sunViewProj = math::Mat4f::identity();
 		GPULight lights[kMaxLights];
 	};
-
-	constexpr size_t kLightUBOAssertSize = 2 * sizeof(math::Vec4f) + 4 * sizeof(float) + kMaxLights * sizeof(GPULight);
+	constexpr size_t kLightUBOAssertSize = 2 * sizeof(math::Vec4f) + 4 * sizeof(float) + sizeof(math::Mat4f) + kMaxLights * sizeof(GPULight);
 	static_assert( sizeof(LightUBO) == kLightUBOAssertSize && "LightUBO layout must stay std140 consistent" );
+	static_assert(offsetof(LightUBO, sunViewProj) == 48);
+	static_assert(offsetof(LightUBO, lights) == 112);
 }

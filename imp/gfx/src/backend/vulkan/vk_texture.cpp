@@ -51,7 +51,10 @@ namespace imp::gfx::vulkan
 		viewInfo.image = m_image;
 		viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
 		viewInfo.format = m_vkFormat;
-		viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		const bool isDepthFormat = gfx::hasFlag(info.usage, gfx::TextureUsage::DepthStencil);
+		viewInfo.subresourceRange.aspectMask = isDepthFormat
+			? VK_IMAGE_ASPECT_DEPTH_BIT
+			: VK_IMAGE_ASPECT_COLOR_BIT;
 		viewInfo.subresourceRange.levelCount = 1;
 		viewInfo.subresourceRange.layerCount = 1;
 

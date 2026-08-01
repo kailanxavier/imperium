@@ -29,6 +29,12 @@ namespace imp::app
 		meshFragDesc.path = "assets/shaders/mesh.frag.spv";
 		m_meshFragShader = ctx.gfx.createShader(meshFragDesc);
 
+		if (!m_meshFragShader || !m_meshVertShader)
+		{
+			LOG_ERROR("Sandbox", "Failed to load mesh shaders.");
+			return false;
+		}
+
 		gfx::ShaderDesc tonemapVertDesc;
 		tonemapVertDesc.stage = gfx::ShaderStage::Vertex;
 		tonemapVertDesc.path = "assets/shaders/tonemap.vert.spv";
@@ -39,9 +45,25 @@ namespace imp::app
 		tonemapFragDesc.path = "assets/shaders/tonemap.frag.spv";
 		m_tonemapFragShader = ctx.gfx.createShader(tonemapFragDesc);
 
-		if (!m_meshFragShader || !m_meshVertShader || !m_tonemapVertShader || !m_tonemapFragShader)
+		if (!m_tonemapVertShader || !m_tonemapFragShader)
 		{
-			LOG_ERROR("Sandbox", "Failed to load shaders.");
+			LOG_ERROR("Sandbox", "Failed to load tonemap shaders.");
+			return false;
+		}
+
+		gfx::ShaderDesc shadowVertDesc;
+		shadowVertDesc.stage = gfx::ShaderStage::Vertex;
+		shadowVertDesc.path = "assets/shaders/shadow.vert.spv";
+		m_shadowVertShader = ctx.gfx.createShader(shadowVertDesc);
+
+		gfx::ShaderDesc shadowFragDesc;
+		shadowFragDesc.stage = gfx::ShaderStage::Fragment;
+		shadowFragDesc.path = "assets/shaders/shadow.frag.spv";
+		m_shadowFragShader = ctx.gfx.createShader(shadowFragDesc);
+
+		if (!m_shadowVertShader || !m_shadowFragShader)
+		{
+			LOG_ERROR("Sandbox", "Failed to load shadow shaders.");
 			return false;
 		}
 
@@ -77,7 +99,7 @@ namespace imp::app
 		meshPipelineDesc.pushConstantSize = sizeof(gfx::MeshPushConstants);
 		meshPipelineDesc.hasUniformBuffer = true;
 		meshPipelineDesc.hasInstanceBinding = true;
-		meshPipelineDesc.textureCount = 4;
+		meshPipelineDesc.textureCount = 5;
 		meshPipelineDesc.hasMaterialUniformBuffer = true;
 		
 		m_pipeline = ctx.gfx.createPipeline(meshPipelineDesc);
@@ -105,6 +127,39 @@ namespace imp::app
 		samplerDesc.addressModeV = gfx::AddressMode::Repeat;
 		m_sampler = ctx.gfx.createSampler(samplerDesc);
 
+		gfx::TextureDesc shadowDesc;
+		shadowDesc.width = kShadowMapSize;
+		shadowDesc.height = kShadowMapSize;
+		shadowDesc.format = ctx.gfx.depthBuffer() ? ctx.gfx.depthBuffer()->format() : gfx::TextureFormat::Unknown;
+		shadowDesc.usage = gfx::TextureUsage::Sampled | gfx::TextureUsage::DepthStencil;
+		m_shadowTarget = ctx.gfx.createRenderTarget(shadowDesc);
+
+		gfx::SamplerDesc shadowSamplerDesc{};
+		shadowSamplerDesc.minFilter = gfx::FilterMode::Linear;
+		shadowSamplerDesc.magFilter = gfx::FilterMode::Linear;
+		shadowSamplerDesc.addressModeU = gfx::AddressMode::ClampToEdge;
+		shadowSamplerDesc.addressModeV = gfx::AddressMode::ClampToEdge;
+		m_shadowSampler = ctx.gfx.createSampler(shadowSamplerDesc);
+
+		gfx::PipelineDesc shadowPipelineDesc{};
+		shadowPipelineDesc.vertexShader = m_shadowVertShader.get();
+		shadowPipelineDesc.fragmentShader = m_shadowFragShader.get();
+		shadowPipelineDesc.vertexLayout = meshPipelineDesc.vertexLayout;
+		shadowPipelineDesc.instanceLayout = meshPipelineDesc.instanceLayout;
+		shadowPipelineDesc.rasterizerState.cullMode = gfx::CullMode::Front; // reduces acne on closed meshes
+		shadowPipelineDesc.depthStencilState.depthTestEnable = true;
+		shadowPipelineDesc.depthStencilState.depthWriteEnable = true;
+		shadowPipelineDesc.depthStencilState.depthCompareOp = gfx::CompareOp::Less;
+		shadowPipelineDesc.colourFormat = gfx::TextureFormat::Unknown;
+		shadowPipelineDesc.depthFormat = shadowDesc.format;
+		shadowPipelineDesc.pushConstantSize = sizeof(gfx::MeshPushConstants);
+		shadowPipelineDesc.hasUniformBuffer = false;
+		shadowPipelineDesc.hasInstanceBinding = true;
+		shadowPipelineDesc.textureCount = 0;
+		shadowPipelineDesc.hasMaterialUniformBuffer = false;
+
+		m_shadowPipeline = ctx.gfx.createPipeline(shadowPipelineDesc);
+
 		m_environmentHandle = m_modelRegistry.load(ctx.gfx, "assets/models/sanmiguel.glb", ctx.jobs, &ctx.vfs);
 		if (!m_environmentHandle.isValid())
 			LOG_ERROR("Sandbox", "Failed to load environment model");
@@ -119,7 +174,8 @@ namespace imp::app
 		lightUboDesc.memoryAccess = gfx::MemoryAccess::HostVisible;
 		m_lightBuffer = ctx.gfx.createBuffer(lightUboDesc);
 
-		if (!m_pipeline || !m_blendPipeline || !m_hdrTarget || !m_tonemapPipeline || !m_sampler || !m_lightBuffer || !m_environmentHandle.isValid())
+		if (!m_pipeline || !m_blendPipeline || !m_hdrTarget || !m_tonemapPipeline || !m_sampler 
+			|| !m_lightBuffer || !m_environmentHandle.isValid() || !m_shadowPipeline || !m_shadowTarget || !m_shadowSampler)
 		{
 			LOG_FATAL("Sandbox", "Failed to create pipelines/sampler/light buffer, or model failed to load");
 			return false;
@@ -129,6 +185,7 @@ namespace imp::app
 		ecs::Transform sunTransform;
 		sunTransform.rotation = math::Quaternionf::fromAxisAngle(math::Vec3f::unitX(), math::toRadians(50.f))
 			* math::Quaternionf::fromAxisAngle(math::Vec3f::unitY(), math::toRadians(30.f));
+		m_sunDirection = math::normalise(math::rotate(sunTransform.rotation, math::Vec3f::forward()));
 		ctx.ecs.transforms.create(sunEntity, sunTransform);
 		ctx.ecs.lights.create(sunEntity, ecs::LightType::Directional, math::Vec3f{ 1.f, 1.f, 1.f }, 1.f);
 		m_instances.push_back(sunEntity);
@@ -183,7 +240,9 @@ namespace imp::app
 
 		ctx.ecs.transforms.updateWorldMatricesParallel(ctx.jobs);
 
+		updateSunViewProj();
 		extractRenderables(ctx.ecs, m_modelRegistry, m_camera.position(), m_extraction);
+		m_extraction.lightData.sunViewProj = m_sunViewProj;
 		std::memcpy(m_lightBuffer->mappedData(), &m_extraction.lightData, sizeof(gfx::LightUBO));
 
 		ensureInstanceBufferCapacity(ctx, static_cast<u32>( m_extraction.instanceData.size() ));
@@ -192,12 +251,30 @@ namespace imp::app
 			std::memcpy(m_instanceBuffer->mappedData(), m_extraction.instanceData.data(),
 				m_extraction.instanceData.size() * sizeof(math::Mat4f));
 		}
-
 	}
 
 	void SandboxApp::onRender(AppContext& ctx, gfx::ICommandList& cmd)
 	{
 		ensureHdrTargetSize(ctx);
+
+		gfx::RenderPassDesc shadowPassDesc{};
+		shadowPassDesc.colourTarget = nullptr;
+		shadowPassDesc.depthTarget = m_shadowTarget.get();
+		shadowPassDesc.clearDepthValue = 1.f;
+		cmd.beginRenderPass(shadowPassDesc);
+
+		ModelRenderContext shadowRenderCtx{};
+		shadowRenderCtx.cmd = &cmd;
+		shadowRenderCtx.modelRegistry = &m_modelRegistry;
+		shadowRenderCtx.sampler = m_sampler.get();
+		shadowRenderCtx.lightBuffer = nullptr;
+		shadowRenderCtx.instanceBuffer = m_instanceBuffer.get();
+		shadowRenderCtx.viewProj = m_sunViewProj;
+
+		cmd.bindPipeline(*m_shadowPipeline);
+		drawModelBatches(shadowRenderCtx, m_extraction);
+
+		cmd.endRenderPass();
 
 		gfx::RenderPassDesc hdrPassDesc{};
 		hdrPassDesc.colourTarget = m_hdrTarget.get();
@@ -217,6 +294,8 @@ namespace imp::app
 		renderCtx.lightBuffer = m_lightBuffer.get();
 		renderCtx.instanceBuffer = m_instanceBuffer.get();
 		renderCtx.viewProj = m_camera.projection(aspect) * m_camera.view();
+		renderCtx.shadowMap = m_shadowTarget->asTexture();
+		renderCtx.shadowSampler = m_shadowSampler.get();
 
 		cmd.bindPipeline(*m_pipeline);
 		drawModelBatches(renderCtx, m_extraction);
@@ -264,6 +343,28 @@ namespace imp::app
 		m_tonemapVertShader.reset();
 		m_meshFragShader.reset();
 		m_meshVertShader.reset();
+		m_shadowPipeline.reset();
+		m_shadowTarget.reset();
+		m_shadowSampler.reset();
+		m_shadowFragShader.reset();
+		m_shadowVertShader.reset();
+	}
+
+	void SandboxApp::updateSunViewProj()
+	{
+		using namespace imp::math;
+
+		Vec3f sunDir = normalise(m_sunDirection);
+		Vec3f up = std::abs(dot(sunDir, Vec3f::up())) > 0.99f ? Vec3f::unitX() : Vec3f::up();
+
+		constexpr float kSceneRadius = 80.f;
+		const Vec3f sceneCentre = Vec3f::zero();
+		const Vec3f eye = sceneCentre - sunDir * kSceneRadius;
+
+		Mat4f lightView = makeLookAtLH(eye, sceneCentre, up);
+		Mat4f lightProj = makeOrthographicLH(kSceneRadius * 2.f, kSceneRadius * 2.f, 0.1f, kSceneRadius * 2.f);
+
+		m_sunViewProj = lightProj * lightView;
 	}
 
 	void SandboxApp::ensureInstanceBufferCapacity(AppContext& ctx, u32 instanceCount)

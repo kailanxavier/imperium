@@ -42,6 +42,7 @@ namespace imp::gfx::vulkan
 		VkDescriptorSetLayout m_currentDescriptorSetLayout = VK_NULL_HANDLE;
 
 		VulkanRenderTarget* m_colourTarget = nullptr;
+		VulkanRenderTarget* m_depthTarget = nullptr;
 
 		VulkanDescriptorAllocator* m_descriptorAllocator = nullptr;
 		u32 m_frameIndex = 0;

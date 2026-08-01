@@ -21,6 +21,7 @@ layout(binding = 0) uniform LightUBO
     float shininess;
     uint lightCount;
     uint _pad0;
+    mat4 sunViewProj;
     GPULight lights[MAX_LIGHTS];
 } lightData;
 
@@ -29,7 +30,7 @@ layout(binding = 2) uniform sampler2D metallicRoughnessTexture;
 layout(binding = 3) uniform sampler2D normalTexture;
 layout(binding = 4) uniform sampler2D occlusionTexture;
 
-layout(binding = 5) uniform MaterialFactorsUBO
+layout(binding = 6) uniform MaterialFactorsUBO
 {
     vec4 baseColourFactor;
     float metallicFactor;
@@ -37,6 +38,8 @@ layout(binding = 5) uniform MaterialFactorsUBO
     float alphaCutoff;
     float alphaMode;
 } material;
+
+layout(binding = 5) uniform sampler2D shadowMap;
 
 float distributionGGX(vec3 N, vec3 H, float roughness)
 {
@@ -67,6 +70,29 @@ float geometrySmith(vec3 N, vec3 V, vec3 L, float roughness)
 vec3 fresnelSchlick(float cosTheta, vec3 F0)
 {
     return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
+}
+
+float sampleShadow(vec3 positionWS, vec3 N, vec3 L)
+{
+    vec4 lightClip = lightData.sunViewProj * vec4(positionWS, 1.0);
+    vec3 ndc = lightClip.xyz / lightClip.w;
+    vec2 shadowUV = ndc.xy * 0.5 + 0.5;
+    float currentDepth = ndc.z;
+
+    if (shadowUV.x < 0.0 || shadowUV.x > 1.0 || shadowUV.y < 0.0 || shadowUV.y > 1.0 || currentDepth > 1.0)
+        return 1.0; // outside frustum, fully lit
+
+    float bias = max(0.0025 * (1.0 - dot(N, L)), 0.0005);
+    vec2 texelSize = 1.0 / vec2(textureSize(shadowMap, 0));
+
+    float shadow = 0.0;
+    for (int x = -1; x <= 1; ++x)
+    for (int y = -1; y <= 1; ++y)
+    {
+        float sampleDepth = texture(shadowMap, shadowUV + vec2(x, y) * texelSize).r;
+        shadow += (currentDepth - bias > sampleDepth) ? 0.0 : 1.0;
+    }
+    return shadow / 9.0;
 }
 
 void main()
@@ -115,7 +141,8 @@ void main()
         vec3 kD = (vec3(1.0) - F) * (1.0 - metallic);
         vec3 diffuse = kD * albedo / PI;
 
-        result += (diffuse + specular) * radiance * NdotL;
+        float shadowFactor = isPoint ? 1.0 : sampleShadow(inPositionWS, N, L);
+        result += (diffuse + specular) * radiance * NdotL * shadowFactor;
     }
 
     float outAlpha = (material.alphaMode > 1.5) ? alpha : 1.0;
