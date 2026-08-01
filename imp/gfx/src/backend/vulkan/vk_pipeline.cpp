@@ -166,9 +166,18 @@ namespace imp::gfx::vulkan
 
 		VkPipelineRenderingCreateInfo renderingCreateInfo{};
 		renderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
-		renderingCreateInfo.colorAttachmentCount = 1;
-		renderingCreateInfo.pColorAttachmentFormats = &info.colourAttachmentFormat;
+		if (info.colourAttachmentFormat == VK_FORMAT_UNDEFINED)
+		{
+			renderingCreateInfo.colorAttachmentCount = 0;
+			renderingCreateInfo.pColorAttachmentFormats = nullptr;
+		}
+		else
+		{
+			renderingCreateInfo.colorAttachmentCount = 1;
+			renderingCreateInfo.pColorAttachmentFormats = &info.colourAttachmentFormat;
+		}
 		renderingCreateInfo.depthAttachmentFormat = info.depthAttachmentFormat;
+		renderingCreateInfo.stencilAttachmentFormat = VK_FORMAT_UNDEFINED;
 
 		VkGraphicsPipelineCreateInfo pipelineInfo{};
 		pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;

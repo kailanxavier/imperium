@@ -80,6 +80,8 @@ namespace imp::app
 			{ 6, static_cast<u32>( sizeof(math::Vec4f) * 3 ), 4, true },
 		};
 
+		ensureHdrTargetSize(ctx);
+
 		gfx::PipelineDesc meshPipelineDesc{};
 		meshPipelineDesc.vertexShader = m_meshVertShader.get();
 		meshPipelineDesc.fragmentShader = m_meshFragShader.get();
@@ -94,7 +96,7 @@ namespace imp::app
 		meshPipelineDesc.depthStencilState.depthWriteEnable = true;
 		meshPipelineDesc.depthStencilState.depthCompareOp = gfx::CompareOp::Less;
 		meshPipelineDesc.blendState.blendEnable = false;
-		meshPipelineDesc.colourFormat = ctx.gfx.backBuffer().format();
+		meshPipelineDesc.colourFormat = m_hdrTarget->format();
 		meshPipelineDesc.depthFormat = ctx.gfx.depthBuffer() ? ctx.gfx.depthBuffer()->format() : gfx::TextureFormat::Unknown;
 		meshPipelineDesc.pushConstantSize = sizeof(gfx::MeshPushConstants);
 		meshPipelineDesc.hasUniformBuffer = true;
@@ -108,9 +110,8 @@ namespace imp::app
 		blendPipelineDesc.blendState.blendEnable = true;
 		blendPipelineDesc.depthStencilState.depthTestEnable = true;
 		blendPipelineDesc.depthStencilState.depthWriteEnable = false;
+		blendPipelineDesc.colourFormat = gfx::TextureFormat::RGBA16Float;
 		m_blendPipeline = ctx.gfx.createPipeline(blendPipelineDesc);
-
-		ensureHdrTargetSize(ctx);
 
 		gfx::PipelineDesc tonemapPipelineDesc;
 		tonemapPipelineDesc.vertexShader = m_tonemapVertShader.get();
@@ -245,6 +246,7 @@ namespace imp::app
 		updateSunViewProj();
 		extractRenderables(ctx.ecs, m_modelRegistry, m_camera.position(), m_extraction);
 		m_extraction.lightData.sunViewProj = m_sunViewProj;
+		m_extraction.lightData.shadowMapSize = static_cast<float>( kShadowMapSize );
 		std::memcpy(m_lightBuffer->mappedData(), &m_extraction.lightData, sizeof(gfx::LightUBO));
 
 		ensureInstanceBufferCapacity(ctx, static_cast<u32>( m_extraction.instanceData.size() ));

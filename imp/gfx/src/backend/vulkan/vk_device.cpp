@@ -831,8 +831,12 @@ namespace imp::gfx::vulkan
 		VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo{};
 		if (m_validationEnabled)
 		{
+#ifndef NDEBUG
+			createInfo.enabledLayerCount = 1;
+#else
 			createInfo.enabledLayerCount = 0;
-			createInfo.ppEnabledLayerNames = nullptr;
+#endif // !NDEBUG
+			createInfo.ppEnabledLayerNames = kValidationLayers.data();
 
 			debugCreateInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
 			debugCreateInfo.messageSeverity =

@@ -22,6 +22,10 @@ layout(binding = 0) uniform LightUBO
     uint lightCount;
     uint _pad0;
     mat4 sunViewProj;
+
+    vec3 sunDirection;
+    float shadowMapSize;
+
     GPULight lights[MAX_LIGHTS];
 } lightData;
 
@@ -95,6 +99,133 @@ float sampleShadow(vec3 positionWS, vec3 N, vec3 L)
     return shadow / 9.0;
 }
 
+vec3 getShadowCoords(vec3 worldPos)
+{
+    vec4 lightSpace = lightData.sunViewProj * vec4(worldPos, 1.0);
+
+    lightSpace.xyz /= lightSpace.w;
+
+    vec3 coords;
+
+    coords.x = lightSpace.x * 0.5 + 0.5;
+    coords.y = lightSpace.y * 0.5 + 0.5;
+    coords.z = lightSpace.z;
+
+    return coords;
+}
+
+float findBlocker(vec3 coords)
+{
+    float searchRadius = 4.0 / lightData.shadowMapSize;
+
+    float blockerSum = 0.0;
+    int blockers = 0;
+
+
+    for(int x = -3; x <= 3; x++)
+    {
+        for(int y = -3; y <= 3; y++)
+        {
+            vec2 offset =
+                vec2(x,y) * searchRadius;
+
+            float depth =
+                texture(
+                    shadowMap,
+                    coords.xy + offset
+                ).r;
+
+            if(depth < coords.z)
+            {
+                blockerSum += depth;
+                blockers++;
+            }
+        }
+    }
+
+
+    if(blockers == 0)
+        return -1.0;
+
+    return blockerSum / float(blockers);
+}
+
+float calculatePenumbra(
+    float receiver,
+    float blocker)
+{
+    return
+        (receiver - blocker)
+        / blocker;
+}
+
+float filterPCF(
+    vec3 coords,
+    float radius)
+{
+    float shadow = 0.0;
+
+    int samples = 0;
+
+
+    for(int x=-3;x<=3;x++)
+    {
+        for(int y=-3;y<=3;y++)
+        {
+            vec2 offset =
+                vec2(x,y)
+                * radius
+                / lightData.shadowMapSize;
+
+            float depth =
+                texture(
+                    shadowMap,
+                    coords.xy + offset
+                ).r;
+
+            shadow +=
+                coords.z > depth
+                ? 0.0
+                : 1.0;
+
+            samples++;
+        }
+    }
+
+    return shadow / float(samples);
+}
+
+float shadowPCSS(vec3 coords)
+{
+    if(coords.z > 1.0)
+        return 1.0;
+
+    float blocker =
+        findBlocker(coords);
+
+    // fully lit
+    if(blocker < 0.0)
+        return 1.0;
+
+    float penumbra =
+        calculatePenumbra(
+            coords.z,
+            blocker
+        );
+
+    float filterRadius =
+        clamp(
+            penumbra * 40.0,
+            1.0,
+            20.0
+        );
+
+    return filterPCF(
+        coords,
+        filterRadius
+    );
+}
+
 void main()
 {
     vec4 albedoSample = texture(diffuseTexture, inUV);
@@ -141,7 +272,9 @@ void main()
         vec3 kD = (vec3(1.0) - F) * (1.0 - metallic);
         vec3 diffuse = kD * albedo / PI;
 
-        float shadowFactor = isPoint ? 1.0 : sampleShadow(inPositionWS, N, L);
+        //float shadowFactor = isPoint ? 1.0 : sampleShadow(inPositionWS, N, L);
+        vec3 shadowCoords = getShadowCoords(inPositionWS);
+        float shadowFactor = shadowPCSS(shadowCoords);
         result += (diffuse + specular) * radiance * NdotL * shadowFactor;
     }
 
