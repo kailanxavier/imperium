@@ -23,4 +23,5 @@ namespace imp::app
 	};
 
 	void drawModelBatches(const ModelRenderContext& ctx, const RenderExtraction& extraction);
+	void drawBlendInstances(const ModelRenderContext& ctx, const RenderExtraction& extraction);
 }

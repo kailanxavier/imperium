@@ -626,6 +626,7 @@ namespace imp::gfx::vulkan
 		info.instanceBinding.stride = desc.instanceLayout.stride;
 		info.instanceBinding.inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
 		info.hasInstanceBinding = desc.hasInstanceBinding;
+		info.blendEnable = desc.blendState.blendEnable;
 		info.allocationCallbacks = allocationCallbacks();
 
 		auto pipeline = std::make_unique<VulkanGraphicsPipeline>();

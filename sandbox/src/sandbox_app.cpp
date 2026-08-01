@@ -48,7 +48,7 @@ namespace imp::app
 			{ 6, static_cast<u32>( sizeof(math::Vec4f) * 3 ), 4, true },
 		};
 
-		gfx::PipelineDesc meshPipelineDesc;
+		gfx::PipelineDesc meshPipelineDesc{};
 		meshPipelineDesc.vertexShader = m_meshVertShader.get();
 		meshPipelineDesc.fragmentShader = m_meshFragShader.get();
 		meshPipelineDesc.vertexLayout.stride = sizeof(gfx::ModelVertex);
@@ -61,6 +61,7 @@ namespace imp::app
 		meshPipelineDesc.depthStencilState.depthTestEnable = true;
 		meshPipelineDesc.depthStencilState.depthWriteEnable = true;
 		meshPipelineDesc.depthStencilState.depthCompareOp = gfx::CompareOp::Less;
+		meshPipelineDesc.blendState.blendEnable = false;
 		meshPipelineDesc.colourFormat = ctx.gfx.backBuffer().format();
 		meshPipelineDesc.depthFormat = ctx.gfx.depthBuffer() ? ctx.gfx.depthBuffer()->format() : gfx::TextureFormat::Unknown;
 		meshPipelineDesc.pushConstantSize = sizeof(gfx::MeshPushConstants);
@@ -71,14 +72,20 @@ namespace imp::app
 		
 		m_pipeline = ctx.gfx.createPipeline(meshPipelineDesc);
 
-		gfx::SamplerDesc samplerDesc;
+		gfx::PipelineDesc blendPipelineDesc{ meshPipelineDesc };
+		blendPipelineDesc.blendState.blendEnable = true;
+		blendPipelineDesc.depthStencilState.depthTestEnable = true;
+		blendPipelineDesc.depthStencilState.depthWriteEnable = false;
+		m_blendPipeline = ctx.gfx.createPipeline(blendPipelineDesc);
+
+		gfx::SamplerDesc samplerDesc{};
 		samplerDesc.minFilter = gfx::FilterMode::Linear;
 		samplerDesc.magFilter = gfx::FilterMode::Linear;
 		samplerDesc.addressModeU = gfx::AddressMode::Repeat;
 		samplerDesc.addressModeV = gfx::AddressMode::Repeat;
 		m_sampler = ctx.gfx.createSampler(samplerDesc);
 
-		m_environmentHandle = m_modelRegistry.load(ctx.gfx, "assets/models/temple.glb", ctx.jobs, &ctx.vfs);
+		m_environmentHandle = m_modelRegistry.load(ctx.gfx, "assets/models/sanmiguel.glb", ctx.jobs, &ctx.vfs);
 		if (!m_environmentHandle.isValid())
 			LOG_ERROR("Sandbox", "Failed to load environment model");
 
@@ -86,13 +93,13 @@ namespace imp::app
 		if (!m_statueHandle.isValid())
 			LOG_ERROR("Sandbox", "Failed to load statue model");
 
-		gfx::BufferDesc lightUboDesc;
+		gfx::BufferDesc lightUboDesc{};
 		lightUboDesc.size = sizeof(gfx::BlinnPhongLightUBO);
 		lightUboDesc.usage = gfx::BufferUsage::Uniform;
 		lightUboDesc.memoryAccess = gfx::MemoryAccess::HostVisible;
 		m_lightBuffer = ctx.gfx.createBuffer(lightUboDesc);
 
-		if (!m_pipeline || !m_sampler || !m_lightBuffer || !m_environmentHandle.isValid())
+		if (!m_pipeline || !m_blendPipeline || !m_sampler || !m_lightBuffer || !m_environmentHandle.isValid())
 		{
 			LOG_FATAL("Sandbox", "Failed to create pipeline/sampler/light buffer, or model failed to load");
 			return false;
@@ -139,13 +146,13 @@ namespace imp::app
 	{
 		m_camera.update(ctx.input, deltaSeconds);
 
-		gfx::BlinnPhongLightUBO lightData;
+		gfx::BlinnPhongLightUBO lightData{};
 		lightData.cameraPositionWS = { m_camera.position().x, m_camera.position().y, m_camera.position().z, 0.f };
 		std::memcpy(m_lightBuffer->mappedData(), &lightData, sizeof(lightData));
 		
 		ctx.ecs.transforms.updateWorldMatricesParallel(ctx.jobs);
 
-		extractRenderables(ctx.ecs, m_extraction);
+		extractRenderables(ctx.ecs, m_modelRegistry, m_camera.position(), m_extraction);
 		ensureInstanceBufferCapacity(ctx, static_cast<u32>( m_extraction.instanceData.size() ));
 		if (m_instanceBuffer && !m_extraction.instanceData.empty())
 		{
@@ -157,20 +164,18 @@ namespace imp::app
 
 	void SandboxApp::onRender(AppContext& ctx, gfx::ICommandList& cmd)
 	{
-		gfx::RenderPassDesc passDesc;
+		gfx::RenderPassDesc passDesc{};
 		passDesc.colourTarget = &ctx.gfx.backBuffer();
 		passDesc.depthTarget = ctx.gfx.depthBuffer();
 		passDesc.clearColourValue = { 0.023153f, 0.000911f, 0.004391f, 1.f };
 		passDesc.clearDepthValue = 1.f;
-
 		cmd.beginRenderPass(passDesc);
-		cmd.bindPipeline(*m_pipeline);
 
 		const u32 w = ctx.gfx.backBuffer().width();
 		const u32 h = ctx.gfx.backBuffer().height();
 		const float aspect = h > 0 ? static_cast<float>( w ) / static_cast<float>( h ) : 1.f;
 
-		ModelRenderContext renderCtx;
+		ModelRenderContext renderCtx{};
 		renderCtx.cmd = &cmd;
 		renderCtx.modelRegistry = &m_modelRegistry;
 		renderCtx.sampler = m_sampler.get();
@@ -178,7 +183,14 @@ namespace imp::app
 		renderCtx.instanceBuffer = m_instanceBuffer.get();
 		renderCtx.viewProj = m_camera.projection(aspect) * m_camera.view();
 
+		cmd.bindPipeline(*m_pipeline);
 		drawModelBatches(renderCtx, m_extraction);
+
+		if (!m_extraction.blendInstances.empty())
+		{
+			cmd.bindPipeline(*m_blendPipeline);
+			drawBlendInstances(renderCtx, m_extraction);
+		}
 
 		cmd.endRenderPass();
 	}
@@ -198,6 +210,7 @@ namespace imp::app
 		m_lightBuffer.reset();
 		m_sampler.reset();
 		m_pipeline.reset();
+		m_blendPipeline.reset();
 		m_meshFragShader.reset();
 		m_meshVertShader.reset();
 	}

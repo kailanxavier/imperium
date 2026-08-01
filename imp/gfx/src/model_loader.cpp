@@ -343,6 +343,15 @@ namespace imp::gfx
 					refs.metallicRoughness = getOrAddRequest(pbr.metallic_roughness_texture.texture->image, /*isSrgb=*/false);
 			}
 
+			switch (srcMat.alpha_mode)
+			{
+			case cgltf_alpha_mode_mask: dstMat.alphaMode = AlphaMode::Mask; break;
+			case cgltf_alpha_mode_blend: dstMat.alphaMode = AlphaMode::Blend; break;
+			case cgltf_alpha_mode_opaque: dstMat.alphaMode = AlphaMode::Opaque; break;
+			case cgltf_alpha_mode_max_enum: break;
+			}
+			dstMat.alphaCutoff = srcMat.alpha_cutoff;
+
 			if (srcMat.normal_texture.texture)
 				refs.normal = getOrAddRequest(srcMat.normal_texture.texture->image, /*isSrgb=*/false);
 
@@ -365,6 +374,10 @@ namespace imp::gfx
 			factors.baseColourFactor = dstMat.baseColourFactor;
 			factors.metallicFactor = dstMat.metallicFactor;
 			factors.roughnessFactor = dstMat.roughnessFactor;
+			factors.alphaCutoff = dstMat.alphaCutoff;
+			factors.alphaMode = static_cast<float>(static_cast<int>(dstMat.alphaMode));	// or in the lovely C: 
+																						// (float)(*(int *)((char *)&dstMat 
+																						//		+ offsetof(typeof(dstMat), alphaMode)));
 
 			BufferDesc factorsDesc;
 			factorsDesc.size = sizeof(MaterialFactorsUBO);
@@ -510,6 +523,7 @@ namespace imp::gfx
 		auto t4 = std::chrono::steady_clock::now();
 
 		outModel.meshes.resize(data->meshes_count);
+
 		for (cgltf_size i = 0; i < data->meshes_count; ++i)
 		{
 			const cgltf_mesh& srcMesh = data->meshes[i];
@@ -521,7 +535,12 @@ namespace imp::gfx
 			{
 				MeshPrimitive primitive;
 				if (loadPrimitive(device, srcMesh.primitives[p], data, primitive))
+				{
+					if (primitive.materialIndex >= 0 && outModel.materials[primitive.materialIndex].alphaMode == AlphaMode::Blend)
+						outModel.hasBlendPrimitives = true;
+
 					dstMesh.primitives.push_back(std::move(primitive));
+				}
 			}
 		}
 

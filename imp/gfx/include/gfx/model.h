@@ -33,15 +33,17 @@ namespace imp::gfx
 		std::vector<MeshPrimitive> primitives;
 	};
 
+	enum class AlphaMode { Opaque, Mask, Blend };
+	enum class AlphaModePass { OpaqueAndMask, Blend };
+
 	struct MaterialFactorsUBO
 	{
 		math::Vec4f baseColourFactor{ 1.f, 1.f, 1.f, 1.f };
 		float metallicFactor = 1.f;
 		float roughnessFactor = 1.f;
-		float _pad0 = 0.f;
-		float _pad1 = 0.f;
+		float alphaCutoff = 0.5f;
+		float alphaMode = 0.f; // 0 = opaque, 1 = mask, 2 = blend. why float not int? look below
 	};
-
 	static_assert( sizeof(MaterialFactorsUBO) == 32 && "MaterialFactorsUBO must stay std140 friendly" );
 
 	struct Material
@@ -56,6 +58,8 @@ namespace imp::gfx
 		math::Vec4f emissiveFactor{ 0.f, 0.f, 0.f, 0.f };
 		float metallicFactor = 1.f;
 		float roughnessFactor = 1.f;
+		AlphaMode alphaMode = AlphaMode::Opaque;
+		float alphaCutoff = 0.5f;
 		std::unique_ptr<IBuffer> factorsBuffer;
 	};
 
@@ -86,6 +90,7 @@ namespace imp::gfx
 		i32 fallbackOcclusionTextureIndex = -1;
 
 		std::unique_ptr<IBuffer> defaultMaterialFactorsBuffer;
+		bool hasBlendPrimitives = false;
 
 		[[nodiscard]] bool isValid() const { return !meshes.empty(); }
 	};

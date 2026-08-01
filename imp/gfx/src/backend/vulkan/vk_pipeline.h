@@ -34,6 +34,8 @@ namespace imp::gfx::vulkan
 		u32 textureCount = 0;
 		bool hasMaterialUniformBuffer = false;
 
+		bool blendEnable = false;
+
 		const fs::VirtualFileSystem* vfs = nullptr;
 		const VkAllocationCallbacks* allocationCallbacks = nullptr;
 	};

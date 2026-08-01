@@ -44,7 +44,10 @@ namespace imp::app
 
 		std::unique_ptr<gfx::IShader> m_meshVertShader;
 		std::unique_ptr<gfx::IShader> m_meshFragShader;
+
 		std::unique_ptr<gfx::IPipeline> m_pipeline;
+		std::unique_ptr<gfx::IPipeline> m_blendPipeline;
+
 		std::unique_ptr<gfx::ISampler> m_sampler;
 		std::unique_ptr<gfx::IBuffer> m_lightBuffer;
 		std::unique_ptr<gfx::IBuffer> m_instanceBuffer;
