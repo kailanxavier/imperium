@@ -34,6 +34,12 @@ namespace imp::app
 		void onRender(AppContext& ctx, gfx::ICommandList& cmd) override;
 		void onShutdown(AppContext& ctx) override;
 
+		math::Vec3f& sunDirection() { return m_sunDirection; }
+		const math::Vec3f& sunDirection() const { return m_sunDirection; }
+
+		ecs::Transform& pointPos() { return m_localLightTransform; }
+		const ecs::Transform& pointPos() const { return m_localLightTransform; }
+
 	private:
 		void drawNode(gfx::ICommandList& cmd, gfx::Model& model, const math::Mat4f& viewProj, u32 nodeIdx, const math::Mat4f& parentWorld);
 
@@ -44,7 +50,7 @@ namespace imp::app
 
 	private:
 		void updateSunViewProj();
-		static constexpr u32 kShadowMapSize = 2048;
+		static constexpr u32 kShadowMapSize = 8196;
 
 		std::unique_ptr<gfx::IShader> m_shadowVertShader;
 		std::unique_ptr<gfx::IShader> m_shadowFragShader;
@@ -54,6 +60,9 @@ namespace imp::app
 
 		math::Vec3f m_sunDirection = math::Vec3f::zero();
 		math::Mat4f m_sunViewProj = math::Mat4f::identity();
+
+		ecs::Transform m_localLightTransform{};
+		ecs::EntityId m_localLight{};
 
 	private:
 		fwk::Camera m_camera;

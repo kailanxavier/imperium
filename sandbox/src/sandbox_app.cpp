@@ -187,15 +187,15 @@ namespace imp::app
 			* math::Quaternionf::fromAxisAngle(math::Vec3f::unitY(), math::toRadians(30.f));
 		m_sunDirection = math::normalise(math::rotate(sunTransform.rotation, math::Vec3f::forward()));
 		ctx.ecs.transforms.create(sunEntity, sunTransform);
-		ctx.ecs.lights.create(sunEntity, ecs::LightType::Directional, math::Vec3f{ 1.f, 1.f, 1.f }, 1.f);
+		ctx.ecs.lights.create(sunEntity, ecs::LightType::Directional, math::Vec3f{ 1.f, 1.f, 1.f }, 10.f);
 		m_instances.push_back(sunEntity);
 
-		const ecs::EntityId pointEntity = ctx.ecs.createEntity();
+		m_localLight = ctx.ecs.createEntity();
 		ecs::Transform pointTransform;
 		pointTransform.position = math::Vec3f{ 0.f, 5.f, 0.f };
-		ctx.ecs.transforms.create(pointEntity, pointTransform);
-		ctx.ecs.lights.create(pointEntity, ecs::LightType::Point, math::Vec3f{ 1.f, 0.6f, 0.3f }, 4.f);
-		m_instances.push_back(pointEntity);
+		ctx.ecs.transforms.create(m_localLight, pointTransform);
+		ctx.ecs.lights.create(m_localLight, ecs::LightType::Point, math::Vec3f{ 1.f, 0.6f, 0.3f }, 0.5f);
+		m_instances.push_back(m_localLight);
 
 		constexpr int kGridSize = 3;
 		constexpr float kSpacing = 30.f;
@@ -239,6 +239,8 @@ namespace imp::app
 		m_camera.update(ctx.input, deltaSeconds);
 
 		ctx.ecs.transforms.updateWorldMatricesParallel(ctx.jobs);
+
+		ctx.ecs.transforms.setLocalTransform(m_localLight, m_localLightTransform);
 
 		updateSunViewProj();
 		extractRenderables(ctx.ecs, m_modelRegistry, m_camera.position(), m_extraction);
@@ -362,7 +364,7 @@ namespace imp::app
 		const Vec3f eye = sceneCentre - sunDir * kSceneRadius;
 
 		Mat4f lightView = makeLookAtLH(eye, sceneCentre, up);
-		Mat4f lightProj = makeOrthographicLH(kSceneRadius * 2.f, kSceneRadius * 2.f, 0.1f, kSceneRadius * 2.f);
+		Mat4f lightProj = makeOrthographicOffcentreLH(-kSceneRadius, kSceneRadius, -kSceneRadius, kSceneRadius, 0.1f, kSceneRadius * 2.f);
 
 		m_sunViewProj = lightProj * lightView;
 	}

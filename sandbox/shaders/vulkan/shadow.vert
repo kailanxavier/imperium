@@ -17,7 +17,8 @@ layout(push_constant) uniform PushConstants
 void main()
 {
     mat4 instanceMatrix = mat4(inInstanceRow0, inInstanceRow1, inInstanceRow2, inInstanceRow3);
-    vec4 worldPos = pc.nodeWorld * instanceMatrix * vec4(inPosition, 1.0);
+    mat4 world = instanceMatrix * pc.nodeWorld;
+    vec4 worldPos = world * vec4(inPosition, 1.0);
     vec4 clipPos = pc.viewProj * worldPos;
     clipPos.y = -clipPos.y;
     gl_Position = clipPos;

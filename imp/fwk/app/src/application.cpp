@@ -1,4 +1,5 @@
 #include <app/application.h>
+#include <backends/imgui_impl_glfw.h>
 
 #include <chrono>
 
@@ -93,6 +94,12 @@ namespace imp::app
 			return false;
 		}
 
+		ImGui::CreateContext();
+		ImGui::StyleColorsClassic();
+
+		ImGui_ImplGlfw_InitForVulkan(m_window.getNativeHandle(), true);
+		m_device->initImGui(); 
+
 		m_initialised = true;
 		return true;
 	}
@@ -112,6 +119,10 @@ namespace imp::app
 	{
 		if (!m_initialised)
 			return;
+		
+		ImGui_ImplGlfw_Shutdown();
+		m_device->shutdownImGui();
+		ImGui::DestroyContext();
 
 		if (m_app)
 			m_app->onShutdown(*m_ctx);
@@ -144,6 +155,10 @@ namespace imp::app
 		const float deltaSeconds = std::chrono::duration<float>(now - m_lastFrameTime).count();
 		m_lastFrameTime = now;
 
+		ImGui_ImplGlfw_NewFrame();
+		m_device->newImGuiFrame();
+		ImGui::NewFrame(); 
+
 		m_app->onUpdate(*m_ctx, deltaSeconds);
 		m_layers.updateAll(deltaSeconds);
 
@@ -152,6 +167,10 @@ namespace imp::app
 		{
 			m_app->onRender(*m_ctx, *cmd);
 			m_layers.renderAll(*cmd);
+
+			ImGui::Render();
+			m_device->renderImGui(*cmd);
+
 			m_device->endFrame();
 		}
 	}

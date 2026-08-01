@@ -46,7 +46,7 @@ namespace imp::math
 		[[nodiscard]] static constexpr Vec3 unitZ() noexcept { return { T(0), T(0), T(1) }; }
 		[[nodiscard]] static constexpr Vec3 up() noexcept { return unitY(); }
 		[[nodiscard]] static constexpr Vec3 right() noexcept { return unitX(); }
-		[[nodiscard]] static constexpr Vec3 forward() noexcept { return -unitZ(); }
+		[[nodiscard]] static constexpr Vec3 forward() noexcept { return unitZ(); }
 
 		// Member arithmetic
 		constexpr Vec3& operator+=(const Vec3& rhs) noexcept { x += rhs.x; y += rhs.y; z += rhs.z; return *this; }

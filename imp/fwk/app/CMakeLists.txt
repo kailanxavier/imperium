@@ -3,6 +3,7 @@ add_library(imp_app STATIC
 	src/telemetry_layer.cpp
 	src/render_extraction.cpp
 	src/model_renderer.cpp
+	src/light_control_layer.cpp
 )
 
 target_include_directories(imp_app
@@ -11,3 +12,9 @@ target_include_directories(imp_app
 )
 
 target_link_libraries(imp_app PUBLIC imp_jobs imp_ecs PRIVATE imp_protocol imp_core imp_gfx imp_input)
+
+target_link_libraries(imp_app PRIVATE imgui glfw)
+
+target_sources(imp_app PRIVATE
+    ${CMAKE_SOURCE_DIR}/vendor/imgui/backends/imgui_impl_glfw.cpp
+)
