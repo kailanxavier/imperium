@@ -11,6 +11,7 @@
         "strategy": "set"
       },
       "cacheVariables": {
+        "CMAKE_TOOLCHAIN_FILE": "C:/vcpkg/scripts/buildsystems/vcpkg.cmake",
         "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_CXX_STANDARD": "23"
       }
@@ -25,6 +26,7 @@
         "strategy": "set"
       },
       "cacheVariables": {
+        "CMAKE_TOOLCHAIN_FILE": "C:/vcpkg/scripts/buildsystems/vcpkg.cmake",
         "CMAKE_BUILD_TYPE": "Release",
         "CMAKE_CXX_STANDARD": "23"
       }
@@ -55,6 +57,7 @@
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/windows-debug-clang",
       "cacheVariables": {
+        "CMAKE_TOOLCHAIN_FILE": "C:/vcpkg/scripts/buildsystems/vcpkg.cmake",
         "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_CXX_STANDARD": "23",
         "CMAKE_C_COMPILER": "clang-cl",
@@ -67,6 +70,7 @@
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/windows-release-clang",
       "cacheVariables": {
+        "CMAKE_TOOLCHAIN_FILE": "C:/vcpkg/scripts/buildsystems/vcpkg.cmake",
         "CMAKE_BUILD_TYPE": "Release",
         "CMAKE_CXX_STANDARD": "23",
         "CMAKE_C_COMPILER": "clang-cl",

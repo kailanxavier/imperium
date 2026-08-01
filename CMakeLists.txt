@@ -108,6 +108,7 @@ target_compile_options(imperium_compile_options INTERFACE
 )
 
 include(cmake/AddThirdParty.cmake)
+include(cmake/AddImageLibs.cmake)
 include(cmake/CompileShaders.cmake)
 include(cmake/CopyAssets.cmake)
 

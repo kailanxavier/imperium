@@ -15,6 +15,13 @@ target_link_libraries(imp_gfx
 		imp_jobs
 )
 
+target_link_libraries(imp_gfx
+	PRIVATE
+		libjpeg-turbo::turbojpeg
+		spng_static
+		libdeflate_static
+)
+
 option(IMP_VULKAN_MEM_TEST "Compile and link memory allocation tests for Vulkan backend" ON)
 
 find_package(Vulkan REQUIRED)
