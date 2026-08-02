@@ -10,6 +10,8 @@
 #include <functional>
 #include <vector>
 
+#include "vk_buffer.h"
+
 namespace imp::fwk { class Window; }
 namespace imp::fs { class VirtualFileSystem; }
 namespace imp::gfx::vulkan
@@ -19,6 +21,7 @@ namespace imp::gfx::vulkan
 	class VulkanCommandList;
 	class VulkanRenderTarget;
 	class VulkanDescriptorAllocator;
+	class VulkanTexture;
 
 	struct QueueFamilyIndices
 	{
@@ -40,10 +43,16 @@ namespace imp::gfx::vulkan
 		void shutdown() override;
 
 		[[nodiscard]] std::unique_ptr<gfx::IBuffer> createBuffer(const gfx::BufferDesc& desc) override;
+
 		[[nodiscard]] std::unique_ptr<gfx::ITexture> createTexture(const gfx::TextureDesc& desc) override;
+		[[nodiscard]] std::vector<std::unique_ptr<ITexture>> createTextures(const std::vector<gfx::TextureDesc>& descs) override;
+
 		[[nodiscard]] std::unique_ptr<gfx::ISampler> createSampler(const gfx::SamplerDesc& desc) override;
 		[[nodiscard]] std::unique_ptr<gfx::IShader> createShader(const gfx::ShaderDesc& desc) override;
 		[[nodiscard]] std::unique_ptr<gfx::IPipeline> createPipeline(const gfx::PipelineDesc& desc) override;
+
+		[[nodiscard]] std::unique_ptr<gfx::IRenderTarget> createRenderTarget(const gfx::TextureDesc& desc) override;
+
 
 		bool initImGui() override;
 		void shutdownImGui() override;
@@ -71,6 +80,8 @@ namespace imp::gfx::vulkan
 		bool createCommandsInternal();
 		bool createDescriptorAllocatorInternal();
 
+		void generateMipmaps(VkCommandBuffer cmd, VkImage image, VkFormat format, u32 width, u32 height, u32 mipLevels);
+
 		void submitOneTimeCommands(const std::function<void(VkCommandBuffer)>& record);
 		bool readFileBytes(const std::string& path, std::vector<u8>& outBytes) const;
 
@@ -83,6 +94,8 @@ namespace imp::gfx::vulkan
 			return m_hasHostAllocationCallbacks ? &m_hostAllocationCallbacks : nullptr;
 		}
 
+		bool ensureStagingBuffer(VkDeviceSize minSize);
+
 		VkInstance m_instance = VK_NULL_HANDLE;
 		VkDebugUtilsMessengerEXT m_debugMessenger = VK_NULL_HANDLE;
 		VkSurfaceKHR m_surface = VK_NULL_HANDLE;
@@ -90,6 +103,7 @@ namespace imp::gfx::vulkan
 		VkDevice m_device = VK_NULL_HANDLE;
 		VkQueue m_graphicsQueue = VK_NULL_HANDLE;
 		VkQueue m_presentQueue = VK_NULL_HANDLE;
+		VulkanBuffer m_stagingBuffer;
 
 		std::unique_ptr<VulkanSwapchain> m_swapchain;
 		std::unique_ptr<VulkanCommandContext> m_commands;
@@ -97,6 +111,10 @@ namespace imp::gfx::vulkan
 		std::unique_ptr<VulkanRenderTarget> m_backBufferTarget;
 		std::unique_ptr<VulkanRenderTarget> m_depthBufferTarget;
 		std::unique_ptr<VulkanCommandList> m_commandList;
+
+		std::unique_ptr<gfx::IShader> m_tonemapVertShader;
+		std::unique_ptr<VulkanTexture> m_hrdColourTexture;
+		std::unique_ptr<VulkanRenderTarget> m_hrdRenderTarget;
 
 		VmaAllocator m_vmaAllocator = VK_NULL_HANDLE;
 
@@ -112,6 +130,9 @@ namespace imp::gfx::vulkan
 		u32 m_height = 0;
 		bool m_minimised = false;
 		bool m_frameActive = false;
+
+		bool m_anisotropySupported = false;
+		float m_maxSamplerAnisotropy = 1.f;
 
 		const fs::VirtualFileSystem* m_vfs = nullptr;
 	};

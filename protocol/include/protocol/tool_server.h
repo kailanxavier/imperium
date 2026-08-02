@@ -6,7 +6,7 @@
 #include <deque>
 #include <mutex>
 
-#include "int_types.h"
+#include <core/types/int_types.h>
 #include "message_type.h"
 #include "spsc_queue.h"
 

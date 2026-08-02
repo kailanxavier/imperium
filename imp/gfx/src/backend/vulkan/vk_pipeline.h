@@ -26,11 +26,16 @@ namespace imp::gfx::vulkan
 
 		VkFormat colourAttachmentFormat = VK_FORMAT_UNDEFINED;
 		VkFormat depthAttachmentFormat = VK_FORMAT_UNDEFINED;
+		VkSampleCountFlagBits sampleCount = VK_SAMPLE_COUNT_1_BIT;
 
 		u32 pushConstantSize = 0;
 
 		bool hasUniformBuffer = false;
-		bool hasTexture = false;
+
+		u32 textureCount = 0;
+		bool hasMaterialUniformBuffer = false;
+
+		bool blendEnable = false;
 
 		const fs::VirtualFileSystem* vfs = nullptr;
 		const VkAllocationCallbacks* allocationCallbacks = nullptr;

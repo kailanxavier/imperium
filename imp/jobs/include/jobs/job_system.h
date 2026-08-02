@@ -9,7 +9,7 @@
 #include <thread>
 #include <vector>
 
-#include <core/memory/int_types.h>
+#include <core/types/int_types.h>
 
 // This is a VERY rough V1 job system, just a plain mutex + condvar queue,
 // not a lock free or work stealing scheduler. We should revisit only if profiling

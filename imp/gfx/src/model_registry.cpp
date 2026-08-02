@@ -2,21 +2,28 @@
 #include <gfx/model_loader.h>
 #include <core/log/log.h>
 
+#include <gfx/texture_cache.h>
 #include <gfx/resources.h>
 
 #include <utility>
 
 namespace imp::gfx
 {
-	ModelHandle ModelRegistry::load(IDevice& device, const std::string& path, const fs::VirtualFileSystem* vfs)
+	ModelRegistry::~ModelRegistry() {}
+
+	ModelHandle ModelRegistry::load(IDevice& device, const std::string& path, jobs::JobSystem& jobSystem, 
+		const fs::VirtualFileSystem* vfs)
 	{
+		if (!m_textureCache)
+			m_textureCache = std::make_unique<TextureCache>(device);
+
 		if (const auto it = m_pathToIndex.find(path); it != m_pathToIndex.end())
 		{
 			const u32 idx = it->second;
 			return ModelHandle{ idx, m_slots[idx].generation };
 		}
 
-		Model model = loadModel(device, path, vfs);
+		Model model = loadModel(device, path, jobSystem, *m_textureCache, vfs);
 		if (!model.isValid())
 		{
 			LOG_ERROR("Model Registry", "Failed to load model {}", path.c_str());
@@ -83,5 +90,10 @@ namespace imp::gfx
 		m_slots.clear();
 		m_pathToIndex.clear();
 		m_freeList.clear();
+	}
+
+	void ModelRegistry::shutdown()
+	{
+		m_textureCache.reset();
 	}
 }

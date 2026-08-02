@@ -1,5 +1,6 @@
 #include <app/application.h>
 #include <app/telemetry_layer.h>
+#include <app/light_control_layer.h>
 
 #include <sandbox/sandbox_app.h>
 
@@ -23,6 +24,7 @@ int main()
 #endif
 	desc.window.width = 1280;
 	desc.window.height = 720;
+	desc.enableValidation = true;
 
 	const auto shadersPath = ( platform::executableDir() / "assets").string();
 	desc.vfsMounts.push_back(app::VfsMountDesc{ "assets/", shadersPath, 0, true, true });
@@ -38,7 +40,9 @@ int main()
 	LOG_INFO("Sandbox", "Running with {} device, window ({}, {})", 
 		application.device().apiName(), application.window().width(), application.window().height());
 
+	auto* sb = static_cast<app::SandboxApp*>(application.app().get());
 	application.layers().pushOverlay(std::make_unique<app::TelemetryLayer>(application.gfxAllocator()));
+	application.layers().pushOverlay(std::make_unique<app::LightControlLayer>(sb->sunDirection(), sb->pointPos()));
 
 	application.run();
 	application.shutdown();

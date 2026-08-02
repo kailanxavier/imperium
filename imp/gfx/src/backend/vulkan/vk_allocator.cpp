@@ -1,7 +1,7 @@
 #include "vk_allocator.h"
 
 #include <core/memory/allocator_utils.h>
-#include <core/memory/int_types.h>
+#include <core/types/int_types.h>
 
 #include <algorithm>
 

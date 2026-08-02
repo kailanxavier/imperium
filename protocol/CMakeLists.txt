@@ -30,7 +30,6 @@ add_custom_command(
 add_custom_target(imp_protocol_schemas DEPENDS ${GENERATED_HEADER})
 
 add_library(imp_protocol STATIC
-        src/connection.cpp
         src/serialisation.cpp
         src/tcp_socket.cpp
         src/tcp_listener.cpp
@@ -48,7 +47,7 @@ target_include_directories(imp_protocol
         PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-target_link_libraries(imp_protocol PUBLIC flatbuffers)
+target_link_libraries(imp_protocol PUBLIC flatbuffers imp_core)
 
 if (WIN32)
     target_link_libraries(imp_protocol PRIVATE Ws2_32)

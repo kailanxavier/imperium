@@ -4,7 +4,7 @@
 
 #include <core/log/log.h>
 #include <core/math/mat4.h>
-#include <core/memory/int_types.h>
+#include <core/types/int_types.h>
 #include <core/fs/vfs.h>
 
 namespace imp::gfx::vulkan
@@ -64,13 +64,22 @@ namespace imp::gfx::vulkan
 
 		VkPipelineMultisampleStateCreateInfo multisampling{};
 		multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-		multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+		multisampling.rasterizationSamples = info.sampleCount;
 
 		VkPipelineColorBlendAttachmentState blendAttachment{};
 		blendAttachment.colorWriteMask =
 			VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
 			VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-		blendAttachment.blendEnable = VK_FALSE; // no transparency yet
+		blendAttachment.blendEnable = info.blendEnable ? VK_TRUE : VK_FALSE;
+		if (info.blendEnable)
+		{
+			blendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+			blendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+			blendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
+			blendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+			blendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+			blendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
+		}
 
 		VkPipelineColorBlendStateCreateInfo colourBlend{};
 		colourBlend.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
@@ -103,11 +112,20 @@ namespace imp::gfx::vulkan
 			b.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
 			bindings.push_back(b);
 		}
-		if (info.hasTexture)
+		for (u32 i = 0; i < info.textureCount; ++i)
 		{
 			VkDescriptorSetLayoutBinding b{};
-			b.binding = 1;
+			b.binding = 1 + i;
 			b.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+			b.descriptorCount = 1;
+			b.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+			bindings.push_back(b);
+		}
+		if (info.hasMaterialUniformBuffer)
+		{
+			VkDescriptorSetLayoutBinding b{};
+			b.binding = 1 + info.textureCount;
+			b.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 			b.descriptorCount = 1;
 			b.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 			bindings.push_back(b);
@@ -148,9 +166,18 @@ namespace imp::gfx::vulkan
 
 		VkPipelineRenderingCreateInfo renderingCreateInfo{};
 		renderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
-		renderingCreateInfo.colorAttachmentCount = 1;
-		renderingCreateInfo.pColorAttachmentFormats = &info.colourAttachmentFormat;
+		if (info.colourAttachmentFormat == VK_FORMAT_UNDEFINED)
+		{
+			renderingCreateInfo.colorAttachmentCount = 0;
+			renderingCreateInfo.pColorAttachmentFormats = nullptr;
+		}
+		else
+		{
+			renderingCreateInfo.colorAttachmentCount = 1;
+			renderingCreateInfo.pColorAttachmentFormats = &info.colourAttachmentFormat;
+		}
 		renderingCreateInfo.depthAttachmentFormat = info.depthAttachmentFormat;
+		renderingCreateInfo.stencilAttachmentFormat = VK_FORMAT_UNDEFINED;
 
 		VkGraphicsPipelineCreateInfo pipelineInfo{};
 		pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;

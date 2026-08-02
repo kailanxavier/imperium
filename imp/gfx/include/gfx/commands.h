@@ -1,5 +1,5 @@
 #pragma once
-#include <core/memory/int_types.h>
+#include <core/types/int_types.h>
 
 namespace imp::gfx
 {
@@ -22,6 +22,7 @@ namespace imp::gfx
     {
         IRenderTarget* colourTarget = nullptr;
         IRenderTarget* depthTarget = nullptr;
+        IRenderTarget* resolveTarget = nullptr;
 
         bool clearColour = true;
         ClearColour clearColourValue;

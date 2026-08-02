@@ -21,7 +21,7 @@
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 
-#include <core/memory/int_types.h>
+#include <core/types/int_types.h>
 #include <core/log/log.h>
 
 #include <cstring>
@@ -148,6 +148,19 @@ namespace imp::gfx::vulkan
 			if (gfx::hasFlag(usage, gfx::BufferUsage::Storage)) flags |= VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
 			return flags;
 		}
+
+		VkSampleCountFlagBits toVkSampleCount(gfx::SampleCount count)
+		{
+			switch (count)
+			{
+			case imp::gfx::SampleCount::One: return VK_SAMPLE_COUNT_1_BIT;
+			case imp::gfx::SampleCount::Two: return VK_SAMPLE_COUNT_2_BIT;
+			case imp::gfx::SampleCount::Four: return VK_SAMPLE_COUNT_4_BIT;
+			case imp::gfx::SampleCount::Eight: return VK_SAMPLE_COUNT_8_BIT;
+			case imp::gfx::SampleCount::Sixteen: return VK_SAMPLE_COUNT_16_BIT;
+			default: return VK_SAMPLE_COUNT_1_BIT;
+			}
+		}
 	}
 
 	VulkanDevice::VulkanDevice() = default;
@@ -215,6 +228,7 @@ namespace imp::gfx::vulkan
 		m_descriptorAllocator.reset();
 		m_commands.reset();
 		m_swapchain.reset();
+		m_stagingBuffer.destroy();
 
 		if (m_vmaAllocator != VK_NULL_HANDLE)
 		{
@@ -269,12 +283,18 @@ namespace imp::gfx::vulkan
 
 	std::unique_ptr<gfx::ITexture> VulkanDevice::createTexture(const gfx::TextureDesc& desc)
 	{
+		const u32 resolvedMipLevels = desc.mipLevels == 0
+			? gfx::mipLevelsForSize(desc.width, desc.height)
+			: desc.mipLevels;
+
 		VulkanTextureCreateInfo info{};
 		info.allocator = m_vmaAllocator;
 		info.device = m_device;
 		info.width = desc.width;
 		info.height = desc.height;
+		info.usage = desc.usage;
 		info.format = toVkFormat(desc.format);
+		info.mipLevels = resolvedMipLevels;
 		info.allocationCallbacks = allocationCallbacks();
 
 		auto texture = std::make_unique<VulkanTexture>();
@@ -308,7 +328,7 @@ namespace imp::gfx::vulkan
 			VkImage textureImage = texture->image();
 			u32 width = desc.width, height = desc.height;
 
-			submitOneTimeCommands([textureImage, &staging, width, height](VkCommandBuffer cmd)
+			submitOneTimeCommands([this, textureImage, &staging, width, height, resolvedMipLevels, vkFormat = info.format](VkCommandBuffer cmd)
 				{
 					VkImageSubresourceRange range{};
 					range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -341,24 +361,31 @@ namespace imp::gfx::vulkan
 
 					vkCmdCopyBufferToImage(cmd, staging.handle(), textureImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
-					VkImageMemoryBarrier2 toShaderRead{};
-					toShaderRead.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
-					toShaderRead.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
-					toShaderRead.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
-					toShaderRead.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
-					toShaderRead.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;
-					toShaderRead.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-					toShaderRead.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-					toShaderRead.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-					toShaderRead.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-					toShaderRead.image = textureImage;
-					toShaderRead.subresourceRange = range;
+					if (resolvedMipLevels > 1)
+					{
+						generateMipmaps(cmd, textureImage, vkFormat, width, height, resolvedMipLevels);
+					}
+					else
+					{
+						VkImageMemoryBarrier2 toShaderRead{};
+						toShaderRead.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+						toShaderRead.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+						toShaderRead.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+						toShaderRead.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+						toShaderRead.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;
+						toShaderRead.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+						toShaderRead.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+						toShaderRead.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+						toShaderRead.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+						toShaderRead.image = textureImage;
+						toShaderRead.subresourceRange = range;
 
-					VkDependencyInfo dep2{};
-					dep2.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-					dep2.imageMemoryBarrierCount = 1;
-					dep2.pImageMemoryBarriers = &toShaderRead;
-					vkCmdPipelineBarrier2(cmd, &dep2);
+						VkDependencyInfo dep2{};
+						dep2.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+						dep2.imageMemoryBarrierCount = 1;
+						dep2.pImageMemoryBarriers = &toShaderRead;
+						vkCmdPipelineBarrier2(cmd, &dep2);
+					}
 				});
 			// staging goes out of scope here. safe because submitOneTimeCommands already
 			// blocked until the GPU finished the copy that reads from it.
@@ -367,10 +394,195 @@ namespace imp::gfx::vulkan
 		return texture;
 	}
 
+	std::vector<std::unique_ptr<ITexture>> VulkanDevice::createTextures(const std::vector<gfx::TextureDesc>& descs)
+	{
+		const auto tStart = std::chrono::steady_clock::now();
+
+		std::vector<std::unique_ptr<ITexture>> results;
+		results.reserve(descs.size());
+
+		std::vector<VkDeviceSize> texSizes(descs.size(), 0);
+		std::vector<u32> resolvedMipLevels(descs.size(), 1);
+
+		for (size_t i = 0; i < descs.size(); ++i)
+		{
+			const auto& desc = descs[i];
+
+			resolvedMipLevels[i] = desc.mipLevels == 0
+				? gfx::mipLevelsForSize(desc.width, desc.height)
+				: desc.mipLevels;
+
+			VulkanTextureCreateInfo info{};
+			info.allocator = m_vmaAllocator;
+			info.device = m_device;
+			info.width = desc.width;
+			info.height = desc.height;
+			info.format = toVkFormat(desc.format);
+			info.usage = desc.usage;
+			info.mipLevels = resolvedMipLevels[i];
+			info.allocationCallbacks = allocationCallbacks();
+
+			auto texture = std::make_unique<VulkanTexture>();
+			if (!texture->create(info))
+			{
+				LOG_ERROR("Vulkan", "createTextures(): texture {} creation failed", i);
+				results.push_back(nullptr);
+				continue;
+			}
+
+			if (desc.initialData)
+				texSizes[i] = static_cast<VkDeviceSize>( desc.width ) * desc.height * 4;
+
+			results.push_back(std::move(texture));
+		}
+
+		const auto tImagesCreated = std::chrono::steady_clock::now();
+
+		VkDeviceSize maxSingleTex = 0;
+		for (VkDeviceSize s : texSizes)
+			maxSingleTex = std::max(maxSingleTex, s);
+
+		if (maxSingleTex > 0 && !ensureStagingBuffer(maxSingleTex))
+			return results; // failed to get a staging buffer despite its efforts
+
+		const auto tStagingReady = std::chrono::steady_clock::now();
+
+		u8* stagingBase = static_cast<u8*>( m_stagingBuffer.mappedData() );
+		const VkDeviceSize stagingCapacity = m_stagingBuffer.size();
+
+		float memcpyTotal = 0.f;
+		float submitTotal = 0.f;
+
+		size_t i = 0;
+		while (i < descs.size())
+		{
+			VkDeviceSize chunkUsed = 0;
+			std::vector<std::pair<size_t, VkDeviceSize>> chunkEntries; // (descIndex, stagingOffset)
+			chunkEntries.reserve(descs.size() - i);
+
+			const auto tChunkMemcpyStart = std::chrono::steady_clock::now();
+
+			while (i < descs.size())
+			{
+				if (!descs[i].initialData || !results[i])
+				{
+					++i;
+					continue;
+				}
+
+				const VkDeviceSize size = texSizes[i];
+				if (chunkUsed + size > stagingCapacity)
+				{
+					if (chunkUsed == 0)
+					{
+						// single texture bigger than capacity even after ensureStagingBuffer grew it,
+						// shouldn't happen since we sized for maxSingleTex, but guard anyway
+						LOG_ERROR("Vulkan", "createTextures(): texture {} ({} bytes) exceeds staging capacity ({})",
+							i, size, stagingCapacity);
+						++i;
+						continue;
+					}
+					break; // flush what we have, this texture starts the next chunk
+				}
+
+				std::memcpy(stagingBase + chunkUsed, descs[i].initialData, static_cast<size_t>( size ));
+				chunkEntries.emplace_back(i, chunkUsed);
+				chunkUsed += size;
+				++i;
+			}
+
+			memcpyTotal += std::chrono::duration<float>(std::chrono::steady_clock::now() - tChunkMemcpyStart).count();
+
+			if (chunkEntries.empty())
+				continue;
+
+			const auto tChunkSubmitStart = std::chrono::steady_clock::now();
+
+			submitOneTimeCommands([&](VkCommandBuffer cmd)
+				{
+					for (const auto& [descIndex, offset] : chunkEntries)
+					{
+						auto* vkTexture = static_cast<VulkanTexture*>( results[descIndex].get() );
+						VkImage image = vkTexture->image();
+						const u32 mipLevels = resolvedMipLevels[descIndex];
+
+						VkImageSubresourceRange range{};
+						range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+						range.levelCount = 1;
+						range.layerCount = 1;
+
+						VkImageMemoryBarrier2 toTransferDst{};
+						toTransferDst.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+						toTransferDst.srcStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;
+						toTransferDst.srcAccessMask = VK_ACCESS_2_NONE;
+						toTransferDst.dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+						toTransferDst.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+						toTransferDst.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+						toTransferDst.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+						toTransferDst.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+						toTransferDst.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+						toTransferDst.image = image;
+						toTransferDst.subresourceRange = range;
+
+						VkDependencyInfo dep1{};
+						dep1.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+						dep1.imageMemoryBarrierCount = 1;
+						dep1.pImageMemoryBarriers = &toTransferDst;
+						vkCmdPipelineBarrier2(cmd, &dep1);
+
+						VkBufferImageCopy region{};
+						region.bufferOffset = offset;
+						region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+						region.imageSubresource.layerCount = 1;
+						region.imageExtent = { descs[descIndex].width, descs[descIndex].height, 1 };
+						vkCmdCopyBufferToImage(cmd, m_stagingBuffer.handle(), image,
+							VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+
+						if (mipLevels > 1)
+						{
+							generateMipmaps(cmd, image, vkTexture->vkFormat(),
+								descs[descIndex].width, descs[descIndex].height, mipLevels);
+						}
+						else
+						{
+							VkImageMemoryBarrier2 toShaderRead{};
+							toShaderRead.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+							toShaderRead.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+							toShaderRead.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+							toShaderRead.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+							toShaderRead.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;
+							toShaderRead.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+							toShaderRead.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+							toShaderRead.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+							toShaderRead.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+							toShaderRead.image = image;
+							toShaderRead.subresourceRange = range;
+
+							VkDependencyInfo dep2{};
+							dep2.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+							dep2.imageMemoryBarrierCount = 1;
+							dep2.pImageMemoryBarriers = &toShaderRead;
+							vkCmdPipelineBarrier2(cmd, &dep2);
+						}
+					}
+				});
+
+			submitTotal += std::chrono::duration<float>(std::chrono::steady_clock::now() - tChunkSubmitStart).count();
+		}
+
+		const float imageCreate = std::chrono::duration<float, std::milli>(tImagesCreated - tStart).count();
+		const float stagingReady = std::chrono::duration<float, std::milli>(tStagingReady - tImagesCreated).count();
+
+		LOG_INFO("Vulkan", "createTextures(): {} textures | imageCreate={}ms stagingReady={}ms memcpy={}ms submit+wait={}ms",
+			descs.size(), imageCreate, stagingReady, memcpyTotal, submitTotal);
+
+		return results;
+	}
+
 	std::unique_ptr<gfx::ISampler> VulkanDevice::createSampler(const gfx::SamplerDesc& desc)
 	{
 		auto sampler = std::make_unique<VulkanSampler>();
-		if (!sampler->create(m_device, desc, allocationCallbacks()))
+		if (!sampler->create(m_device, desc, m_anisotropySupported, m_maxSamplerAnisotropy, allocationCallbacks()))
 		{
 			LOG_ERROR("Vulkan", "createSampler failed");
 			return nullptr;
@@ -449,13 +661,16 @@ namespace imp::gfx::vulkan
 		info.depthCompareOp = toVkCompareOp(desc.depthStencilState.depthCompareOp);
 		info.colourAttachmentFormat = toVkFormat(desc.colourFormat);
 		info.depthAttachmentFormat = toVkFormat(desc.depthFormat);
+		info.sampleCount = toVkSampleCount(desc.sampleCount);
 		info.pushConstantSize = desc.pushConstantSize;
 		info.hasUniformBuffer = desc.hasUniformBuffer;
-		info.hasTexture = desc.hasTexture;
+		info.textureCount = desc.textureCount;
+		info.hasMaterialUniformBuffer = desc.hasMaterialUniformBuffer;
 		info.instanceBinding.binding = 1;
 		info.instanceBinding.stride = desc.instanceLayout.stride;
 		info.instanceBinding.inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
 		info.hasInstanceBinding = desc.hasInstanceBinding;
+		info.blendEnable = desc.blendState.blendEnable;
 		info.allocationCallbacks = allocationCallbacks();
 
 		auto pipeline = std::make_unique<VulkanGraphicsPipeline>();
@@ -468,12 +683,41 @@ namespace imp::gfx::vulkan
 		return pipeline;
 	}
 
+	std::unique_ptr<gfx::IRenderTarget> VulkanDevice::createRenderTarget(const gfx::TextureDesc& desc)
+	{
+		VulkanTextureCreateInfo info{};
+		info.allocator = m_vmaAllocator;
+		info.device = m_device;
+		info.width = desc.width;
+		info.height = desc.height;
+		info.format = toVkFormat(desc.format);
+		info.usage = desc.usage;
+		info.sampleCount = toVkSampleCount(desc.sampleCount);
+		info.transient = ( desc.sampleCount != gfx::SampleCount::One )
+			&& !gfx::hasFlag(desc.usage, gfx::TextureUsage::Sampled);
+		info.allocationCallbacks = allocationCallbacks();
+
+		auto texture = std::make_shared<VulkanTexture>();
+		if (!texture->create(info))
+		{
+			LOG_ERROR("Vulkan", "createRenderTarget(): texture creation failed");
+			return nullptr;
+		}
+
+		return std::make_unique<VulkanOwnedColourTarget>(std::move(texture));
+	}
+
 	bool VulkanDevice::initImGui()
 	{
-		VkDescriptorPoolSize poolSizes[] = { { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 64 } };
+		VkDescriptorPoolSize poolSizes[] = {
+			{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 64 },
+			{ VK_DESCRIPTOR_TYPE_SAMPLER, 64 },
+			{ VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 64 },
+		};
 
 		VkDescriptorPoolCreateInfo poolInfo{};
 		poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+		poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
 		poolInfo.maxSets = 64;
 		poolInfo.poolSizeCount = static_cast<u32>( std::size(poolSizes) );
 		poolInfo.pPoolSizes = poolSizes;
@@ -638,8 +882,12 @@ namespace imp::gfx::vulkan
 		VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo{};
 		if (m_validationEnabled)
 		{
+#ifndef NDEBUG
+			createInfo.enabledLayerCount = 1;
+#else
 			createInfo.enabledLayerCount = 0;
-			createInfo.ppEnabledLayerNames = nullptr;
+#endif // !NDEBUG
+			createInfo.ppEnabledLayerNames = kValidationLayers.data();
 
 			debugCreateInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
 			debugCreateInfo.messageSeverity =
@@ -714,6 +962,18 @@ namespace imp::gfx::vulkan
 			{
 				m_physicalDevice = device;
 				m_queueFamilies = findQueueFamilies(device);
+
+				VkPhysicalDeviceFeatures supportedFeatures{};
+				vkGetPhysicalDeviceFeatures(device, &supportedFeatures);
+				m_anisotropySupported = supportedFeatures.samplerAnisotropy == VK_TRUE;
+
+				VkPhysicalDeviceProperties props{};
+				vkGetPhysicalDeviceProperties(device, &props);
+				m_maxSamplerAnisotropy = props.limits.maxSamplerAnisotropy;
+
+				if (!m_anisotropySupported)
+					LOG_WARN("Vulkan", "Device does not support sampler anisotropy");
+
 				return true;
 			}
 		}
@@ -742,7 +1002,7 @@ namespace imp::gfx::vulkan
 			queueCreateInfos.push_back(qci);
 		}
 
-		VkPhysicalDeviceVulkan13Features features13{}; // nothing yet, but I guess shit like ray tracing and dat goes here?
+		VkPhysicalDeviceVulkan13Features features13{};
 		features13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
 		features13.dynamicRendering = VK_TRUE;
 		features13.synchronization2 = VK_TRUE;
@@ -750,6 +1010,7 @@ namespace imp::gfx::vulkan
 		VkPhysicalDeviceFeatures2 features2{};
 		features2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
 		features2.pNext = &features13;
+		features2.features.samplerAnisotropy = m_anisotropySupported ? VK_TRUE : VK_FALSE;
 
 		VkDeviceCreateInfo createInfo{};
 		createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -838,6 +1099,99 @@ namespace imp::gfx::vulkan
 		return true;
 	}
 
+	void VulkanDevice::generateMipmaps(VkCommandBuffer cmd, VkImage image, VkFormat format, u32 width, u32 height, u32 mipLevels)
+	{
+		VkFormatProperties formatProps{};
+		vkGetPhysicalDeviceFormatProperties(m_physicalDevice, format, &formatProps);
+		if (!( formatProps.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT ))
+		{
+			LOG_ERROR("Vulkan", "generateMipmaps(): format does not support linear blitting, skipping mip chain");
+			return;
+		}
+
+		i32 mipWidth = static_cast<i32>( width );
+		i32 mipHeight = static_cast<i32>( height );
+
+		for (u32 i = 1; i < mipLevels; ++i)
+		{
+			VkImageMemoryBarrier2 toSrc{};
+			toSrc.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+			toSrc.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+			toSrc.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+			toSrc.dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+			toSrc.dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT;
+			toSrc.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+			toSrc.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+			toSrc.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+			toSrc.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+			toSrc.image = image;
+			toSrc.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, i - 1, 1, 0, 1 };
+
+			VkDependencyInfo dep1{};
+			dep1.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+			dep1.imageMemoryBarrierCount = 1;
+			dep1.pImageMemoryBarriers = &toSrc;
+			vkCmdPipelineBarrier2(cmd, &dep1);
+
+			const i32 nextWidth = mipWidth > 1 ? mipWidth / 2 : 1;
+			const i32 nextHeight = mipHeight > 1 ? mipHeight / 2 : 1;
+
+			VkImageBlit blit{};
+			blit.srcOffsets[0] = { 0, 0, 0 };
+			blit.srcOffsets[1] = { mipWidth, mipHeight, 1 };
+			blit.srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, i - 1, 0, 1 };
+			blit.dstOffsets[0] = { 0, 0, 0 };
+			blit.dstOffsets[1] = { nextWidth, nextHeight, 1 };
+			blit.dstSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, i, 0, 1 };
+
+			vkCmdBlitImage(cmd,
+				image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+				image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+				1, &blit, VK_FILTER_LINEAR);
+
+			VkImageMemoryBarrier2 toRead{};
+			toRead.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+			toRead.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+			toRead.srcAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT;
+			toRead.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+			toRead.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;
+			toRead.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+			toRead.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			toRead.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+			toRead.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+			toRead.image = image;
+			toRead.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, i - 1, 1, 0, 1 };
+
+			VkDependencyInfo dep2{};
+			dep2.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+			dep2.imageMemoryBarrierCount = 1;
+			dep2.pImageMemoryBarriers = &toRead;
+			vkCmdPipelineBarrier2(cmd, &dep2);
+
+			mipWidth = nextWidth;
+			mipHeight = nextHeight;
+		}
+
+		VkImageMemoryBarrier2 lastToRead{};
+		lastToRead.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+		lastToRead.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+		lastToRead.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+		lastToRead.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+		lastToRead.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;
+		lastToRead.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+		lastToRead.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		lastToRead.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		lastToRead.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		lastToRead.image = image;
+		lastToRead.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, mipLevels - 1, 1, 0, 1 };
+
+		VkDependencyInfo dep3{};
+		dep3.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+		dep3.imageMemoryBarrierCount = 1;
+		dep3.pImageMemoryBarriers = &lastToRead;
+		vkCmdPipelineBarrier2(cmd, &dep3);
+	}
+
 	void VulkanDevice::submitOneTimeCommands(const std::function<void(VkCommandBuffer)>& record)
 	{
 		VkCommandBufferAllocateInfo allocInfo{};
@@ -857,19 +1211,23 @@ namespace imp::gfx::vulkan
 		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 		beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 		vkBeginCommandBuffer(cmd, &beginInfo);
-
 		record(cmd);
-
 		vkEndCommandBuffer(cmd);
+
+		VkFenceCreateInfo fenceInfo{};
+		fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+		VkFence fence = VK_NULL_HANDLE;
+		vkCreateFence(m_device, &fenceInfo, allocationCallbacks(), &fence);
 
 		VkSubmitInfo submitInfo{};
 		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 		submitInfo.commandBufferCount = 1;
 		submitInfo.pCommandBuffers = &cmd;
+		vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, fence);
 
-		vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
-		vkQueueWaitIdle(m_graphicsQueue);
+		vkWaitForFences(m_device, 1, &fence, VK_TRUE, UINT64_MAX);
 
+		vkDestroyFence(m_device, fence, allocationCallbacks());
 		vkFreeCommandBuffers(m_device, m_commands->pool(), 1, &cmd);
 	}
 
@@ -887,7 +1245,7 @@ namespace imp::gfx::vulkan
 			return false;
 
 		file.seekg(0, std::ios::beg);
-		
+
 		outBytes.resize(static_cast<size_t>( size ));
 		return static_cast<bool>( file.read(reinterpret_cast<char*>( outBytes.data() ), size) );
 	}
@@ -952,6 +1310,31 @@ namespace imp::gfx::vulkan
 		if (wantValidation)
 			extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 		return extensions;
+	}
+
+	bool VulkanDevice::ensureStagingBuffer(VkDeviceSize minSize)
+	{
+		constexpr VkDeviceSize kMinStageSize = 256ull * 1024 * 1024;
+		const VkDeviceSize targetSize = std::max(minSize, kMinStageSize);
+
+		if (m_stagingBuffer.handle() != VK_NULL_HANDLE && m_stagingBuffer.size() >= targetSize)
+			return true;
+
+		VulkanBufferCreateInfo stagingInfo{};
+		stagingInfo.allocator = m_vmaAllocator;
+		stagingInfo.size = targetSize;
+		stagingInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+		stagingInfo.hostVisible = true;
+
+		VulkanBuffer newStaging;
+		if (!newStaging.create(stagingInfo))
+		{
+			LOG_ERROR("Vulkan", "ensureStagingBuffer(): failed to (re)create staging buffer of size {}", targetSize);
+			return false;
+		}
+
+		m_stagingBuffer = std::move(newStaging); // old one destroyed here, grows rarely, not per-frame
+		return true;
 	}
 }
 

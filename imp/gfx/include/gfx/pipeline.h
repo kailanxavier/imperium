@@ -1,7 +1,7 @@
 #pragma once
 
 #include "resources.h"
-#include <core/memory/int_types.h>
+#include <core/types/int_types.h>
 #include <string>
 
 namespace imp::gfx
@@ -85,11 +85,15 @@ namespace imp::gfx
         TextureFormat colourFormat = TextureFormat::Unknown;
         TextureFormat depthFormat = TextureFormat::Unknown;
 
+        SampleCount sampleCount = SampleCount::One;
+
         u32 pushConstantSize = 0;
 
         bool hasInstanceBinding = false;
         bool hasUniformBuffer = false;
-        bool hasTexture = false;
+
+        u32 textureCount = 0;
+        bool hasMaterialUniformBuffer = false;
     };
 
     class IPipeline

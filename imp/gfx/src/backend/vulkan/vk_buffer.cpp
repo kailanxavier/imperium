@@ -8,6 +8,44 @@ namespace imp::gfx::vulkan
 		destroy();
 	}
 
+	VulkanBuffer::VulkanBuffer(VulkanBuffer&& other) noexcept
+		: m_allocator(other.m_allocator)
+		, m_buffer(other.m_buffer)
+		, m_allocation(other.m_allocation)
+		, m_mappedData(other.m_mappedData)
+		, m_indexFormat(other.m_indexFormat)
+		, m_size(other.m_size)
+	{
+		other.m_allocator = VK_NULL_HANDLE;
+		other.m_buffer = VK_NULL_HANDLE;
+		other.m_allocation = VK_NULL_HANDLE;
+		other.m_mappedData = nullptr;
+		other.m_size = 0;
+	}
+
+	VulkanBuffer& VulkanBuffer::operator=(VulkanBuffer&& other) noexcept
+	{
+		if (this == &other)
+			return *this;
+
+		destroy(); // release whatever this buffer currently owns first
+
+		m_allocator = other.m_allocator;
+		m_buffer = other.m_buffer;
+		m_allocation = other.m_allocation;
+		m_mappedData = other.m_mappedData;
+		m_indexFormat = other.m_indexFormat;
+		m_size = other.m_size;
+
+		other.m_allocator = VK_NULL_HANDLE;
+		other.m_buffer = VK_NULL_HANDLE;
+		other.m_allocation = VK_NULL_HANDLE;
+		other.m_mappedData = nullptr;
+		other.m_size = 0;
+
+		return *this;
+	}
+
 	bool VulkanBuffer::create(const VulkanBufferCreateInfo& info)
 	{
 		m_allocator = info.allocator;
@@ -29,7 +67,7 @@ namespace imp::gfx::vulkan
 		}
 
 		VmaAllocationInfo resultInfo{};
-		VkResult result = vmaCreateBuffer(m_allocator, &bufferInfo, &allocInfo, 
+		VkResult result = vmaCreateBuffer(m_allocator, &bufferInfo, &allocInfo,
 			&m_buffer, &m_allocation, &resultInfo);
 
 		if (result != VK_SUCCESS)

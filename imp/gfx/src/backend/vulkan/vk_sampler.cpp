@@ -26,10 +26,12 @@ namespace imp::gfx::vulkan
 
 	VulkanSampler::~VulkanSampler() { destroy(); }
 
-	bool VulkanSampler::create(VkDevice device, const gfx::SamplerDesc& desc, const VkAllocationCallbacks* allocationCallbacks)
+	bool VulkanSampler::create(VkDevice device, const gfx::SamplerDesc& desc, bool anisotropySupported, float maxSamplerAnisotropy, const VkAllocationCallbacks* allocationCallbacks)
 	{
 		m_device = device;
 		m_allocationCallbacks = allocationCallbacks;
+
+		const bool wantsAnisotropy = desc.enableAnisotropy && anisotropySupported;
 
 		VkSamplerCreateInfo info{};
 		info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -38,11 +40,14 @@ namespace imp::gfx::vulkan
 		info.addressModeU = toVkAddressMode(desc.addressModeU);
 		info.addressModeV = toVkAddressMode(desc.addressModeV);
 		info.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT; // no 3D/cubemap textures yet, but W MUST be valid
-		info.anisotropyEnable = desc.enableAnisotropy ? VK_TRUE : VK_FALSE;
-		info.maxAnisotropy = desc.enableAnisotropy ? 4.f : 1.f;
+		info.anisotropyEnable = wantsAnisotropy ? VK_TRUE : VK_FALSE;
+		info.maxAnisotropy = wantsAnisotropy ? maxSamplerAnisotropy : 1.f;
 		info.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
 		info.compareEnable = VK_FALSE;
 		info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+		info.minLod = 0.f;
+		info.maxLod = desc.maxLod;
+		info.mipLodBias = 0.f;
 
 		if (vkCreateSampler(m_device, &info, m_allocationCallbacks, &m_sampler) != VK_SUCCESS)
 		{

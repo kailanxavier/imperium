@@ -1,7 +1,7 @@
 #include "vk_shader.h"
 
 #include <core/log/log.h>
-#include <core/memory/int_types.h>
+#include <core/types/int_types.h>
 
 #include <fstream>
 #include <vector>

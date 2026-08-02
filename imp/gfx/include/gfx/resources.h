@@ -1,5 +1,5 @@
 #pragma once
-#include <core/memory/int_types.h>
+#include <core/types/int_types.h>
 
 namespace imp::gfx
 {
@@ -55,8 +55,8 @@ namespace imp::gfx
         RGBA8Unorm,
         RGBA8Srgb,
         BGRA8Srgb,
+        RGBA16Float,
         Depth32Float,
-        // not adding any more for now, but they will go here
     };
 
     enum class TextureUsage : u32
@@ -71,6 +71,20 @@ namespace imp::gfx
         return static_cast<TextureUsage>(static_cast<u32>(a) | static_cast<u32>(b));
     }
 
+    inline bool hasFlag(TextureUsage value, TextureUsage flag)
+    {
+        return ( static_cast<u32>( value ) & static_cast<u32>( flag ) ) != 0;
+    }
+
+    enum class SampleCount : u32
+    {
+        One = 1,
+        Two = 2,
+        Four = 4,
+        Eight = 8,
+        Sixteen = 16,
+    };
+
     struct TextureDesc
     {
         u32 width = 0;
@@ -78,8 +92,8 @@ namespace imp::gfx
         TextureFormat format = TextureFormat::RGBA8Unorm;
         TextureUsage usage = TextureUsage::Sampled;
         u32 mipLevels = 1;
+        SampleCount sampleCount = SampleCount::One;
         const char* debugName = nullptr;
-
         const void* initialData = nullptr;
     };
 
@@ -103,6 +117,7 @@ namespace imp::gfx
         AddressMode addressModeU = AddressMode::Repeat;
         AddressMode addressModeV = AddressMode::Repeat;
         bool enableAnisotropy = false;
+        float maxLod = 1000.f;
     };
 
     class ISampler
@@ -118,6 +133,16 @@ namespace imp::gfx
         virtual u32 width() const = 0;
         virtual u32 height() const = 0;
         virtual TextureFormat format() const = 0;
+        virtual SampleCount sampleCount() const = 0;
+        virtual ITexture* asTexture() { return nullptr; }
     };
+
+    constexpr u32 mipLevelsForSize(u32 width, u32 height)
+    {
+        u32 levels = 1;
+        u32 dim = width > height ? width : height;
+        while (dim > 1) { dim >>= 1; ++levels; }
+        return levels;
+    }
 
 }

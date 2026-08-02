@@ -2,7 +2,7 @@
 
 #include <fwk/layer.h>
 #include <core/memory/heap_allocator.h>
-#include <core/memory/int_types.h>
+#include <core/types/int_types.h>
 #include <chrono>
 
 namespace imp::app
