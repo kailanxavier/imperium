@@ -31,6 +31,9 @@ namespace imp::gfx::vulkan
 		u32 height() const override;
 		gfx::TextureFormat format() const override;
 
+		gfx::SampleCount sampleCount() const override;
+		[[nodiscard]] bool isSampledOwnedDepth() const;
+
 		VkImage image() const;
 		VkImageView imageView() const;
 		VkFormat vkFormat() const;

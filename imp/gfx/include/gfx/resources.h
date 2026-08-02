@@ -76,6 +76,15 @@ namespace imp::gfx
         return ( static_cast<u32>( value ) & static_cast<u32>( flag ) ) != 0;
     }
 
+    enum class SampleCount : u32
+    {
+        One = 1,
+        Two = 2,
+        Four = 4,
+        Eight = 8,
+        Sixteen = 16,
+    };
+
     struct TextureDesc
     {
         u32 width = 0;
@@ -83,8 +92,8 @@ namespace imp::gfx
         TextureFormat format = TextureFormat::RGBA8Unorm;
         TextureUsage usage = TextureUsage::Sampled;
         u32 mipLevels = 1;
+        SampleCount sampleCount = SampleCount::One;
         const char* debugName = nullptr;
-
         const void* initialData = nullptr;
     };
 
@@ -123,6 +132,7 @@ namespace imp::gfx
         virtual u32 width() const = 0;
         virtual u32 height() const = 0;
         virtual TextureFormat format() const = 0;
+        virtual SampleCount sampleCount() const = 0;
         virtual ITexture* asTexture() { return nullptr; }
     };
 

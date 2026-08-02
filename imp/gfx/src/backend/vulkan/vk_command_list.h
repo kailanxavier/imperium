@@ -43,6 +43,7 @@ namespace imp::gfx::vulkan
 
 		VulkanRenderTarget* m_colourTarget = nullptr;
 		VulkanRenderTarget* m_depthTarget = nullptr;
+		VulkanRenderTarget* m_resolveTarget = nullptr;
 
 		VulkanDescriptorAllocator* m_descriptorAllocator = nullptr;
 		u32 m_frameIndex = 0;

@@ -148,6 +148,19 @@ namespace imp::gfx::vulkan
 			if (gfx::hasFlag(usage, gfx::BufferUsage::Storage)) flags |= VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
 			return flags;
 		}
+
+		VkSampleCountFlagBits toVkSampleCount(gfx::SampleCount count)
+		{
+			switch (count)
+			{
+			case imp::gfx::SampleCount::One: return VK_SAMPLE_COUNT_1_BIT;
+			case imp::gfx::SampleCount::Two: return VK_SAMPLE_COUNT_2_BIT;
+			case imp::gfx::SampleCount::Four: return VK_SAMPLE_COUNT_4_BIT;
+			case imp::gfx::SampleCount::Eight: return VK_SAMPLE_COUNT_8_BIT;
+			case imp::gfx::SampleCount::Sixteen: return VK_SAMPLE_COUNT_16_BIT;
+			default: return VK_SAMPLE_COUNT_1_BIT;
+			}
+		}
 	}
 
 	VulkanDevice::VulkanDevice() = default;
@@ -619,6 +632,7 @@ namespace imp::gfx::vulkan
 		info.depthCompareOp = toVkCompareOp(desc.depthStencilState.depthCompareOp);
 		info.colourAttachmentFormat = toVkFormat(desc.colourFormat);
 		info.depthAttachmentFormat = toVkFormat(desc.depthFormat);
+		info.sampleCount = toVkSampleCount(desc.sampleCount);
 		info.pushConstantSize = desc.pushConstantSize;
 		info.hasUniformBuffer = desc.hasUniformBuffer;
 		info.textureCount = desc.textureCount;
@@ -649,6 +663,9 @@ namespace imp::gfx::vulkan
 		info.height = desc.height;
 		info.format = toVkFormat(desc.format);
 		info.usage = desc.usage;
+		info.sampleCount = toVkSampleCount(desc.sampleCount);
+		info.transient = ( desc.sampleCount != gfx::SampleCount::One )
+			&& !gfx::hasFlag(desc.usage, gfx::TextureUsage::Sampled);
 		info.allocationCallbacks = allocationCallbacks();
 
 		auto texture = std::make_shared<VulkanTexture>();
@@ -663,10 +680,15 @@ namespace imp::gfx::vulkan
 
 	bool VulkanDevice::initImGui()
 	{
-		VkDescriptorPoolSize poolSizes[] = { { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 64 } };
+		VkDescriptorPoolSize poolSizes[] = { 
+			{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 64 },
+			{ VK_DESCRIPTOR_TYPE_SAMPLER, 64 }, 
+			{ VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 64 },
+		};
 
 		VkDescriptorPoolCreateInfo poolInfo{};
 		poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+		poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
 		poolInfo.maxSets = 64;
 		poolInfo.poolSizeCount = static_cast<u32>( std::size(poolSizes) );
 		poolInfo.pPoolSizes = poolSizes;

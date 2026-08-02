@@ -85,6 +85,8 @@ namespace imp::gfx
         TextureFormat colourFormat = TextureFormat::Unknown;
         TextureFormat depthFormat = TextureFormat::Unknown;
 
+        SampleCount sampleCount = SampleCount::One;
+
         u32 pushConstantSize = 0;
 
         bool hasInstanceBinding = false;

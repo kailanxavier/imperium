@@ -77,7 +77,12 @@ namespace imp::app
 		std::unique_ptr<gfx::IBuffer> m_lightBuffer;
 		std::unique_ptr<gfx::IBuffer> m_instanceBuffer;
 
+		static constexpr gfx::SampleCount kMsaaSampleCount = gfx::SampleCount::Four;
+
 		std::unique_ptr<gfx::IRenderTarget> m_hdrTarget;
+		std::unique_ptr<gfx::IRenderTarget> m_hdrDepthTarget;
+		std::unique_ptr<gfx::IRenderTarget> m_hdrResolveTarget;
+
 		std::unique_ptr<gfx::IShader> m_tonemapVertShader;
 		std::unique_ptr<gfx::IShader> m_tonemapFragShader;
 		std::unique_ptr<gfx::IPipeline> m_tonemapPipeline;

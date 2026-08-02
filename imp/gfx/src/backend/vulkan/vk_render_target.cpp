@@ -32,6 +32,19 @@ namespace imp::gfx::vulkan
 		}
 	}
 
+	gfx::SampleCount toGfxSampleCount(VkSampleCountFlagBits count)
+	{
+		switch (count)
+		{
+		case VK_SAMPLE_COUNT_1_BIT: return gfx::SampleCount::One;
+		case VK_SAMPLE_COUNT_2_BIT: return gfx::SampleCount::Two;
+		case VK_SAMPLE_COUNT_4_BIT: return gfx::SampleCount::Four;
+		case VK_SAMPLE_COUNT_8_BIT: return gfx::SampleCount::Eight;
+		case VK_SAMPLE_COUNT_16_BIT: return gfx::SampleCount::Sixteen;
+		default: return gfx::SampleCount::One;
+		}
+	}
+
 	u32 VulkanRenderTarget::width() const 
 	{ 
 		if (m_kind == VulkanRenderTargetKind::OwnedTexture) return m_ownedTexture->width();
@@ -51,6 +64,19 @@ namespace imp::gfx::vulkan
 		return toGfxFormat(m_kind == VulkanRenderTargetKind::Colour 
 			? m_swapchain->imageFormat() 
 			: m_swapchain->depthFormat());
+	}
+
+	gfx::SampleCount VulkanRenderTarget::sampleCount() const
+	{
+		if (m_kind == VulkanRenderTargetKind::OwnedTexture)
+			return toGfxSampleCount(m_ownedTexture->sampleCount());
+
+		return gfx::SampleCount::One;
+	}
+
+	bool VulkanRenderTarget::isSampledOwnedDepth() const
+	{
+		return m_kind == VulkanRenderTargetKind::OwnedTexture && m_ownedTexture->isSampled();
 	}
 
 	VkImage VulkanRenderTarget::image() const

@@ -22,6 +22,7 @@ namespace imp::gfx
     {
         IRenderTarget* colourTarget = nullptr;
         IRenderTarget* depthTarget = nullptr;
+        IRenderTarget* resolveTarget = nullptr;
 
         bool clearColour = true;
         ClearColour clearColourValue;

@@ -15,6 +15,8 @@ namespace imp::gfx::vulkan
 		u32 height = 0;
 		VkFormat format = VK_FORMAT_R8G8B8A8_UNORM;
 		gfx::TextureUsage usage = gfx::TextureUsage::Sampled;
+		VkSampleCountFlagBits sampleCount = VK_SAMPLE_COUNT_1_BIT;
+		bool transient = false;
 
 		const VkAllocationCallbacks* allocationCallbacks = nullptr;
 	};
@@ -35,6 +37,9 @@ namespace imp::gfx::vulkan
 		[[nodiscard]] u32 height() const override { return m_height; }
 		[[nodiscard]] gfx::TextureFormat format() const override;
 
+		[[nodiscard]] VkSampleCountFlagBits sampleCount() const { return m_sampleCount; }
+		[[nodiscard]] bool isSampled() const { return m_isSampled; }
+
 		[[nodiscard]] VkImage image() const { return m_image; }
 		[[nodiscard]] VkImageView imageView() const { return m_imageView; }
 		[[nodiscard]] VkFormat vkFormat() const { return m_vkFormat; }
@@ -44,6 +49,9 @@ namespace imp::gfx::vulkan
 		VmaAllocator m_allocator = VK_NULL_HANDLE;
 		VkDevice m_device = VK_NULL_HANDLE;
 		const VkAllocationCallbacks* m_allocationCallbacks = nullptr;
+
+		VkSampleCountFlagBits m_sampleCount = VK_SAMPLE_COUNT_1_BIT;
+		bool m_isSampled = false;
 
 		VkImage m_image = VK_NULL_HANDLE;
 		VmaAllocation m_allocation = VK_NULL_HANDLE;

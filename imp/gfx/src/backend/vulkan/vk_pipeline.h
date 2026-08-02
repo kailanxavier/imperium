@@ -26,6 +26,7 @@ namespace imp::gfx::vulkan
 
 		VkFormat colourAttachmentFormat = VK_FORMAT_UNDEFINED;
 		VkFormat depthAttachmentFormat = VK_FORMAT_UNDEFINED;
+		VkSampleCountFlagBits sampleCount = VK_SAMPLE_COUNT_1_BIT;
 
 		u32 pushConstantSize = 0;
 

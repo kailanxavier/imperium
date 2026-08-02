@@ -15,14 +15,20 @@ namespace imp::gfx::vulkan
 		m_width = info.width;
 		m_height = info.height;
 		m_vkFormat = info.format;
+		m_sampleCount = info.sampleCount;
+		m_isSampled = gfx::hasFlag(info.usage, gfx::TextureUsage::Sampled);
 
-		VkImageUsageFlags usageFlags = VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+		VkImageUsageFlags usageFlags = 0;
+		if (!info.transient)
+			usageFlags |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 		if (gfx::hasFlag(info.usage, gfx::TextureUsage::Sampled))
 			usageFlags |= VK_IMAGE_USAGE_SAMPLED_BIT;
 		if (gfx::hasFlag(info.usage, gfx::TextureUsage::RenderTarget))
 			usageFlags |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 		if (gfx::hasFlag(info.usage, gfx::TextureUsage::DepthStencil))
 			usageFlags |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+		if (info.transient)
+			usageFlags |= VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT;
 
 		VkImageCreateInfo imageInfo{};
 		imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -34,11 +40,14 @@ namespace imp::gfx::vulkan
 		imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
 		imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 		imageInfo.usage = usageFlags;
-		imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+		imageInfo.samples = info.sampleCount;
 		imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
 		VmaAllocationCreateInfo allocInfo{};
 		allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
+
+		if (info.transient)
+			allocInfo.preferredFlags = VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT;
 
 		if (vmaCreateImage(m_allocator, &imageInfo, &allocInfo, &m_image, &m_allocation, nullptr) != VK_SUCCESS)
 		{

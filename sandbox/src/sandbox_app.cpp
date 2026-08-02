@@ -97,7 +97,8 @@ namespace imp::app
 		meshPipelineDesc.depthStencilState.depthCompareOp = gfx::CompareOp::Less;
 		meshPipelineDesc.blendState.blendEnable = false;
 		meshPipelineDesc.colourFormat = m_hdrTarget->format();
-		meshPipelineDesc.depthFormat = ctx.gfx.depthBuffer() ? ctx.gfx.depthBuffer()->format() : gfx::TextureFormat::Unknown;
+		meshPipelineDesc.depthFormat = m_hdrDepthTarget->format();
+		meshPipelineDesc.sampleCount = kMsaaSampleCount;
 		meshPipelineDesc.pushConstantSize = sizeof(gfx::MeshPushConstants);
 		meshPipelineDesc.hasUniformBuffer = true;
 		meshPipelineDesc.hasInstanceBinding = true;
@@ -110,7 +111,7 @@ namespace imp::app
 		blendPipelineDesc.blendState.blendEnable = true;
 		blendPipelineDesc.depthStencilState.depthTestEnable = true;
 		blendPipelineDesc.depthStencilState.depthWriteEnable = false;
-		blendPipelineDesc.colourFormat = gfx::TextureFormat::RGBA16Float;
+		blendPipelineDesc.colourFormat = m_hdrTarget->format();
 		m_blendPipeline = ctx.gfx.createPipeline(blendPipelineDesc);
 
 		gfx::PipelineDesc tonemapPipelineDesc;
@@ -176,7 +177,7 @@ namespace imp::app
 		m_lightBuffer = ctx.gfx.createBuffer(lightUboDesc);
 
 		if (!m_pipeline || !m_blendPipeline || !m_hdrTarget || !m_tonemapPipeline || !m_sampler 
-			|| !m_lightBuffer || !m_environmentHandle.isValid() || !m_shadowPipeline || !m_shadowTarget || !m_shadowSampler)
+			|| !m_lightBuffer || !m_environmentHandle.isValid() || !m_shadowPipeline || !m_shadowTarget || !m_shadowSampler || !m_hdrDepthTarget)
 		{
 			LOG_FATAL("Sandbox", "Failed to create pipelines/sampler/light buffer, or model failed to load");
 			return false;
@@ -282,7 +283,8 @@ namespace imp::app
 
 		gfx::RenderPassDesc hdrPassDesc{};
 		hdrPassDesc.colourTarget = m_hdrTarget.get();
-		hdrPassDesc.depthTarget = ctx.gfx.depthBuffer();
+		hdrPassDesc.resolveTarget = m_hdrResolveTarget.get();
+		hdrPassDesc.depthTarget = m_hdrDepthTarget.get();
 		hdrPassDesc.clearColourValue = { 0.023153f, 0.000911f, 0.004391f, 1.f };
 		hdrPassDesc.clearDepthValue = 1.f;
 		cmd.beginRenderPass(hdrPassDesc);
@@ -319,7 +321,7 @@ namespace imp::app
 		cmd.beginRenderPass(tonemapPassDesc);
 
 		cmd.bindPipeline(*m_tonemapPipeline);
-		cmd.bindTexture(*m_hdrTarget->asTexture(), *m_sampler, 1);
+		cmd.bindTexture(*m_hdrResolveTarget->asTexture(), *m_sampler, 1);
 		cmd.draw(3, 1);
 
 		cmd.endRenderPass();
@@ -343,6 +345,8 @@ namespace imp::app
 		m_tonemapPipeline.reset();
 		m_blendPipeline.reset();
 		m_hdrTarget.reset();
+		m_hdrDepthTarget.reset();
+		m_hdrResolveTarget.reset();
 		m_tonemapFragShader.reset();
 		m_tonemapVertShader.reset();
 		m_meshFragShader.reset();
@@ -420,11 +424,33 @@ namespace imp::app
 		hdrDesc.width = w;
 		hdrDesc.height = h;
 		hdrDesc.format = gfx::TextureFormat::RGBA16Float;
-		hdrDesc.usage = gfx::TextureUsage::Sampled | gfx::TextureUsage::RenderTarget;
+		hdrDesc.usage = gfx::TextureUsage::RenderTarget;
+		hdrDesc.sampleCount = kMsaaSampleCount;
 		auto newTarget = ctx.gfx.createRenderTarget(hdrDesc);
-		if (newTarget)
+
+		gfx::TextureDesc resolveDesc;
+		resolveDesc.width = w;
+		resolveDesc.height = h;
+		resolveDesc.format = gfx::TextureFormat::RGBA16Float;
+		resolveDesc.usage = gfx::TextureUsage::Sampled | gfx::TextureUsage::RenderTarget;
+		resolveDesc.sampleCount = gfx::SampleCount::One;
+		auto newResolveTarget = ctx.gfx.createRenderTarget(resolveDesc);
+
+		gfx::TextureDesc hdrDepthDesc;
+		hdrDepthDesc.width = w;
+		hdrDepthDesc.height = h;
+		hdrDepthDesc.format = ctx.gfx.depthBuffer() ? ctx.gfx.depthBuffer()->format() : gfx::TextureFormat::Depth32Float;
+		hdrDepthDesc.usage = gfx::TextureUsage::DepthStencil; // never sampled
+		hdrDepthDesc.sampleCount = kMsaaSampleCount;
+		auto newDepthTarget = ctx.gfx.createRenderTarget(hdrDepthDesc);
+
+		if (newTarget && newResolveTarget && newDepthTarget)
+		{
 			m_hdrTarget = std::move(newTarget);
+			m_hdrResolveTarget = std::move(newResolveTarget);
+			m_hdrDepthTarget = std::move(newDepthTarget);
+		}
 		else
-			LOG_ERROR("Sandbox", "Failed to recreate HDR target at {}x{}", w, h);
+			LOG_ERROR("Sandbox", "Failed to recreate HDR/resolve/depth targets at {}x{}", w, h);
 	}
 }

@@ -29,6 +29,7 @@ namespace imp::gfx::vulkan
 	{
 		auto* colourTarget = static_cast<VulkanRenderTarget*>( desc.colourTarget );
 		auto* depthTarget = static_cast<VulkanRenderTarget*>( desc.depthTarget );
+		auto* resolveTarget = static_cast<VulkanRenderTarget*>( desc.resolveTarget );
 
 		if (colourTarget)
 		{
@@ -55,6 +56,33 @@ namespace imp::gfx::vulkan
 			toColourDep.imageMemoryBarrierCount = 1;
 			toColourDep.pImageMemoryBarriers = &toColourAttachment;
 			vkCmdPipelineBarrier2(m_cmd, &toColourDep);
+		}
+
+		if (resolveTarget)
+		{
+			VkImageSubresourceRange resolveRange{};
+			resolveRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			resolveRange.levelCount = 1;
+			resolveRange.layerCount = 1;
+
+			VkImageMemoryBarrier2 toResolveAttachment{};
+			toResolveAttachment.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+			toResolveAttachment.srcStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;
+			toResolveAttachment.srcAccessMask = VK_ACCESS_2_NONE;
+			toResolveAttachment.dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+			toResolveAttachment.dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+			toResolveAttachment.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+			toResolveAttachment.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+			toResolveAttachment.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+			toResolveAttachment.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+			toResolveAttachment.image = resolveTarget->image();
+			toResolveAttachment.subresourceRange = resolveRange;
+
+			VkDependencyInfo dep{};
+			dep.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+			dep.imageMemoryBarrierCount = 1;
+			dep.pImageMemoryBarriers = &toResolveAttachment;
+			vkCmdPipelineBarrier2(m_cmd, &dep);
 		}
 
 		if (depthTarget)
@@ -95,6 +123,13 @@ namespace imp::gfx::vulkan
 			colourAttachment.clearValue.color = {
 				{ desc.clearColourValue.r, desc.clearColourValue.g, desc.clearColourValue.b, desc.clearColourValue.a }
 			};
+
+			if (resolveTarget)
+			{
+				colourAttachment.resolveMode = VK_RESOLVE_MODE_AVERAGE_BIT;
+				colourAttachment.resolveImageView = resolveTarget->imageView();
+				colourAttachment.resolveImageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+			}
 		}
 
 		VkRenderingAttachmentInfo depthAttachment{};
@@ -135,6 +170,7 @@ namespace imp::gfx::vulkan
 
 		m_colourTarget = colourTarget;
 		m_depthTarget = depthTarget;
+		m_resolveTarget = resolveTarget;
 	}
 
 	void VulkanCommandList::endRenderPass()
@@ -143,86 +179,125 @@ namespace imp::gfx::vulkan
 
 		if (m_colourTarget)
 		{
-			VkImageSubresourceRange colourRange{};
-			colourRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-			colourRange.levelCount = 1;
-			colourRange.layerCount = 1;
-
-			const bool isSwapchainTarget = ( m_colourTarget->kind() != VulkanRenderTargetKind::OwnedTexture );
-
-			VkImageMemoryBarrier2 toNext{};
-			toNext.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
-			toNext.srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
-			toNext.srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
-			toNext.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-			toNext.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-			toNext.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-			toNext.image = m_colourTarget->image();
-			toNext.subresourceRange = colourRange;
-
-			if (isSwapchainTarget)
+			if (!m_resolveTarget)
 			{
-				toNext.dstStageMask = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT;
-				toNext.dstAccessMask = VK_ACCESS_2_NONE;
-				toNext.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+				VkImageSubresourceRange colourRange{};
+				colourRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+				colourRange.levelCount = 1;
+				colourRange.layerCount = 1;
+
+				const bool isSwapchainTarget = ( m_colourTarget->kind() != VulkanRenderTargetKind::OwnedTexture );
+
+				VkImageMemoryBarrier2 toNext{};
+				toNext.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+				toNext.srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+				toNext.srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+				toNext.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+				toNext.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+				toNext.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+				toNext.image = m_colourTarget->image();
+				toNext.subresourceRange = colourRange;
+
+				if (isSwapchainTarget)
+				{
+					toNext.dstStageMask = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT;
+					toNext.dstAccessMask = VK_ACCESS_2_NONE;
+					toNext.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+				}
+				else
+				{
+					toNext.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+					toNext.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;
+					toNext.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+				}
+
+				VkDependencyInfo dep{};
+				dep.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+				dep.imageMemoryBarrierCount = 1;
+				dep.pImageMemoryBarriers = &toNext;
+				vkCmdPipelineBarrier2(m_cmd, &dep);
 			}
-			else
-			{
-				toNext.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
-				toNext.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;
-				toNext.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-			}
+		}
+
+		if (m_resolveTarget)
+		{
+			VkImageSubresourceRange resolveRange{};
+			resolveRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			resolveRange.levelCount = 1;
+			resolveRange.layerCount = 1;
+
+			VkImageMemoryBarrier2 toShaderRead{};
+			toShaderRead.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+			toShaderRead.srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+			toShaderRead.srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+			toShaderRead.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+			toShaderRead.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;
+			toShaderRead.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+			toShaderRead.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			toShaderRead.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+			toShaderRead.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+			toShaderRead.image = m_resolveTarget->image();
+			toShaderRead.subresourceRange = resolveRange;
 
 			VkDependencyInfo dep{};
 			dep.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 			dep.imageMemoryBarrierCount = 1;
-			dep.pImageMemoryBarriers = &toNext;
+			dep.pImageMemoryBarriers = &toShaderRead;
 			vkCmdPipelineBarrier2(m_cmd, &dep);
 		}
 
 		if (m_depthTarget)
 		{
-			VkImageSubresourceRange depthRange{};
-			depthRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-			depthRange.levelCount = 1;
-			depthRange.layerCount = 1;
-
 			const bool isSwapchainDepth = (m_depthTarget->kind() != VulkanRenderTargetKind::OwnedTexture);
+			const bool willBeSampled = m_depthTarget->isSampledOwnedDepth();
 
-			VkImageMemoryBarrier2 toNext{};
-			toNext.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
-			toNext.srcStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
-			toNext.srcAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-			toNext.oldLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
-			toNext.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-			toNext.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-			toNext.image = m_depthTarget->image();
-			toNext.subresourceRange = depthRange;
-
-			if (isSwapchainDepth)
+			if (!isSwapchainDepth && !willBeSampled)
 			{
-				// main scene depth buffer isn't sampled
-				toNext.dstStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
-				toNext.dstAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-				toNext.newLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+
 			}
 			else
 			{
-				// owned depth texture, about to be sampled in the fragment shader
-				toNext.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
-				toNext.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;
-				toNext.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-			}
+				VkImageSubresourceRange depthRange{};
+				depthRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+				depthRange.levelCount = 1;
+				depthRange.layerCount = 1;
 
-			VkDependencyInfo dep{};
-			dep.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-			dep.imageMemoryBarrierCount = 1;
-			dep.pImageMemoryBarriers = &toNext;
-			vkCmdPipelineBarrier2(m_cmd, &dep);
+				VkImageMemoryBarrier2 toNext{};
+				toNext.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+				toNext.srcStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
+				toNext.srcAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+				toNext.oldLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+				toNext.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+				toNext.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+				toNext.image = m_depthTarget->image();
+				toNext.subresourceRange = depthRange;
+
+				if (isSwapchainDepth)
+				{
+					// main scene depth buffer isn't sampled
+					toNext.dstStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
+					toNext.dstAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+					toNext.newLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+				}
+				else
+				{
+					// owned depth texture, about to be sampled in the fragment shader
+					toNext.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+					toNext.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;
+					toNext.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+				}
+
+				VkDependencyInfo dep{};
+				dep.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+				dep.imageMemoryBarrierCount = 1;
+				dep.pImageMemoryBarriers = &toNext;
+				vkCmdPipelineBarrier2(m_cmd, &dep);
+			}
 		}
 
 		m_depthTarget = nullptr;
 		m_colourTarget = nullptr;
+		m_resolveTarget = nullptr;
 	}
 
 	void VulkanCommandList::bindPipeline(gfx::IPipeline& pipeline)
