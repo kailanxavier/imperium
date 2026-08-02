@@ -114,7 +114,7 @@ vec3 getShadowCoords(vec3 worldPos)
     return coords;
 }
 
-float findBlocker(vec3 coords)
+float findBlocker(vec3 coords, float bias)
 {
     float searchRadius = 4.0 / lightData.shadowMapSize;
 
@@ -135,7 +135,7 @@ float findBlocker(vec3 coords)
                     coords.xy + offset
                 ).r;
 
-            if(depth < coords.z)
+            if(depth < coords.z - bias)
             {
                 blockerSum += depth;
                 blockers++;
@@ -159,9 +159,7 @@ float calculatePenumbra(
         / blocker;
 }
 
-float filterPCF(
-    vec3 coords,
-    float radius)
+float filterPCF(vec3 coords, float radius, float bias)
 {
     float shadow = 0.0;
 
@@ -183,11 +181,7 @@ float filterPCF(
                     coords.xy + offset
                 ).r;
 
-            shadow +=
-                coords.z > depth
-                ? 0.0
-                : 1.0;
-
+            shadow += coords.z - bias > depth ? 0.0 : 1.0;
             samples++;
         }
     }
@@ -195,13 +189,12 @@ float filterPCF(
     return shadow / float(samples);
 }
 
-float shadowPCSS(vec3 coords)
+float shadowPCSS(vec3 coords, float bias)
 {
-    if(coords.z > 1.0)
+    if (coords.z > 1.0 || coords.x < 0.0 || coords.x > 1.0 || coords.y < 0.0 || coords.y > 1.0)
         return 1.0;
 
-    float blocker =
-        findBlocker(coords);
+    float blocker = findBlocker(coords, bias);
 
     // fully lit
     if(blocker < 0.0)
@@ -222,7 +215,8 @@ float shadowPCSS(vec3 coords)
 
     return filterPCF(
         coords,
-        filterRadius
+        filterRadius,
+        bias
     );
 }
 
@@ -272,9 +266,9 @@ void main()
         vec3 kD = (vec3(1.0) - F) * (1.0 - metallic);
         vec3 diffuse = kD * albedo / PI;
 
-        //float shadowFactor = isPoint ? 1.0 : sampleShadow(inPositionWS, N, L);
+        float bias = max(0.0025 * (1.0 - dot(N, L)), 0.0005);
         vec3 shadowCoords = getShadowCoords(inPositionWS);
-        float shadowFactor = isPoint ? 1.0 : shadowPCSS(shadowCoords);
+        float shadowFactor = isPoint ? 1.0 : shadowPCSS(shadowCoords, bias);
         result += (diffuse + specular) * radiance * NdotL * shadowFactor;
     }
 
