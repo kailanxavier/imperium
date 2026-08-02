@@ -440,6 +440,7 @@ namespace imp::gfx
 			desc.height = decoded[i].height;
 			desc.format = req.isSrgb ? TextureFormat::RGBA8Srgb : TextureFormat::RGBA8Unorm;
 			desc.usage = TextureUsage::Sampled;
+			desc.mipLevels = 0;
 			desc.initialData = decoded[i].pixels.data();
 
 			uploadDescs.push_back(desc);

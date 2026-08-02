@@ -14,7 +14,7 @@ namespace imp::gfx::vulkan
 		VulkanSampler(const VulkanSampler&) = delete;
 		VulkanSampler& operator=(const VulkanSampler&) = delete;
 
-		bool create(VkDevice device, const gfx::SamplerDesc& desc, const VkAllocationCallbacks* allocationCallbacks = nullptr);
+		bool create(VkDevice device, const gfx::SamplerDesc& desc, bool anisotropySupported, float maxSamplerAnisotropy, const VkAllocationCallbacks* allocationCallbacks = nullptr);
 		void destroy();
 
 		[[nodiscard]] VkSampler handle() const { return m_sampler; }

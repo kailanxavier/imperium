@@ -117,6 +117,7 @@ namespace imp::gfx
         AddressMode addressModeU = AddressMode::Repeat;
         AddressMode addressModeV = AddressMode::Repeat;
         bool enableAnisotropy = false;
+        float maxLod = 1000.f;
     };
 
     class ISampler
@@ -135,5 +136,13 @@ namespace imp::gfx
         virtual SampleCount sampleCount() const = 0;
         virtual ITexture* asTexture() { return nullptr; }
     };
+
+    constexpr u32 mipLevelsForSize(u32 width, u32 height)
+    {
+        u32 levels = 1;
+        u32 dim = width > height ? width : height;
+        while (dim > 1) { dim >>= 1; ++levels; }
+        return levels;
+    }
 
 }

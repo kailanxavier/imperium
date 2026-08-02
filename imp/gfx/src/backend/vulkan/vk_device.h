@@ -80,6 +80,8 @@ namespace imp::gfx::vulkan
 		bool createCommandsInternal();
 		bool createDescriptorAllocatorInternal();
 
+		void generateMipmaps(VkCommandBuffer cmd, VkImage image, VkFormat format, u32 width, u32 height, u32 mipLevels);
+
 		void submitOneTimeCommands(const std::function<void(VkCommandBuffer)>& record);
 		bool readFileBytes(const std::string& path, std::vector<u8>& outBytes) const;
 
@@ -128,6 +130,9 @@ namespace imp::gfx::vulkan
 		u32 m_height = 0;
 		bool m_minimised = false;
 		bool m_frameActive = false;
+
+		bool m_anisotropySupported = false;
+		float m_maxSamplerAnisotropy = 1.f;
 
 		const fs::VirtualFileSystem* m_vfs = nullptr;
 	};

@@ -274,7 +274,7 @@ void main()
 
         //float shadowFactor = isPoint ? 1.0 : sampleShadow(inPositionWS, N, L);
         vec3 shadowCoords = getShadowCoords(inPositionWS);
-        float shadowFactor = shadowPCSS(shadowCoords);
+        float shadowFactor = isPoint ? 1.0 : shadowPCSS(shadowCoords);
         result += (diffuse + specular) * radiance * NdotL * shadowFactor;
     }
 

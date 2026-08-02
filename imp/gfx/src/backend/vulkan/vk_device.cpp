@@ -229,7 +229,7 @@ namespace imp::gfx::vulkan
 		m_commands.reset();
 		m_swapchain.reset();
 		m_stagingBuffer.destroy();
-		
+
 		if (m_vmaAllocator != VK_NULL_HANDLE)
 		{
 			vmaDestroyAllocator(m_vmaAllocator);
@@ -283,6 +283,10 @@ namespace imp::gfx::vulkan
 
 	std::unique_ptr<gfx::ITexture> VulkanDevice::createTexture(const gfx::TextureDesc& desc)
 	{
+		const u32 resolvedMipLevels = desc.mipLevels == 0
+			? gfx::mipLevelsForSize(desc.width, desc.height)
+			: desc.mipLevels;
+
 		VulkanTextureCreateInfo info{};
 		info.allocator = m_vmaAllocator;
 		info.device = m_device;
@@ -290,6 +294,7 @@ namespace imp::gfx::vulkan
 		info.height = desc.height;
 		info.usage = desc.usage;
 		info.format = toVkFormat(desc.format);
+		info.mipLevels = resolvedMipLevels;
 		info.allocationCallbacks = allocationCallbacks();
 
 		auto texture = std::make_unique<VulkanTexture>();
@@ -323,7 +328,7 @@ namespace imp::gfx::vulkan
 			VkImage textureImage = texture->image();
 			u32 width = desc.width, height = desc.height;
 
-			submitOneTimeCommands([textureImage, &staging, width, height](VkCommandBuffer cmd)
+			submitOneTimeCommands([this, textureImage, &staging, width, height, resolvedMipLevels, vkFormat = info.format](VkCommandBuffer cmd)
 				{
 					VkImageSubresourceRange range{};
 					range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -356,24 +361,31 @@ namespace imp::gfx::vulkan
 
 					vkCmdCopyBufferToImage(cmd, staging.handle(), textureImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
-					VkImageMemoryBarrier2 toShaderRead{};
-					toShaderRead.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
-					toShaderRead.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
-					toShaderRead.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
-					toShaderRead.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
-					toShaderRead.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;
-					toShaderRead.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-					toShaderRead.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-					toShaderRead.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-					toShaderRead.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-					toShaderRead.image = textureImage;
-					toShaderRead.subresourceRange = range;
+					if (resolvedMipLevels > 1)
+					{
+						generateMipmaps(cmd, textureImage, vkFormat, width, height, resolvedMipLevels);
+					}
+					else
+					{
+						VkImageMemoryBarrier2 toShaderRead{};
+						toShaderRead.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+						toShaderRead.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+						toShaderRead.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+						toShaderRead.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+						toShaderRead.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;
+						toShaderRead.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+						toShaderRead.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+						toShaderRead.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+						toShaderRead.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+						toShaderRead.image = textureImage;
+						toShaderRead.subresourceRange = range;
 
-					VkDependencyInfo dep2{};
-					dep2.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-					dep2.imageMemoryBarrierCount = 1;
-					dep2.pImageMemoryBarriers = &toShaderRead;
-					vkCmdPipelineBarrier2(cmd, &dep2);
+						VkDependencyInfo dep2{};
+						dep2.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+						dep2.imageMemoryBarrierCount = 1;
+						dep2.pImageMemoryBarriers = &toShaderRead;
+						vkCmdPipelineBarrier2(cmd, &dep2);
+					}
 				});
 			// staging goes out of scope here. safe because submitOneTimeCommands already
 			// blocked until the GPU finished the copy that reads from it.
@@ -390,9 +402,15 @@ namespace imp::gfx::vulkan
 		results.reserve(descs.size());
 
 		std::vector<VkDeviceSize> texSizes(descs.size(), 0);
+		std::vector<u32> resolvedMipLevels(descs.size(), 1);
+
 		for (size_t i = 0; i < descs.size(); ++i)
 		{
 			const auto& desc = descs[i];
+
+			resolvedMipLevels[i] = desc.mipLevels == 0
+				? gfx::mipLevelsForSize(desc.width, desc.height)
+				: desc.mipLevels;
 
 			VulkanTextureCreateInfo info{};
 			info.allocator = m_vmaAllocator;
@@ -400,6 +418,8 @@ namespace imp::gfx::vulkan
 			info.width = desc.width;
 			info.height = desc.height;
 			info.format = toVkFormat(desc.format);
+			info.usage = desc.usage;
+			info.mipLevels = resolvedMipLevels[i];
 			info.allocationCallbacks = allocationCallbacks();
 
 			auto texture = std::make_unique<VulkanTexture>();
@@ -484,6 +504,7 @@ namespace imp::gfx::vulkan
 					{
 						auto* vkTexture = static_cast<VulkanTexture*>( results[descIndex].get() );
 						VkImage image = vkTexture->image();
+						const u32 mipLevels = resolvedMipLevels[descIndex];
 
 						VkImageSubresourceRange range{};
 						range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -517,24 +538,32 @@ namespace imp::gfx::vulkan
 						vkCmdCopyBufferToImage(cmd, m_stagingBuffer.handle(), image,
 							VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
-						VkImageMemoryBarrier2 toShaderRead{};
-						toShaderRead.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
-						toShaderRead.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
-						toShaderRead.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
-						toShaderRead.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
-						toShaderRead.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;
-						toShaderRead.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-						toShaderRead.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-						toShaderRead.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-						toShaderRead.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-						toShaderRead.image = image;
-						toShaderRead.subresourceRange = range;
+						if (mipLevels > 1)
+						{
+							generateMipmaps(cmd, image, vkTexture->vkFormat(),
+								descs[descIndex].width, descs[descIndex].height, mipLevels);
+						}
+						else
+						{
+							VkImageMemoryBarrier2 toShaderRead{};
+							toShaderRead.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+							toShaderRead.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+							toShaderRead.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+							toShaderRead.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+							toShaderRead.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;
+							toShaderRead.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+							toShaderRead.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+							toShaderRead.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+							toShaderRead.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+							toShaderRead.image = image;
+							toShaderRead.subresourceRange = range;
 
-						VkDependencyInfo dep2{};
-						dep2.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-						dep2.imageMemoryBarrierCount = 1;
-						dep2.pImageMemoryBarriers = &toShaderRead;
-						vkCmdPipelineBarrier2(cmd, &dep2);
+							VkDependencyInfo dep2{};
+							dep2.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+							dep2.imageMemoryBarrierCount = 1;
+							dep2.pImageMemoryBarriers = &toShaderRead;
+							vkCmdPipelineBarrier2(cmd, &dep2);
+						}
 					}
 				});
 
@@ -553,7 +582,7 @@ namespace imp::gfx::vulkan
 	std::unique_ptr<gfx::ISampler> VulkanDevice::createSampler(const gfx::SamplerDesc& desc)
 	{
 		auto sampler = std::make_unique<VulkanSampler>();
-		if (!sampler->create(m_device, desc, allocationCallbacks()))
+		if (!sampler->create(m_device, desc, m_anisotropySupported, m_maxSamplerAnisotropy, allocationCallbacks()))
 		{
 			LOG_ERROR("Vulkan", "createSampler failed");
 			return nullptr;
@@ -680,9 +709,9 @@ namespace imp::gfx::vulkan
 
 	bool VulkanDevice::initImGui()
 	{
-		VkDescriptorPoolSize poolSizes[] = { 
+		VkDescriptorPoolSize poolSizes[] = {
 			{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 64 },
-			{ VK_DESCRIPTOR_TYPE_SAMPLER, 64 }, 
+			{ VK_DESCRIPTOR_TYPE_SAMPLER, 64 },
 			{ VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 64 },
 		};
 
@@ -933,6 +962,18 @@ namespace imp::gfx::vulkan
 			{
 				m_physicalDevice = device;
 				m_queueFamilies = findQueueFamilies(device);
+
+				VkPhysicalDeviceFeatures supportedFeatures{};
+				vkGetPhysicalDeviceFeatures(device, &supportedFeatures);
+				m_anisotropySupported = supportedFeatures.samplerAnisotropy == VK_TRUE;
+
+				VkPhysicalDeviceProperties props{};
+				vkGetPhysicalDeviceProperties(device, &props);
+				m_maxSamplerAnisotropy = props.limits.maxSamplerAnisotropy;
+
+				if (!m_anisotropySupported)
+					LOG_WARN("Vulkan", "Device does not support sampler anisotropy");
+
 				return true;
 			}
 		}
@@ -961,7 +1002,7 @@ namespace imp::gfx::vulkan
 			queueCreateInfos.push_back(qci);
 		}
 
-		VkPhysicalDeviceVulkan13Features features13{}; // nothing yet, but I guess shit like ray tracing and dat goes here?
+		VkPhysicalDeviceVulkan13Features features13{};
 		features13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
 		features13.dynamicRendering = VK_TRUE;
 		features13.synchronization2 = VK_TRUE;
@@ -969,6 +1010,7 @@ namespace imp::gfx::vulkan
 		VkPhysicalDeviceFeatures2 features2{};
 		features2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
 		features2.pNext = &features13;
+		features2.features.samplerAnisotropy = m_anisotropySupported ? VK_TRUE : VK_FALSE;
 
 		VkDeviceCreateInfo createInfo{};
 		createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -1057,6 +1099,99 @@ namespace imp::gfx::vulkan
 		return true;
 	}
 
+	void VulkanDevice::generateMipmaps(VkCommandBuffer cmd, VkImage image, VkFormat format, u32 width, u32 height, u32 mipLevels)
+	{
+		VkFormatProperties formatProps{};
+		vkGetPhysicalDeviceFormatProperties(m_physicalDevice, format, &formatProps);
+		if (!( formatProps.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT ))
+		{
+			LOG_ERROR("Vulkan", "generateMipmaps(): format does not support linear blitting, skipping mip chain");
+			return;
+		}
+
+		i32 mipWidth = static_cast<i32>( width );
+		i32 mipHeight = static_cast<i32>( height );
+
+		for (u32 i = 1; i < mipLevels; ++i)
+		{
+			VkImageMemoryBarrier2 toSrc{};
+			toSrc.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+			toSrc.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+			toSrc.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+			toSrc.dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+			toSrc.dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT;
+			toSrc.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+			toSrc.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+			toSrc.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+			toSrc.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+			toSrc.image = image;
+			toSrc.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, i - 1, 1, 0, 1 };
+
+			VkDependencyInfo dep1{};
+			dep1.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+			dep1.imageMemoryBarrierCount = 1;
+			dep1.pImageMemoryBarriers = &toSrc;
+			vkCmdPipelineBarrier2(cmd, &dep1);
+
+			const i32 nextWidth = mipWidth > 1 ? mipWidth / 2 : 1;
+			const i32 nextHeight = mipHeight > 1 ? mipHeight / 2 : 1;
+
+			VkImageBlit blit{};
+			blit.srcOffsets[0] = { 0, 0, 0 };
+			blit.srcOffsets[1] = { mipWidth, mipHeight, 1 };
+			blit.srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, i - 1, 0, 1 };
+			blit.dstOffsets[0] = { 0, 0, 0 };
+			blit.dstOffsets[1] = { nextWidth, nextHeight, 1 };
+			blit.dstSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, i, 0, 1 };
+
+			vkCmdBlitImage(cmd,
+				image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+				image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+				1, &blit, VK_FILTER_LINEAR);
+
+			VkImageMemoryBarrier2 toRead{};
+			toRead.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+			toRead.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+			toRead.srcAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT;
+			toRead.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+			toRead.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;
+			toRead.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+			toRead.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			toRead.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+			toRead.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+			toRead.image = image;
+			toRead.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, i - 1, 1, 0, 1 };
+
+			VkDependencyInfo dep2{};
+			dep2.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+			dep2.imageMemoryBarrierCount = 1;
+			dep2.pImageMemoryBarriers = &toRead;
+			vkCmdPipelineBarrier2(cmd, &dep2);
+
+			mipWidth = nextWidth;
+			mipHeight = nextHeight;
+		}
+
+		VkImageMemoryBarrier2 lastToRead{};
+		lastToRead.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+		lastToRead.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+		lastToRead.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+		lastToRead.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+		lastToRead.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;
+		lastToRead.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+		lastToRead.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		lastToRead.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		lastToRead.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		lastToRead.image = image;
+		lastToRead.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, mipLevels - 1, 1, 0, 1 };
+
+		VkDependencyInfo dep3{};
+		dep3.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+		dep3.imageMemoryBarrierCount = 1;
+		dep3.pImageMemoryBarriers = &lastToRead;
+		vkCmdPipelineBarrier2(cmd, &dep3);
+	}
+
 	void VulkanDevice::submitOneTimeCommands(const std::function<void(VkCommandBuffer)>& record)
 	{
 		VkCommandBufferAllocateInfo allocInfo{};
@@ -1110,7 +1245,7 @@ namespace imp::gfx::vulkan
 			return false;
 
 		file.seekg(0, std::ios::beg);
-		
+
 		outBytes.resize(static_cast<size_t>( size ));
 		return static_cast<bool>( file.read(reinterpret_cast<char*>( outBytes.data() ), size) );
 	}

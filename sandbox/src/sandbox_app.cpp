@@ -127,6 +127,7 @@ namespace imp::app
 		samplerDesc.magFilter = gfx::FilterMode::Linear;
 		samplerDesc.addressModeU = gfx::AddressMode::Repeat;
 		samplerDesc.addressModeV = gfx::AddressMode::Repeat;
+		samplerDesc.enableAnisotropy = true;
 		m_sampler = ctx.gfx.createSampler(samplerDesc);
 
 		gfx::TextureDesc shadowDesc;
@@ -196,7 +197,7 @@ namespace imp::app
 		ecs::Transform pointTransform;
 		pointTransform.position = math::Vec3f{ 0.f, 5.f, 0.f };
 		ctx.ecs.transforms.create(m_localLight, pointTransform);
-		ctx.ecs.lights.create(m_localLight, ecs::LightType::Point, math::Vec3f{ 1.f, 0.6f, 0.3f }, 0.5f);
+		ctx.ecs.lights.create(m_localLight, ecs::LightType::Point, math::Vec3f{ 1.f, 0.6f, 0.3f }, 1.5f);
 		m_instances.push_back(m_localLight);
 
 		constexpr int kGridSize = 3;

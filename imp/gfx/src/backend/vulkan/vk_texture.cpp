@@ -17,6 +17,7 @@ namespace imp::gfx::vulkan
 		m_vkFormat = info.format;
 		m_sampleCount = info.sampleCount;
 		m_isSampled = gfx::hasFlag(info.usage, gfx::TextureUsage::Sampled);
+		m_mipLevels = info.mipLevels;
 
 		VkImageUsageFlags usageFlags = 0;
 		if (!info.transient)
@@ -27,6 +28,8 @@ namespace imp::gfx::vulkan
 			usageFlags |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 		if (gfx::hasFlag(info.usage, gfx::TextureUsage::DepthStencil))
 			usageFlags |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+		if (m_mipLevels > 1 && !info.transient)
+			usageFlags |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
 		if (info.transient)
 			usageFlags |= VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT;
 
@@ -34,7 +37,7 @@ namespace imp::gfx::vulkan
 		imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 		imageInfo.imageType = VK_IMAGE_TYPE_2D;
 		imageInfo.extent = { m_width, m_height, 1 };
-		imageInfo.mipLevels = 1;
+		imageInfo.mipLevels = m_mipLevels;
 		imageInfo.arrayLayers = 1;
 		imageInfo.format = m_vkFormat;
 		imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
@@ -64,7 +67,7 @@ namespace imp::gfx::vulkan
 		viewInfo.subresourceRange.aspectMask = isDepthFormat
 			? VK_IMAGE_ASPECT_DEPTH_BIT
 			: VK_IMAGE_ASPECT_COLOR_BIT;
-		viewInfo.subresourceRange.levelCount = 1;
+		viewInfo.subresourceRange.levelCount = m_mipLevels;
 		viewInfo.subresourceRange.layerCount = 1;
 
 		if (vkCreateImageView(m_device, &viewInfo, m_allocationCallbacks, &m_imageView) != VK_SUCCESS)
