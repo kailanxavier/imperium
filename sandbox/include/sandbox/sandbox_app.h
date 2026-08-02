@@ -50,7 +50,7 @@ namespace imp::app
 
 	private:
 		void updateSunViewProj();
-		static constexpr u32 kShadowMapSize = 8196;
+		static constexpr u32 kShadowMapSize = 8192;
 
 		std::unique_ptr<gfx::IShader> m_shadowVertShader;
 		std::unique_ptr<gfx::IShader> m_shadowFragShader;
@@ -86,6 +86,10 @@ namespace imp::app
 		std::unique_ptr<gfx::IShader> m_tonemapVertShader;
 		std::unique_ptr<gfx::IShader> m_tonemapFragShader;
 		std::unique_ptr<gfx::IPipeline> m_tonemapPipeline;
+
+		std::unique_ptr<gfx::IShader> m_skyVertShader;
+		std::unique_ptr<gfx::IShader> m_skyFragShader;
+		std::unique_ptr<gfx::IPipeline> m_skyPipeline;
 
 		/*gfx::Model m_model;
 		gfx::Model m_statue;*/

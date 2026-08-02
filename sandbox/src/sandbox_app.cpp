@@ -67,6 +67,22 @@ namespace imp::app
 			return false;
 		}
 
+		gfx::ShaderDesc skyVertDesc;
+		skyVertDesc.stage = gfx::ShaderStage::Vertex;
+		skyVertDesc.path = "assets/shaders/sky.vert.spv";
+		m_skyVertShader = ctx.gfx.createShader(skyVertDesc);
+
+		gfx::ShaderDesc skyFragDesc;
+		skyFragDesc.stage = gfx::ShaderStage::Fragment;
+		skyFragDesc.path = "assets/shaders/sky.frag.spv";
+		m_skyFragShader = ctx.gfx.createShader(skyFragDesc);
+
+		if (!m_skyFragShader || !m_skyVertShader)
+		{
+			LOG_ERROR("Sandbox", "Failed to load sky shaders");
+			return false;
+		}
+
 		gfx::VertexAttribute meshAttrs[3] = {
 			{ 0, static_cast<u32>( offsetof(gfx::ModelVertex, position) ), 3, true },
 			{ 1, static_cast<u32>( offsetof(gfx::ModelVertex, normal) ), 3, true },
@@ -81,6 +97,31 @@ namespace imp::app
 		};
 
 		ensureHdrTargetSize(ctx);
+
+		gfx::PipelineDesc skyPipelineDesc{};
+		skyPipelineDesc.vertexShader = m_skyVertShader.get();
+		skyPipelineDesc.fragmentShader = m_skyFragShader.get();
+		skyPipelineDesc.rasterizerState.cullMode = gfx::CullMode::None;
+		skyPipelineDesc.depthStencilState.depthTestEnable = true;
+		skyPipelineDesc.depthStencilState.depthWriteEnable = false;
+		skyPipelineDesc.depthStencilState.depthCompareOp = gfx::CompareOp::LessOrEqual;
+		skyPipelineDesc.blendState.blendEnable = false;
+		skyPipelineDesc.colourFormat = m_hdrTarget->format();
+		skyPipelineDesc.depthFormat = m_hdrDepthTarget->format();
+		skyPipelineDesc.sampleCount = kMsaaSampleCount;
+		skyPipelineDesc.pushConstantSize = sizeof(gfx::SkyPushConstants);
+		skyPipelineDesc.hasUniformBuffer = false;
+		skyPipelineDesc.hasInstanceBinding = false;
+		skyPipelineDesc.textureCount = 0;
+		skyPipelineDesc.hasMaterialUniformBuffer = false;
+
+		m_skyPipeline = ctx.gfx.createPipeline(skyPipelineDesc);
+
+		if (!m_skyPipeline)
+		{
+			LOG_ERROR("Sandbox", "Failed to create sky pipeline");
+			return false;
+		}
 
 		gfx::PipelineDesc meshPipelineDesc{};
 		meshPipelineDesc.vertexShader = m_meshVertShader.get();
@@ -307,6 +348,15 @@ namespace imp::app
 		cmd.bindPipeline(*m_pipeline);
 		drawModelBatches(renderCtx, m_extraction);
 
+		gfx::SkyPushConstants skyPC{};
+		skyPC.invViewProj = math::inverse(renderCtx.viewProj);
+		skyPC.cameraPositionWS = math::Vec4f{ m_camera.position(), 1.f };
+		skyPC.sunDirAndIntensity = math::Vec4f{ -m_sunDirection, 10.f };
+
+		cmd.bindPipeline(*m_skyPipeline);
+		cmd.pushConstants(&skyPC, sizeof(skyPC));
+		cmd.draw(3, 1);
+
 		if (!m_extraction.blendInstances.empty())
 		{
 			cmd.bindPipeline(*m_blendPipeline);
@@ -357,6 +407,10 @@ namespace imp::app
 		m_shadowSampler.reset();
 		m_shadowFragShader.reset();
 		m_shadowVertShader.reset();
+
+		m_skyFragShader.reset();
+		m_skyVertShader.reset();
+		m_skyPipeline.reset();
 	}
 
 	void SandboxApp::updateSunViewProj()
