@@ -149,7 +149,7 @@ namespace imp::app
 		shadowPipelineDesc.fragmentShader = m_shadowFragShader.get();
 		shadowPipelineDesc.vertexLayout = meshPipelineDesc.vertexLayout;
 		shadowPipelineDesc.instanceLayout = meshPipelineDesc.instanceLayout;
-		shadowPipelineDesc.rasterizerState.cullMode = gfx::CullMode::Front; // reduces acne on closed meshes
+		shadowPipelineDesc.rasterizerState.cullMode = gfx::CullMode::Back; // reduces acne on closed meshes
 		shadowPipelineDesc.depthStencilState.depthTestEnable = true;
 		shadowPipelineDesc.depthStencilState.depthWriteEnable = true;
 		shadowPipelineDesc.depthStencilState.depthCompareOp = gfx::CompareOp::Less;
