@@ -22,6 +22,8 @@ namespace imp::gfx::dx11
 
 	std::unique_ptr<gfx::IRenderTarget> DX11Device::createRenderTarget(const gfx::TextureDesc& desc) { return nullptr; }
 
+	void DX11Device::waitIdle() { return; }
+
 	gfx::IRenderTarget& DX11Device::backBuffer() { std::abort(); }
 	gfx::IRenderTarget* DX11Device::depthBuffer() { return nullptr; }
 	gfx::ICommandList* DX11Device::beginFrame() { return nullptr; }

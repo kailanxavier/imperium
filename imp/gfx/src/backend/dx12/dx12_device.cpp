@@ -24,7 +24,7 @@ namespace imp::gfx::dx12
 
 	std::unique_ptr<gfx::IRenderTarget> DX12Device::createRenderTarget(const gfx::TextureDesc& desc) { return nullptr; }
 
-	
+	void DX12Device::waitIdle() { return; }
 
 	gfx::IRenderTarget& DX12Device::backBuffer() { std::abort(); }
 	gfx::IRenderTarget* DX12Device::depthBuffer() { return nullptr; }

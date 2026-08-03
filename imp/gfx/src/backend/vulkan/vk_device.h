@@ -53,6 +53,7 @@ namespace imp::gfx::vulkan
 
 		[[nodiscard]] std::unique_ptr<gfx::IRenderTarget> createRenderTarget(const gfx::TextureDesc& desc) override;
 
+		void waitIdle() override;
 
 		bool initImGui() override;
 		void shutdownImGui() override;

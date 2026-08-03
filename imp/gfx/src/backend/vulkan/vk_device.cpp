@@ -707,6 +707,11 @@ namespace imp::gfx::vulkan
 		return std::make_unique<VulkanOwnedColourTarget>(std::move(texture));
 	}
 
+	void VulkanDevice::waitIdle()
+	{
+		vkDeviceWaitIdle(m_device);
+	}
+
 	bool VulkanDevice::initImGui()
 	{
 		VkDescriptorPoolSize poolSizes[] = {
@@ -787,7 +792,15 @@ namespace imp::gfx::vulkan
 	void VulkanDevice::renderImGui(ICommandList& cmd)
 	{
 		auto& vkCmd = static_cast<VulkanCommandList&>( cmd );
+
+		gfx::RenderPassDesc imguiPassDesc{};
+		imguiPassDesc.colourTarget = &backBuffer();
+		imguiPassDesc.depthTarget = nullptr;
+		imguiPassDesc.clearColour = false;
+
+		vkCmd.beginRenderPass(imguiPassDesc);
 		ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), vkCmd.commandBuffer());
+		vkCmd.endRenderPass();
 	}
 
 	gfx::IRenderTarget& VulkanDevice::backBuffer()

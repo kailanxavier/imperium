@@ -22,6 +22,8 @@ namespace imp::gfx::dx12
 
 		std::unique_ptr<gfx::IRenderTarget> createRenderTarget(const gfx::TextureDesc& desc) override;
 
+		void waitIdle() override;
+
 		gfx::IRenderTarget& backBuffer() override;
 		gfx::IRenderTarget* depthBuffer() override;
 
