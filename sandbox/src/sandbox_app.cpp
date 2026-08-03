@@ -363,6 +363,8 @@ namespace imp::app
 			drawBlendInstances(renderCtx, m_extraction);
 		}
 
+		ctx.layers.renderAll(cmd);
+
 		cmd.endRenderPass();
 
 		gfx::RenderPassDesc tonemapPassDesc{};

@@ -161,6 +161,17 @@ namespace imp::gfx::vulkan
 			default: return VK_SAMPLE_COUNT_1_BIT;
 			}
 		}
+
+		VkPrimitiveTopology toVkTopology(gfx::PrimitiveTopology topology)
+		{
+			switch (topology)
+			{
+			case imp::gfx::PrimitiveTopology::TriangleList: return VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+			case imp::gfx::PrimitiveTopology::LineList: return VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+			case imp::gfx::PrimitiveTopology::PointList: return VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
+			default: return VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+			}
+		}
 	}
 
 	VulkanDevice::VulkanDevice() = default;
@@ -671,6 +682,7 @@ namespace imp::gfx::vulkan
 		info.instanceBinding.inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
 		info.hasInstanceBinding = desc.hasInstanceBinding;
 		info.blendEnable = desc.blendState.blendEnable;
+		info.topology = toVkTopology(desc.rasterizerState.topology);
 		info.allocationCallbacks = allocationCallbacks();
 
 		auto pipeline = std::make_unique<VulkanGraphicsPipeline>();

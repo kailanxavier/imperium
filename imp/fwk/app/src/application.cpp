@@ -166,7 +166,7 @@ namespace imp::app
 		if (cmd)
 		{
 			m_app->onRender(*m_ctx, *cmd);
-			m_layers.renderAll(*cmd);
+			//m_layers.renderAll(*cmd);
 
 			ImGui::Render();
 			m_device->renderImGui(*cmd);

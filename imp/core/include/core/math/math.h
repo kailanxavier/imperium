@@ -106,7 +106,9 @@ namespace imp::math
 		};
 	}
 
-	// PI float and PI double
+	// Float PI
 	inline constexpr float kPif = static_cast<float>(PI);
+
+	// Double PI
 	inline constexpr double kPid = PI;
 }

@@ -44,6 +44,7 @@ int main()
 	application.layers().pushOverlay(std::make_unique<app::TelemetryLayer>(application.gfxAllocator()));
 	application.layers().pushOverlay(std::make_unique<app::LightControlLayer>(sb->sunDirection(), sb->pointPos()));
 
+
 	application.run();
 	application.shutdown();
 	

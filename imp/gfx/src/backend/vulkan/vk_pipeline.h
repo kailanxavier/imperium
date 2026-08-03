@@ -19,6 +19,7 @@ namespace imp::gfx::vulkan
 
 		std::vector<VkVertexInputAttributeDescription> vertexAttributes;
 		VkCullModeFlags cullMode = VK_CULL_MODE_NONE;
+		VkPrimitiveTopology topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 
 		bool depthTestEnable = false;
 		bool depthWriteEnable = false;
