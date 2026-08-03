@@ -6,8 +6,8 @@
 #include <cstddef>
 #include <cstring>
 
-#include <app/model_renderer.h>
-#include <app/render_extraction.h>
+#include <gfx/model_renderer.h>
+#include <gfx/render_extraction.h>
 #include <gfx/lighting.h>
 #include <gfx/model.h>
 #include <gfx/model_loader.h>
@@ -310,7 +310,7 @@ namespace imp::app
 		shadowPassDesc.clearDepthValue = 1.f;
 		cmd.beginRenderPass(shadowPassDesc);
 
-		ModelRenderContext shadowRenderCtx{};
+		gfx::ModelRenderContext shadowRenderCtx{};
 		shadowRenderCtx.cmd = &cmd;
 		shadowRenderCtx.modelRegistry = &m_modelRegistry;
 		shadowRenderCtx.sampler = m_sampler.get();
@@ -335,7 +335,7 @@ namespace imp::app
 		const u32 h = ctx.gfx.backBuffer().height();
 		const float aspect = h > 0 ? static_cast<float>( w ) / static_cast<float>( h ) : 1.f;
 
-		ModelRenderContext renderCtx{};
+		gfx::ModelRenderContext renderCtx{};
 		renderCtx.cmd = &cmd;
 		renderCtx.modelRegistry = &m_modelRegistry;
 		renderCtx.sampler = m_sampler.get();

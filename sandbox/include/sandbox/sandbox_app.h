@@ -11,7 +11,7 @@
 
 #include <ecs/world.h>
 
-#include <app/render_extraction.h>
+#include <gfx/render_extraction.h>
 #include <gfx/texture_cache.h>
 
 #include <memory>
@@ -102,6 +102,6 @@ namespace imp::app
 		ecs::ModelHandle m_environmentHandle{};
 		ecs::ModelHandle m_statueHandle{};
 
-		RenderExtraction m_extraction;
+		gfx::RenderExtraction m_extraction;
 	};
 }

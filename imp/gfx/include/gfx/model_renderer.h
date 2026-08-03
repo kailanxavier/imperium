@@ -1,5 +1,5 @@
 #pragma once
-#include <app/render_extraction.h>
+#include <gfx/render_extraction.h>
 #include <core/math/math.h>
 
 namespace imp::gfx
@@ -9,10 +9,7 @@ namespace imp::gfx
 	class ITexture;
 	class ISampler;
 	class ModelRegistry;
-}
 
-namespace imp::app
-{
 	struct ModelRenderContext
 	{
 		gfx::ICommandList* cmd = nullptr;

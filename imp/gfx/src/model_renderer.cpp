@@ -1,4 +1,4 @@
-#include <app/model_renderer.h>
+#include <gfx/model_renderer.h>
 
 #include <gfx/model.h>
 #include <gfx/model_registry.h>
@@ -7,7 +7,7 @@
 
 #include <core/log/log.h>
 
-namespace imp::app
+namespace imp::gfx
 {
 	namespace
 	{
