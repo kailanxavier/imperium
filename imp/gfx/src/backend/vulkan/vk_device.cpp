@@ -707,6 +707,11 @@ namespace imp::gfx::vulkan
 		return std::make_unique<VulkanOwnedColourTarget>(std::move(texture));
 	}
 
+	void VulkanDevice::waitIdle()
+	{
+		vkDeviceWaitIdle(m_device);
+	}
+
 	bool VulkanDevice::initImGui()
 	{
 		VkDescriptorPoolSize poolSizes[] = {
@@ -787,7 +792,15 @@ namespace imp::gfx::vulkan
 	void VulkanDevice::renderImGui(ICommandList& cmd)
 	{
 		auto& vkCmd = static_cast<VulkanCommandList&>( cmd );
+
+		gfx::RenderPassDesc imguiPassDesc{};
+		imguiPassDesc.colourTarget = &backBuffer();
+		imguiPassDesc.depthTarget = nullptr;
+		imguiPassDesc.clearColour = false;
+
+		vkCmd.beginRenderPass(imguiPassDesc);
 		ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), vkCmd.commandBuffer());
+		vkCmd.endRenderPass();
 	}
 
 	gfx::IRenderTarget& VulkanDevice::backBuffer()
@@ -900,6 +913,18 @@ namespace imp::gfx::vulkan
 				VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
 
 			debugCreateInfo.pfnUserCallback = debugCallback;
+
+			VkValidationFeatureEnableEXT enabledFeatures[] =
+			{
+				VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT,
+			};
+
+			VkValidationFeaturesEXT validationFeatures{};
+			validationFeatures.sType = VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT;
+			validationFeatures.enabledValidationFeatureCount = 1;
+			validationFeatures.pEnabledValidationFeatures = enabledFeatures;
+
+			debugCreateInfo.pNext= &validationFeatures;
 			createInfo.pNext = &debugCreateInfo;
 		}
 
@@ -1127,10 +1152,24 @@ namespace imp::gfx::vulkan
 			toSrc.image = image;
 			toSrc.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, i - 1, 1, 0, 1 };
 
+			VkImageMemoryBarrier2 dstToTransferDst{};
+			dstToTransferDst.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+			dstToTransferDst.srcStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;
+			dstToTransferDst.srcAccessMask = VK_ACCESS_2_NONE;
+			dstToTransferDst.dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+			dstToTransferDst.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+			dstToTransferDst.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+			dstToTransferDst.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+			dstToTransferDst.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+			dstToTransferDst.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+			dstToTransferDst.image = image;
+			dstToTransferDst.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, i, 1, 0, 1 };
+
+			VkImageMemoryBarrier2 barriers[] = { toSrc, dstToTransferDst };
 			VkDependencyInfo dep1{};
 			dep1.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-			dep1.imageMemoryBarrierCount = 1;
-			dep1.pImageMemoryBarriers = &toSrc;
+			dep1.imageMemoryBarrierCount = 2;
+			dep1.pImageMemoryBarriers = barriers;
 			vkCmdPipelineBarrier2(cmd, &dep1);
 
 			const i32 nextWidth = mipWidth > 1 ? mipWidth / 2 : 1;

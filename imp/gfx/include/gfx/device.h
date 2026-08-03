@@ -46,6 +46,8 @@ namespace imp::gfx
 
         virtual std::unique_ptr<IRenderTarget> createRenderTarget(const TextureDesc& desc) = 0;
 
+        virtual void waitIdle() = 0;
+
         virtual IRenderTarget& backBuffer() = 0;
         virtual IRenderTarget* depthBuffer() = 0;
 

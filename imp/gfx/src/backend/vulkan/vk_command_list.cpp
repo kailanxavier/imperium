@@ -20,6 +20,7 @@ namespace imp::gfx::vulkan
 
 		m_colourTarget = nullptr;
 		m_depthTarget = nullptr;
+		m_resolveTarget = nullptr;
 
 		m_descriptorAllocator = descriptorAllocator;
 		m_frameIndex = frameIndex;

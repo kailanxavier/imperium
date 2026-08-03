@@ -84,6 +84,16 @@ namespace imp::gfx::vulkan
             m_needsRecreate = true;
             m_pendingWidth = m_extent.width;
             m_pendingHeight = m_extent.height;
+
+            // The semaphore may have a pending signal we never wait on.
+            // Recreate it so the next acquire start from a clean slate.
+            vkDeviceWaitIdle(m_device);
+            vkDestroySemaphore(m_device, m_imageAvailableSemaphores[m_currentFrame], m_allocationCallbacks);
+            VkSemaphoreCreateInfo semInfo{};
+            semInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+            vkCreateSemaphore(m_device, &semInfo, m_allocationCallbacks, 
+                &m_imageAvailableSemaphores[m_currentFrame]);
+
             return false;
         }
 

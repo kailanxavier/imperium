@@ -14,6 +14,16 @@ namespace imp::gfx
 	static_assert( sizeof(MeshPushConstants) == 128 
 		&& "MeshPushConstants must stay within the guaranteed 128-byte push constant range" );
 
+	struct SkyPushConstants
+	{
+		math::Mat4f invViewProj;
+		math::Vec4f cameraPositionWS;
+		math::Vec4f sunDirAndIntensity;
+	};
+
+	static_assert( sizeof(SkyPushConstants) <= 128
+		&& "SkyPushConstants must stay within the guaranteed 128-byte push constant range" );
+
 	constexpr u32 kMaxLights = 16;
 
 	struct GPULight
