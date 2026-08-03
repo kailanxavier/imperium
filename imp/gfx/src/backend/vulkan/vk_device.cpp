@@ -239,6 +239,11 @@ namespace imp::gfx::vulkan
 		m_descriptorAllocator.reset();
 		m_commands.reset();
 		m_swapchain.reset();
+		m_tonemapVertShader.reset();
+		m_hdrRenderTarget.reset();
+		m_hdrColourTexture.reset();
+		m_backBufferTarget.reset();
+		m_depthBufferTarget.reset();
 		m_stagingBuffer.destroy();
 
 		if (m_vmaAllocator != VK_NULL_HANDLE)

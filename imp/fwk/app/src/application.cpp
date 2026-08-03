@@ -1,6 +1,8 @@
 #include <app/application.h>
 #include <backends/imgui_impl_glfw.h>
 
+#include <gfx/gizmo_renderer.h>
+
 #include <chrono>
 
 namespace imp::app
@@ -128,6 +130,8 @@ namespace imp::app
 			m_app->onShutdown(*m_ctx);
 
 		m_jobs.shutdown();
+
+		imp::gfx::GizmoRenderer::instance().shutdown();
 
 		if (m_device)
 		{

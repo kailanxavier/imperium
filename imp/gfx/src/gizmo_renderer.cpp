@@ -23,12 +23,12 @@ namespace imp::gfx
 		gfx::ShaderDesc vertDesc{};
 		vertDesc.stage = gfx::ShaderStage::Vertex;
 		vertDesc.path = "assets/shaders/gizmo.vert.spv";
-		m_vertShader = device.createShader(vertDesc);
+		m_vertShader = m_device->createShader(vertDesc);
 
 		gfx::ShaderDesc fragDesc{};
 		fragDesc.stage = gfx::ShaderStage::Fragment;
 		fragDesc.path = "assets/shaders/gizmo.frag.spv";
-		m_fragShader = device.createShader(fragDesc);
+		m_fragShader = m_device->createShader(fragDesc);
 
 		if (!m_vertShader || !m_fragShader)
 		{
@@ -62,7 +62,7 @@ namespace imp::gfx
 		desc.hasMaterialUniformBuffer = false;
 		desc.rasterizerState.topology = gfx::PrimitiveTopology::LineList;
 
-		m_pipeline = device.createPipeline(desc);
+		m_pipeline = m_device->createPipeline(desc);
 		if (!m_pipeline)
 		{
 			LOG_ERROR("Gizmo", "Failed to create Gizmo pipeline");
@@ -77,9 +77,9 @@ namespace imp::gfx
 	{
 		m_vertices.clear();
 		m_vertexBuffer.reset();
-		m_pipeline.reset();
 		m_fragShader.reset();
 		m_vertShader.reset();
+		m_pipeline.reset();
 		m_vertexCapacity = 0;
 		m_device = nullptr;
 		m_initialised = false;

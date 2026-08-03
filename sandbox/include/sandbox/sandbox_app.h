@@ -40,6 +40,11 @@ namespace imp::app
 		ecs::Transform& pointPos() { return m_localLightTransform; }
 		const ecs::Transform& pointPos() const { return m_localLightTransform; }
 
+		const fwk::Camera& camera() const { return m_camera; }
+		gfx::TextureFormat hdrColourFormat() const { return m_hdrTarget->format(); }
+		gfx::TextureFormat hdrDepthFormat() const { return m_hdrDepthTarget->format(); }
+		gfx::SampleCount sampleCount() const { return kMsaaSampleCount; }
+
 	private:
 		void drawNode(gfx::ICommandList& cmd, gfx::Model& model, const math::Mat4f& viewProj, u32 nodeIdx, const math::Mat4f& parentWorld);
 

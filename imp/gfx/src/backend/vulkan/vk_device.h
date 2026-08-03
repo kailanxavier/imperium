@@ -114,8 +114,8 @@ namespace imp::gfx::vulkan
 		std::unique_ptr<VulkanCommandList> m_commandList;
 
 		std::unique_ptr<gfx::IShader> m_tonemapVertShader;
-		std::unique_ptr<VulkanTexture> m_hrdColourTexture;
-		std::unique_ptr<VulkanRenderTarget> m_hrdRenderTarget;
+		std::unique_ptr<VulkanTexture> m_hdrColourTexture;
+		std::unique_ptr<VulkanRenderTarget> m_hdrRenderTarget;
 
 		VmaAllocator m_vmaAllocator = VK_NULL_HANDLE;
 

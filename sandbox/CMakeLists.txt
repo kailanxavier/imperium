@@ -24,6 +24,8 @@ IMP_COMPILE_SHADERS(
 		${CMAKE_CURRENT_SOURCE_DIR}/shaders/vulkan/shadow.frag
 		${CMAKE_CURRENT_SOURCE_DIR}/shaders/vulkan/sky.vert
 		${CMAKE_CURRENT_SOURCE_DIR}/shaders/vulkan/sky.frag
+		${CMAKE_CURRENT_SOURCE_DIR}/shaders/vulkan/gizmo.vert
+		${CMAKE_CURRENT_SOURCE_DIR}/shaders/vulkan/gizmo.frag
 )
 
 IMP_COPY_ASSETS(sandbox)
