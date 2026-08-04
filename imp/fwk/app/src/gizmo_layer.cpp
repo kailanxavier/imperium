@@ -56,8 +56,8 @@ namespace imp::app
 		, m_colourFormat(colourFormat)
 		, m_depthFormat(depthFormat)
 		, m_sampleCount(sampleCount)
-	{
-	}
+		, m_raycaster(world)
+	{}
 
 	void GizmoLayer::onAttach()
 	{
@@ -67,12 +67,6 @@ namespace imp::app
 			if (!gizmos.initialise(m_device, m_colourFormat, m_depthFormat, m_sampleCount))
 				LOG_ERROR("Gizmo", "GizmoLayer failed to initialise GizmoRenderer");
 		}
-
-		// Temporary until we have something to actually raycast and select entities with
-		ecs::EntityId ent = m_world.createEntity();
-		ecs::Transform t;
-		m_world.transforms.create(ent, t);
-		setSelected(ent);
 	}
 
 	void GizmoLayer::onDetach()
@@ -88,63 +82,74 @@ namespace imp::app
 			return;
 
 		if (m_showGrid)
-			gizmos.drawGrid(50.f, 1.f, { 0.4f, 0.4f, 0.4f, 1.f });
-
-		if (!m_selected.isValid() || !m_world.transforms.contains(m_selected))
-		{
-			m_activeAxis = GizmoAxis::None;
-			m_hoveredAxis = GizmoAxis::None;
-			return;
-		}
-
-		const math::Mat4f world = m_world.transforms.worldMatrix(m_selected);
-		const math::Vec3f origin = math::transformPoint(world, math::Vec3f::zero());
-		const float cameraDistance = math::length(origin - m_camera.position());
+			gizmos.drawGrid(10000.f, 10.f, { 0.4f, 0.4f, 0.4f, 0.4f });
 
 		const math::Vec2u screenSize{ m_device.backBuffer().width(), m_device.backBuffer().height() };
 		const math::Vec2f mousePos = m_input.mousePosition();
-		const Ray ray = screenPointToRay(mousePos, screenSize);
+		const physics::Ray ray = screenPointToRay(mousePos, screenSize);
 
-		if (m_activeAxis == GizmoAxis::None)
+		const bool hasSelection = m_selected.isValid() && m_world.transforms.contains(m_selected);
+		bool clickConsumedByGizmo = false;
+
+		if (hasSelection)
 		{
-			m_hoveredAxis = pickAxis(ray, origin, m_axisLength, cameraDistance);
+			const math::Mat4f world = m_world.transforms.worldMatrix(m_selected);
+			const math::Vec3f origin = math::transformPoint(world, math::Vec3f::zero());
+			const float cameraDistance = math::length(origin - m_camera.position());
 
-			if (m_hoveredAxis != GizmoAxis::None && m_input.isMouseButtonPressed(fwk::MouseButton::Left))
+			if (m_activeAxis == GizmoAxis::None)
 			{
-				m_activeAxis = m_hoveredAxis;
-				m_dragAxisOrigin = origin;
-				m_dragAxisDir = axisDirFor(m_activeAxis, world);
+				m_hoveredAxis = pickAxis(ray, origin, m_axisLength, cameraDistance);
 
-				float tRay, tAxis;
-				closestParams(ray, m_dragAxisOrigin, m_dragAxisDir, tRay, tAxis);
-				m_dragStartT = tAxis;
-				m_dragStartPosition = m_world.transforms.localTransform(m_selected).position;
-			}
-		}
-		else
-		{
-			if (!m_input.isMouseButtonDown(fwk::MouseButton::Left))
-			{
-				m_activeAxis = GizmoAxis::None;
+				if (m_hoveredAxis != GizmoAxis::None && m_input.isMouseButtonPressed(fwk::MouseButton::Left))
+				{
+					m_activeAxis = m_hoveredAxis;
+					m_dragAxisOrigin = origin;
+					m_dragAxisDir = axisDirFor(m_activeAxis, world);
+
+					float tRay, tAxis;
+					closestParams(ray, m_dragAxisOrigin, m_dragAxisDir, tRay, tAxis);
+					m_dragStartT = tAxis;
+					m_dragStartPosition = m_world.transforms.localTransform(m_selected).position;
+
+					clickConsumedByGizmo = true;
+				}
 			}
 			else
 			{
-				float tRay, tAxis;
-				if (closestParams(ray, m_dragAxisOrigin, m_dragAxisDir, tRay, tAxis))
+				clickConsumedByGizmo = true; // still dragging
+
+				if (!m_input.isMouseButtonDown(fwk::MouseButton::Left))
 				{
-					const float delta = tAxis - m_dragStartT;
-					ecs::Transform t = m_world.transforms.localTransform(m_selected);
-					t.position = m_dragStartPosition + m_dragAxisDir * delta;
-					m_world.transforms.setLocalTransform(m_selected, t);
+					m_activeAxis = GizmoAxis::None;
 				}
+				else
+				{
+					float tRay, tAxis;
+					if (closestParams(ray, m_dragAxisOrigin, m_dragAxisDir, tRay, tAxis))
+					{
+						const float delta = tAxis - m_dragStartT;
+						ecs::Transform t = m_world.transforms.localTransform(m_selected);
+						t.position = m_dragStartPosition + m_dragAxisDir * delta;
+						m_world.transforms.setLocalTransform(m_selected, t);
+					}
+				}
+			}
+
+			for (GizmoAxis axis : { GizmoAxis::X, GizmoAxis::Y, GizmoAxis::Z })
+			{
+				const math::Vec3f dir = axisDirFor(axis, world);
+				const math::Vec4f colour = axisColour(axis, m_hoveredAxis, m_activeAxis);
+				gizmos.drawArrow(origin, origin + dir * m_axisLength, colour);
 			}
 		}
 
-		for (GizmoAxis axis : { GizmoAxis::X, GizmoAxis::Y, GizmoAxis::Z })
+		if (!clickConsumedByGizmo && m_input.isMouseButtonPressed(fwk::MouseButton::Left))
 		{
-			const math::Vec3f dir = axisDirFor(axis, world);
-			const math::Vec4f colour = axisColour(axis, m_hoveredAxis, m_activeAxis);
-			gizmos.drawArrow(origin, origin + dir * m_axisLength, colour);
+			if (auto hit = m_raycaster.raycast(ray))
+				setSelected(hit->entity);
+			else
+				clearSelection();
 		}
 	}
 
@@ -162,7 +167,7 @@ namespace imp::app
 		gizmos.render(cmd, viewProj);
 	}
 
-	GizmoLayer::Ray GizmoLayer::screenPointToRay(const math::Vec2f& screenPos, const math::Vec2u& screenSize) const
+	physics::Ray GizmoLayer::screenPointToRay(const math::Vec2f& screenPos, const math::Vec2u& screenSize) const
 	{
 		const float aspect = screenSize.x > 0
 			? static_cast<float>( screenSize.x ) / static_cast<float>( screenSize.y )
@@ -179,15 +184,15 @@ namespace imp::app
 		const math::Vec3f nearP = math::Vec3f{ nearH.x, nearH.y, nearH.z } / nearH.w;
 		const math::Vec3f farP = math::Vec3f{ farH.x, farH.y, farH.z } / farH.w;
 
-		return Ray{ nearP, math::normalise(farP - nearP) };
+		return physics::Ray{ nearP, math::normalise(farP - nearP) };
 	}
 
-	bool GizmoLayer::closestParams(const Ray& ray, const math::Vec3f& axisOrigin, const math::Vec3f& axisDir,
+	bool GizmoLayer::closestParams(const physics::Ray& ray, const math::Vec3f& axisOrigin, const math::Vec3f& axisDir,
 		float& tRay, float& tAxis)
 	{
 		const math::Vec3f r = ray.origin - axisOrigin;
-		const float b = math::dot(ray.dir, axisDir);
-		const float d = math::dot(ray.dir, r);
+		const float b = math::dot(ray.direction, axisDir);
+		const float d = math::dot(ray.direction, r);
 		const float e = math::dot(axisDir, r);
 		const float denom = 1.f - b * b; // |ray.dir| == |axisDir| == 1
 
@@ -199,7 +204,7 @@ namespace imp::app
 		return true;
 	}
 
-	GizmoAxis GizmoLayer::pickAxis(const Ray& ray, const math::Vec3f& origin, float axisLength, float cameraDistance) const
+	GizmoAxis GizmoLayer::pickAxis(const physics::Ray& ray, const math::Vec3f& origin, float axisLength, float cameraDistance) const
 	{
 		const math::Mat4f world = m_world.transforms.worldMatrix(m_selected);
 		const GizmoAxis axes[3] = { GizmoAxis::X, GizmoAxis::Y, GizmoAxis::Z };
@@ -217,7 +222,7 @@ namespace imp::app
 			if (tRay < 0.f || tAxis < 0.f || tAxis > axisLength)
 				continue;
 
-			const math::Vec3f onRay = ray.origin + ray.dir * tRay;
+			const math::Vec3f onRay = ray.origin + ray.direction * tRay;
 			const math::Vec3f onAxis = origin + dir * tAxis;
 			const float dist = math::length(onRay - onAxis);
 

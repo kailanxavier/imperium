@@ -266,6 +266,7 @@ namespace imp::app
 		t.position = math::Vec3f{ 5.f, 0.f, 5.f };
 		ctx.ecs.transforms.create(entity, t);
 		ctx.ecs.renderables.create(entity, m_environmentHandle);
+		ctx.ecs.colliders.createAABB(entity, math::Vec3f{ -1.f, -1.f, -1.f }, math::Vec3f{ 1.f, 1.f, 1.f });
 		m_instances.push_back(entity);
 
 		ensureInstanceBufferCapacity(ctx, static_cast<u32>( m_instances.size() ));
@@ -462,6 +463,7 @@ namespace imp::app
 		const ecs::EntityId entity = ctx.ecs.createEntity();
 		ctx.ecs.transforms.create(entity, t);
 		ctx.ecs.renderables.create(entity, m_statueHandle);
+		ctx.ecs.colliders.createAABB(entity, math::Vec3f{ -0.5f, -0.5f, -0.5f }, math::Vec3f{ 0.5f, 0.5f, 0.5f });
 		m_instances.push_back(entity);
 		return entity;
 	}

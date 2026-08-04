@@ -909,14 +909,12 @@ namespace imp::gfx::vulkan
 		createInfo.enabledExtensionCount = static_cast<u32>( extensions.size() );
 		createInfo.ppEnabledExtensionNames = extensions.data();
 
+#ifndef NDEBUG
 		VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo{};
 		if (m_validationEnabled)
 		{
-#ifndef NDEBUG
 			createInfo.enabledLayerCount = 1;
-#else
 			createInfo.enabledLayerCount = 0;
-#endif // !NDEBUG
 			createInfo.ppEnabledLayerNames = kValidationLayers.data();
 
 			debugCreateInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
@@ -944,6 +942,7 @@ namespace imp::gfx::vulkan
 			debugCreateInfo.pNext= &validationFeatures;
 			createInfo.pNext = &debugCreateInfo;
 		}
+#endif // !NDEBUG
 
 		if (vkCreateInstance(&createInfo, allocationCallbacks(), &m_instance) != VK_SUCCESS)
 		{
@@ -955,6 +954,7 @@ namespace imp::gfx::vulkan
 
 	bool VulkanDevice::setupDebugMessenger()
 	{
+#ifndef NDEBUG
 		VkDebugUtilsMessengerCreateInfoEXT createInfo{};
 		createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
 		createInfo.messageSeverity =
@@ -972,6 +972,7 @@ namespace imp::gfx::vulkan
 			LOG_ERROR("Vulkan", "Failed to set up debug messenger");
 			return false;
 		}
+#endif
 		return true;
 	}
 
@@ -1363,8 +1364,10 @@ namespace imp::gfx::vulkan
 		u32 glfwExtensionCount = 0;
 		const char** glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
 		std::vector<const char*> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
+#ifndef NDEBUG
 		if (wantValidation)
 			extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+#endif // !NDEBUG
 		return extensions;
 	}
 

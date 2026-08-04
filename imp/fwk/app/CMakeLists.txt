@@ -10,7 +10,7 @@ target_include_directories(imp_app
 	PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-target_link_libraries(imp_app PUBLIC imp_jobs imp_ecs PRIVATE imp_protocol imp_core imp_gfx imp_input imp_cam)
+target_link_libraries(imp_app PUBLIC imp_physics imp_jobs imp_ecs PRIVATE imp_protocol imp_core imp_gfx imp_input imp_cam)
 
 target_link_libraries(imp_app PRIVATE imgui glfw)
 

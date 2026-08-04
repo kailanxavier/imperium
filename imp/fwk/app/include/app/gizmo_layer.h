@@ -8,6 +8,8 @@
 #include <core/types/int_types.h>
 #include <gfx/resources.h>
 
+#include <physics/query.h>
+
 namespace imp::gfx 
 { 
 	class IDevice;
@@ -40,18 +42,12 @@ namespace imp::app
 		void setAxisLength(float length) { m_axisLength = length; }
 
 	private:
-		struct Ray 
-		{ 
-			math::Vec3f origin; 
-			math::Vec3f dir; 
-		};
+		physics::Ray screenPointToRay(const math::Vec2f& screenPos, const math::Vec2u& screenSize) const;
 
-		Ray screenPointToRay(const math::Vec2f& screenPos, const math::Vec2u& screenSize) const;
-
-		static bool closestParams(const Ray& ray, const math::Vec3f& axisOrigin, const math::Vec3f& axisDir,
+		static bool closestParams(const physics::Ray& ray, const math::Vec3f& axisOrigin, const math::Vec3f& axisDir,
 			float& tRay, float& tAxis);
 
-		GizmoAxis pickAxis(const Ray& ray, const math::Vec3f& origin, float axisLength, float cameraDistance) const;
+		GizmoAxis pickAxis(const physics::Ray& ray, const math::Vec3f& origin, float axisLength, float cameraDistance) const;
 
 		gfx::IDevice& m_device;
 		ecs::World& m_world;
@@ -63,7 +59,7 @@ namespace imp::app
 
 		ecs::EntityId m_selected = ecs::kInvalidEntity;
 		bool m_showGrid = false;
-		float m_axisLength = 2.f;
+		float m_axisLength = 8.f;
 
 		GizmoAxis m_hoveredAxis = GizmoAxis::None;
 		GizmoAxis m_activeAxis = GizmoAxis::None;
@@ -71,5 +67,7 @@ namespace imp::app
 		math::Vec3f m_dragAxisDir{};
 		float m_dragStartT = 0.f;
 		math::Vec3f m_dragStartPosition{};
+
+		physics::Raycaster m_raycaster;
 	};
 }
