@@ -18,7 +18,7 @@ target_link_libraries(imp_gfx
 
 target_link_libraries(imp_gfx
 	PRIVATE
-		libjpeg-turbo::turbojpeg
+		${IMP_JPEGTURBO_TARGET}
 		spng_static
 		libdeflate_static
 )

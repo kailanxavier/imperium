@@ -36,6 +36,7 @@
       "displayName": "MacOS Debug",
       "binaryDir": "${sourceDir}/build/mac-debug",
       "cacheVariables": {
+        "CMAKE_TOOLCHAIN_FILE": "$env{HOME}/vcpkg/scripts/buildsystems/vcpkg.cmake",
         "CMAKE_OSX_ARCHITECTURES": "arm64",
         "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_CXX_STANDARD": "23"
@@ -46,6 +47,7 @@
       "displayName": "MacOS Release",
       "binaryDir": "${sourceDir}/build/mac-release",
       "cacheVariables": {
+        "CMAKE_TOOLCHAIN_FILE": "$env{HOME}/vcpkg/scripts/buildsystems/vcpkg.cmake",
         "CMAKE_OSX_ARCHITECTURES": "arm64",
         "CMAKE_BUILD_TYPE": "Release",
         "CMAKE_CXX_STANDARD": "23"
@@ -87,6 +89,16 @@
     {
       "name": "Windows Release (MSVC x64)",
       "configurePreset": "windows-release",
+      "configuration": "Release"
+    },
+    {
+      "name": "Windows Debug (Clang)",
+      "configurePreset": "windows-debug-clang",
+      "configuration": "Debug"
+    },
+    {
+      "name": "Window Release (Clang)",
+      "configurePreset": "windows-release-clang",
       "configuration": "Release"
     },
     {
