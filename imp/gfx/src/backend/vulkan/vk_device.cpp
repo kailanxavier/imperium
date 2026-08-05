@@ -914,7 +914,6 @@ namespace imp::gfx::vulkan
 		if (m_validationEnabled)
 		{
 			createInfo.enabledLayerCount = 1;
-			createInfo.enabledLayerCount = 0;
 			createInfo.ppEnabledLayerNames = kValidationLayers.data();
 
 			debugCreateInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
@@ -955,6 +954,8 @@ namespace imp::gfx::vulkan
 	bool VulkanDevice::setupDebugMessenger()
 	{
 #ifndef NDEBUG
+		LOG_INFO("Vulkan", "Debug messenger starting...");
+
 		VkDebugUtilsMessengerCreateInfoEXT createInfo{};
 		createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
 		createInfo.messageSeverity =
