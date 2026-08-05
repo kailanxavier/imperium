@@ -58,6 +58,20 @@ namespace imp::fwk
 		glfwSetCursorPosCallback(m_handle, &Window::cursorPosCallback);
 		glfwSetScrollCallback(m_handle, &Window::scrollCallback);
 
+		// I know this should be its own function like all others but this is temporary
+		// and I don't really like this solution. For now, it will stay here. But if we
+		// think of something better, please replace it.
+		glfwSetWindowContentScaleCallback(m_handle, [](GLFWwindow* w, float xscale, float yscale)
+		{
+			auto* input = static_cast<Input*>(glfwGetWindowUserPointer(w));
+			input->setMouseScale(xscale, yscale);
+		});
+
+		float xScale, yScale;
+		glfwGetWindowContentScale(m_handle, &xScale, &yScale);
+
+		m_input.setMouseScale(xScale, yScale);
+
 		return true;
 	}
 
