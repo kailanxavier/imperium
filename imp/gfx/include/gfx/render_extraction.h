@@ -6,9 +6,9 @@
 #include <vector>
 
 namespace imp::ecs { class World; }
-namespace imp::gfx { class ModelRegistry; }
-namespace imp::app
-{
+namespace imp::gfx { 
+	class ModelRegistry; 
+
 	struct ModelBatch
 	{
 		gfx::ModelHandle model;

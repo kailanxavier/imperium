@@ -6,8 +6,8 @@
 #include <cstddef>
 #include <cstring>
 
-#include <app/model_renderer.h>
-#include <app/render_extraction.h>
+#include <gfx/model_renderer.h>
+#include <gfx/render_extraction.h>
 #include <gfx/lighting.h>
 #include <gfx/model.h>
 #include <gfx/model_loader.h>
@@ -266,6 +266,7 @@ namespace imp::app
 		t.position = math::Vec3f{ 5.f, 0.f, 5.f };
 		ctx.ecs.transforms.create(entity, t);
 		ctx.ecs.renderables.create(entity, m_environmentHandle);
+		ctx.ecs.colliders.createAABB(entity, math::Vec3f{ -1.f, -1.f, -1.f }, math::Vec3f{ 1.f, 1.f, 1.f });
 		m_instances.push_back(entity);
 
 		ensureInstanceBufferCapacity(ctx, static_cast<u32>( m_instances.size() ));
@@ -310,7 +311,7 @@ namespace imp::app
 		shadowPassDesc.clearDepthValue = 1.f;
 		cmd.beginRenderPass(shadowPassDesc);
 
-		ModelRenderContext shadowRenderCtx{};
+		gfx::ModelRenderContext shadowRenderCtx{};
 		shadowRenderCtx.cmd = &cmd;
 		shadowRenderCtx.modelRegistry = &m_modelRegistry;
 		shadowRenderCtx.sampler = m_sampler.get();
@@ -335,7 +336,7 @@ namespace imp::app
 		const u32 h = ctx.gfx.backBuffer().height();
 		const float aspect = h > 0 ? static_cast<float>( w ) / static_cast<float>( h ) : 1.f;
 
-		ModelRenderContext renderCtx{};
+		gfx::ModelRenderContext renderCtx{};
 		renderCtx.cmd = &cmd;
 		renderCtx.modelRegistry = &m_modelRegistry;
 		renderCtx.sampler = m_sampler.get();
@@ -362,6 +363,8 @@ namespace imp::app
 			cmd.bindPipeline(*m_blendPipeline);
 			drawBlendInstances(renderCtx, m_extraction);
 		}
+
+		ctx.layers.renderAll(cmd);
 
 		cmd.endRenderPass();
 
@@ -460,6 +463,7 @@ namespace imp::app
 		const ecs::EntityId entity = ctx.ecs.createEntity();
 		ctx.ecs.transforms.create(entity, t);
 		ctx.ecs.renderables.create(entity, m_statueHandle);
+		ctx.ecs.colliders.createAABB(entity, math::Vec3f{ -0.5f, -0.5f, -0.5f }, math::Vec3f{ 0.5f, 0.5f, 0.5f });
 		m_instances.push_back(entity);
 		return entity;
 	}

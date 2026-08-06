@@ -73,6 +73,7 @@ namespace imp::fwk
 	{
 		m_keysPressed.fill(false);
 		m_keysReleased.fill(false);
+		m_mousePressed.fill(false);
 		m_mouseDelta = math::Vec2f::zero();
 		m_scrollDelta = 0.f;
 	}
@@ -97,6 +98,11 @@ namespace imp::fwk
 		return m_mouseDown[toIndex(button)];
 	}
 
+	bool Input::isMouseButtonPressed(MouseButton button) const
+	{
+		return m_mousePressed[toIndex(button)];
+	}
+
 	void Input::onKeyEvent(int glfwKey, int action)
 	{
 		Key mapped = fromGlfwKey(glfwKey);
@@ -117,8 +123,12 @@ namespace imp::fwk
 
 	void Input::onMouseButtonEvent(int glfwButton, int action)
 	{
+		
 		MouseButton mapped = fromGlfwMouseButton(glfwButton);
 		if (mapped == MouseButton::Count) return;
+
+		if (action == GLFW_PRESS)
+			m_mousePressed[toIndex(mapped)] = true;
 
 		m_mouseDown[toIndex(mapped)] = ( action != GLFW_RELEASE );
 	}

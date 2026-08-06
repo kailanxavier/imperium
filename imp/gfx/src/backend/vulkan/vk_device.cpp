@@ -161,6 +161,17 @@ namespace imp::gfx::vulkan
 			default: return VK_SAMPLE_COUNT_1_BIT;
 			}
 		}
+
+		VkPrimitiveTopology toVkTopology(gfx::PrimitiveTopology topology)
+		{
+			switch (topology)
+			{
+			case imp::gfx::PrimitiveTopology::TriangleList: return VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+			case imp::gfx::PrimitiveTopology::LineList: return VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+			case imp::gfx::PrimitiveTopology::PointList: return VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
+			default: return VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+			}
+		}
 	}
 
 	VulkanDevice::VulkanDevice() = default;
@@ -228,6 +239,11 @@ namespace imp::gfx::vulkan
 		m_descriptorAllocator.reset();
 		m_commands.reset();
 		m_swapchain.reset();
+		m_tonemapVertShader.reset();
+		m_hdrRenderTarget.reset();
+		m_hdrColourTexture.reset();
+		m_backBufferTarget.reset();
+		m_depthBufferTarget.reset();
 		m_stagingBuffer.destroy();
 
 		if (m_vmaAllocator != VK_NULL_HANDLE)
@@ -671,6 +687,7 @@ namespace imp::gfx::vulkan
 		info.instanceBinding.inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
 		info.hasInstanceBinding = desc.hasInstanceBinding;
 		info.blendEnable = desc.blendState.blendEnable;
+		info.topology = toVkTopology(desc.rasterizerState.topology);
 		info.allocationCallbacks = allocationCallbacks();
 
 		auto pipeline = std::make_unique<VulkanGraphicsPipeline>();
@@ -892,14 +909,11 @@ namespace imp::gfx::vulkan
 		createInfo.enabledExtensionCount = static_cast<u32>( extensions.size() );
 		createInfo.ppEnabledExtensionNames = extensions.data();
 
+#ifndef NDEBUG
 		VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo{};
 		if (m_validationEnabled)
 		{
-#ifndef NDEBUG
 			createInfo.enabledLayerCount = 1;
-#else
-			createInfo.enabledLayerCount = 0;
-#endif // !NDEBUG
 			createInfo.ppEnabledLayerNames = kValidationLayers.data();
 
 			debugCreateInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
@@ -927,6 +941,7 @@ namespace imp::gfx::vulkan
 			debugCreateInfo.pNext= &validationFeatures;
 			createInfo.pNext = &debugCreateInfo;
 		}
+#endif // !NDEBUG
 
 		if (vkCreateInstance(&createInfo, allocationCallbacks(), &m_instance) != VK_SUCCESS)
 		{
@@ -938,6 +953,9 @@ namespace imp::gfx::vulkan
 
 	bool VulkanDevice::setupDebugMessenger()
 	{
+#ifndef NDEBUG
+		LOG_INFO("Vulkan", "Debug messenger starting...");
+
 		VkDebugUtilsMessengerCreateInfoEXT createInfo{};
 		createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
 		createInfo.messageSeverity =
@@ -955,6 +973,7 @@ namespace imp::gfx::vulkan
 			LOG_ERROR("Vulkan", "Failed to set up debug messenger");
 			return false;
 		}
+#endif
 		return true;
 	}
 
@@ -1346,8 +1365,10 @@ namespace imp::gfx::vulkan
 		u32 glfwExtensionCount = 0;
 		const char** glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
 		std::vector<const char*> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
+#ifndef NDEBUG
 		if (wantValidation)
 			extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+#endif // !NDEBUG
 		return extensions;
 	}
 

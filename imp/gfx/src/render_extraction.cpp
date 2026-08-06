@@ -1,9 +1,9 @@
-#include <app/render_extraction.h>
+#include <gfx/render_extraction.h>
 #include <ecs/world.h>
 #include <gfx/model_registry.h>
 #include <algorithm>
 
-namespace imp::app
+namespace imp::gfx
 {
 	namespace
 	{

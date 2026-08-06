@@ -41,9 +41,12 @@ namespace imp::fwk
 		[[nodiscard]] bool isKeyReleased(Key key) const;
 
 		[[nodiscard]] bool isMouseButtonDown(MouseButton button) const;
-		[[nodiscard]] math::Vec2f mousePosition() const { return m_mousePos; }
+		[[nodiscard]] bool isMouseButtonPressed(MouseButton button) const;
+		[[nodiscard]] math::Vec2f mousePosition() const { return m_mousePos * m_mouseScale; }
 		[[nodiscard]] math::Vec2f mouseDelta() const { return m_mouseDelta; }
 		[[nodiscard]] float scrollDelta() const { return m_scrollDelta; }
+
+		void setMouseScale(float x, float y) { m_mouseScale = { x, y }; }
 
 		void onKeyEvent(int glfwKey, int action);
 		void onMouseButtonEvent(int glfwButton, int action);
@@ -54,12 +57,16 @@ namespace imp::fwk
 		std::array<bool, static_cast<size_t>(Key::Count)> m_keysDown{};
 		std::array<bool, static_cast<size_t>(Key::Count)> m_keysPressed{};
 		std::array<bool, static_cast<size_t>(Key::Count)> m_keysReleased{};
+		std::array<bool, static_cast<size_t>(MouseButton::Count)> m_mousePressed{};
 
 		std::array<bool, static_cast<size_t>(MouseButton::Count)> m_mouseDown{};
 
 		math::Vec2f m_mousePos = math::Vec2f::zero();
 		math::Vec2f m_lastMousePos = math::Vec2f::zero();
 		math::Vec2f m_mouseDelta = math::Vec2f::zero();
+
+		math::Vec2f m_mouseScale{1.f, 1.f};
+
 		float m_scrollDelta = 0.f;
 		bool m_firstMouseEvent = true;
  	};

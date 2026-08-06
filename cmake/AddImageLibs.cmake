@@ -16,13 +16,20 @@ endif()
 find_package(JPEG REQUIRED)
 find_package(libjpeg-turbo CONFIG REQUIRED)
 
-if (NOT TARGET libjpeg-turbo::turbojpeg)
+get_property(_targets DIRECTORY PROPERTY BUILDSYSTEM_TARGETS)
+message(STATUS "Targets: ${_targets}")
+
+if (TARGET libjpeg-turbo::turbojpeg)
+    set(IMP_JPEGTURBO_TARGET libjpeg-turbo::turbojpeg)
+elseif (TARGET libjpeg-turbo::turbojpeg-static)
+    set(IMP_JPEGTURBO_TARGET libjpeg-turbo::turbojpeg-static)
+else()
     message(FATAL_ERROR
-        "Expected target 'libjpeg-turbo::turbojpeg' not found after find_package(libjpeg-turbo). "
-        "Check that CMAKE_TOOLCHAIN_FILE points at vcpkg.cmake and that vcpkg.json is present at "
-        "${CMAKE_SOURCE_DIR}."
+            "Expected target 'libjpeg-turbo::turbojpeg' not found after find_package(libjpeg-turbo). "
+            "Check that CMAKE_TOOLCHAIN_FILE points at vcpkg.cmake and that vcpkg.json is present at "
+            "${CMAKE_SOURCE_DIR}."
     )
-endif()
+endif ()
 
 if (EXISTS "${CMAKE_SOURCE_DIR}/vendor/libdeflate/CMakeLists.txt")
     set(LIBDEFLATE_BUILD_SHARED_LIB OFF CACHE BOOL "" FORCE)

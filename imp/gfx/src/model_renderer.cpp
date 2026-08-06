@@ -1,4 +1,4 @@
-#include <app/model_renderer.h>
+#include <gfx/model_renderer.h>
 
 #include <gfx/model.h>
 #include <gfx/model_registry.h>
@@ -7,7 +7,7 @@
 
 #include <core/log/log.h>
 
-namespace imp::app
+namespace imp::gfx
 {
 	namespace
 	{
@@ -23,7 +23,7 @@ namespace imp::app
 				{
 					const gfx::Material* mat = (prim.materialIndex >= 0) ? &model.materials[prim.materialIndex] : nullptr;
 					const gfx::AlphaMode resolvedAlphaMode = mat ? mat->alphaMode : gfx::AlphaMode::Opaque;
-					const bool primitiveIsBlend = (resolvedAlphaMode == gfx::AlphaMode::Blend);
+					//const bool primitiveIsBlend = (resolvedAlphaMode == gfx::AlphaMode::Blend);
 					
 					if (passKind == gfx::AlphaModePass::OpaqueAndMask)
 					{

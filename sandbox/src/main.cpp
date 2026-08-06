@@ -1,6 +1,7 @@
 #include <app/application.h>
 #include <app/telemetry_layer.h>
 #include <app/light_control_layer.h>
+#include <app/gizmo_layer.h>
 
 #include <sandbox/sandbox_app.h>
 
@@ -43,6 +44,11 @@ int main()
 	auto* sb = static_cast<app::SandboxApp*>(application.app().get());
 	application.layers().pushOverlay(std::make_unique<app::TelemetryLayer>(application.gfxAllocator()));
 	application.layers().pushOverlay(std::make_unique<app::LightControlLayer>(sb->sunDirection(), sb->pointPos()));
+
+	application.layers().pushOverlay(
+		std::make_unique<app::GizmoLayer>(application.device(), application.world(), sb->camera(),
+		application.window().input(), sb->hdrColourFormat(), sb->hdrDepthFormat(), sb->sampleCount()
+		));
 
 	application.run();
 	application.shutdown();

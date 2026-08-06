@@ -13,11 +13,12 @@ target_link_libraries(imp_gfx
 		imp_fwk
 	PRIVATE
 		imp_jobs
+		imp_ecs
 )
 
 target_link_libraries(imp_gfx
 	PRIVATE
-		libjpeg-turbo::turbojpeg
+		${IMP_JPEGTURBO_TARGET}
 		spng_static
 		libdeflate_static
 )
@@ -52,6 +53,9 @@ target_sources(imp_gfx PRIVATE
 	src/image.cpp
 	src/model_loader.cpp
 	src/model_registry.cpp
+	src/gizmo_renderer.cpp
+	src/model_renderer.cpp
+	src/render_extraction.cpp
 	src/texture_cache.cpp
 )
 
