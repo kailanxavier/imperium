@@ -479,6 +479,8 @@ namespace imp::app
 		if (w == 0 || h == 0)
 			return;
 
+		ctx.gfx.waitIdle();
+
 		gfx::TextureDesc hdrDesc;
 		hdrDesc.width = w;
 		hdrDesc.height = h;

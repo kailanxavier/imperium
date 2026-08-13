@@ -31,7 +31,9 @@ namespace imp::gfx::vulkan
 		VkCommandBuffer commandBuffer() const { return m_cmd; }
 
 		void transitionToPresent(gfx::IRenderTarget& target);
+
 		void forgetImageState(VkImage image) { m_imageStates.erase(image); }
+		void resetImageTracking() { m_imageStates.clear(); }
 
 	private:
 		// Allocated m_currentDescriptorSet from m_descriptorAllocator
