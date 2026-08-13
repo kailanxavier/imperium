@@ -479,9 +479,7 @@ namespace imp::app
 		if (w == 0 || h == 0)
 			return;
 
-		/*const bool isResize = ( m_hdrTarget != nullptr );
-		if (isResize)
-			ctx.gfx.waitIdle();*/
+		ctx.gfx.waitIdle();
 
 		gfx::TextureDesc hdrDesc;
 		hdrDesc.width = w;

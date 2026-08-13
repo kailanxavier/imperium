@@ -2,6 +2,7 @@
 
 #include <gfx/commands.h>
 #include <vulkan/vulkan.h>
+#include <unordered_map>
 
 namespace imp::gfx::vulkan
 {
@@ -29,12 +30,29 @@ namespace imp::gfx::vulkan
 
 		VkCommandBuffer commandBuffer() const { return m_cmd; }
 
+		void transitionToPresent(gfx::IRenderTarget& target);
+
+		void forgetImageState(VkImage image) { m_imageStates.erase(image); }
+		void resetImageTracking() { m_imageStates.clear(); }
+
 	private:
 		// Allocated m_currentDescriptorSet from m_descriptorAllocator
 		// if not already done for the pipeline currently bound.
 		// Returns false and logs if there's no descriptor allocator/layout
 		// to allocate against.
 		bool ensureDescriptorSet();
+
+		struct ImageSyncState
+		{
+			VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED;
+			VkPipelineStageFlags2 stage = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;
+			VkAccessFlags2 access = VK_ACCESS_NONE;
+		};
+		std::unordered_map<VkImage, ImageSyncState> m_imageStates;
+
+		void transitionImage(VkImage image, VkImageAspectFlags aspect,
+			VkImageLayout newLayout, VkPipelineStageFlags2 dstStage, VkAccessFlags2 dstAccess, 
+			bool crossesPresentationEngine = false);
 
 		VkCommandBuffer m_cmd = VK_NULL_HANDLE;
 		VkDevice m_device = VK_NULL_HANDLE;

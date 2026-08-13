@@ -853,6 +853,8 @@ namespace imp::gfx::vulkan
 		if (!m_frameActive) return;
 
 		u32 frame = m_swapchain->currentFrameIndex();
+
+		m_commandList->transitionToPresent(backBuffer());
 		m_commands->endRecording(frame);
 
 		VkSemaphoreSubmitInfo waitInfo{};
@@ -863,7 +865,7 @@ namespace imp::gfx::vulkan
 		VkSemaphoreSubmitInfo signalInfo{};
 		signalInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
 		signalInfo.semaphore = m_swapchain->currentRenderFinishedSemaphore();
-		signalInfo.stageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+		signalInfo.stageMask = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT;
 
 		VkCommandBufferSubmitInfo cmdSubmitInfo{};
 		cmdSubmitInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
