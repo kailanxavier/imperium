@@ -2,10 +2,21 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from pathlib import Path
 from scanner import Scanner
+import os
 
 class App:
     def __init__(self, root: tk.Tk):
         self.root = root
+        # Try to load icon
+        try:
+            icon = tk.PhotoImage(file='icon.png')
+            self.root.iconphoto(True, icon)
+        except tk.TclError:
+            from PIL import Image, ImageTk
+            img = Image.open('icon.png')
+            icon = ImageTk.PhotoImage(img)
+            self.root.iconphoto(True,icon)
+        
         self.root.title("Imperium TaskRadar")
         self.root.geometry("1000x600")
 
@@ -14,6 +25,24 @@ class App:
 
         self._create_widgets()
         self._layout_widgets()
+
+        self._auto_add_from_env()
+
+    def _auto_add_from_env(self):
+        env_var = "IMP_ROOT"
+        imp_root = os.environ.get(env_var)
+        if not imp_root:
+            return
+
+        print('\033[0;32m', "   Found IMP_ROOT:", str(imp_root), '\033[0m')
+
+        root_path = Path(imp_root).expanduser().resolve()
+        core_dir = root_path / "imp"
+
+        if core_dir.is_dir():
+            self.add_directory_from_path(str(core_dir))
+        elif root_path.is_dir():
+            self.add_directory_from_path(str(root_path))
 
     def _create_widgets(self):
         self.top_frame = ttk.Frame(self.root, padding="10")
@@ -53,21 +82,29 @@ class App:
         self.tree_frame.grid_rowconfigure(0, weight=1)
         self.tree_frame.grid_columnconfigure(0, weight=1)
 
-    def add_directory(self):
-        dir_path = filedialog.askdirectory(title="Select a root directory to scan")
-        if not dir_path:
+    def add_directory_from_path(self, path_str: str):
+        # Scan a directory path and add it to the results
+        root = Path(path_str).expanduser().resolve()
+        if not root.is_dir():
+            messagebox.showerror("Error", f"Not a valid directory:\n{root}")
             return
-        root = Path(dir_path).expanduser().resolve()
+
         try:
-            categories = self.scanner.scan_directory(root)
+            entries = self.scanner.scan_directory(root)
         except Exception as e:
             messagebox.showerror("Error", f"Failed to scan directory:\n{e}")
             return
 
-        self.results[str(root)] = categories
+        self.results[str(root)] = entries
         self._update_combobox()
         self.dir_combo.set(str(root))
         self._display_results(str(root))
+
+    def add_directory(self):
+        dir_path = filedialog.askdirectory(title="Select a root directory to scan")
+        if not dir_path:
+            return
+        self.add_directory_from_path(dir_path)
 
     def clear_all(self):
         self.results.clear()
