@@ -173,13 +173,6 @@ namespace imp::app
 		samplerDesc.enableAnisotropy = true;
 		m_sampler = ctx.gfx.createSampler(samplerDesc);
 
-		gfx::TextureDesc shadowDesc;
-		shadowDesc.width = kShadowMapSize;
-		shadowDesc.height = kShadowMapSize;
-		shadowDesc.format = ctx.gfx.depthBuffer() ? ctx.gfx.depthBuffer()->format() : gfx::TextureFormat::Unknown;
-		shadowDesc.usage = gfx::TextureUsage::Sampled | gfx::TextureUsage::DepthStencil;
-		m_shadowTarget = ctx.gfx.createRenderTarget(shadowDesc);
-
 		gfx::TextureDesc cascadeDesc;
 		cascadeDesc.width = m_cascadeConfig.shadowMapResolution;
 		cascadeDesc.height = m_cascadeConfig.shadowMapResolution;
@@ -244,7 +237,7 @@ namespace imp::app
 			buf = ctx.gfx.createBuffer(lightUboDesc);
 
 		if (!m_pipeline || !m_blendPipeline || !m_hdrTarget || !m_tonemapPipeline || !m_sampler 
-			|| !m_environmentHandle.isValid() || !m_shadowPipeline || !m_shadowTarget || !m_shadowSampler || !m_hdrDepthTarget)
+			|| !m_environmentHandle.isValid() || !m_shadowPipeline || !m_shadowSampler || !m_hdrDepthTarget)
 		{
 			LOG_FATAL("Sandbox", "Failed to create pipelines/sampler/light buffer, or model failed to load");
 			return false;
@@ -282,7 +275,7 @@ namespace imp::app
 
 				ecs::Transform t;
 				t.position = position;
-				t.scale = math::Vec3f{ 10.f, 10.f, 10.f };
+				//t.scale = math::Vec3f{ 10.f, 10.f, 10.f };
 				spawnInstance(ctx, t);
 			}
 		}
@@ -360,7 +353,7 @@ namespace imp::app
 		m_cascadeUBOs[currentFrame]->update(&cascadeData, sizeof(cascadeData));
 
 		m_extraction.lightData.sunViewProj = m_sunViewProj;
-		m_extraction.lightData.shadowMapSize = static_cast<float>( kShadowMapSize );
+		m_extraction.lightData.shadowMapSize = static_cast<float>( m_cascadeConfig.shadowMapResolution );
 		m_lightUBOs[currentFrame]->update(&m_extraction.lightData, sizeof(gfx::LightUBO));
 
 		for (u32 i = 0; i < gfx::kCascadeCount; ++i)
@@ -461,7 +454,6 @@ namespace imp::app
 		m_meshFragShader.reset();
 		m_meshVertShader.reset();
 		m_shadowPipeline.reset();
-		m_shadowTarget.reset();
 		m_shadowSampler.reset();
 		m_shadowFragShader.reset();
 		m_shadowVertShader.reset();

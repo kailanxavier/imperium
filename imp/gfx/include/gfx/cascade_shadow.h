@@ -13,12 +13,13 @@ namespace imp::gfx
 	{
 		math::Mat4f viewProj;
 		float splitDepth = 0.f;
+		float worldUnitsPerTexel = 0.f;
 	};
 
 	struct CascadeConfig
 	{
 		u32 shadowMapResolution = 4096;
-		float splitLambda = 0.99f;
+		float splitLambda = 0.95f;
 		float zPadding = 25.f;
 	};
 

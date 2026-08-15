@@ -71,6 +71,7 @@ namespace imp::gfx
 
 			out[i].viewProj = lightProj * lightView;
 			out[i].splitDepth = sliceFar;
+			out[i].worldUnitsPerTexel = worldUnitsPerTexel;
 		}
 
 		return out;

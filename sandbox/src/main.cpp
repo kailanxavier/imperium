@@ -43,7 +43,7 @@ int main()
 
 	auto* sb = static_cast<app::SandboxApp*>(application.app().get());
 	application.layers().pushOverlay(std::make_unique<app::TelemetryLayer>(application.gfxAllocator()));
-	application.layers().pushOverlay(std::make_unique<app::LightControlLayer>(sb->sunDirection(), sb->pointPos()));
+	application.layers().pushOverlay(std::make_unique<app::LightControlLayer>(sb->sunDirection(), sb->pointPos(), sb->cascadeConfig()));
 
 	application.layers().pushOverlay(
 		std::make_unique<app::GizmoLayer>(application.device(), application.world(), sb->camera(),

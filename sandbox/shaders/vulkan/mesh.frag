@@ -111,6 +111,12 @@ void main()
     vec3 F0 = mix(vec3(0.04), albedo, metallic);
 
     vec3 result = lightData.ambientColour.rgb * albedo * occlusion;
+    vec3 sunL = normalize(-lightData.sunDirection);
+    float sunBias = max(0.0025 * (1.0 - dot(N, sunL)), 0.00005);
+    float viewSpaceDepth = length(lightData.cameraPositionWS.xyz - inPositionWS);
+    int cascadeIndex = selectCascade(viewSpaceDepth);
+    vec3 shadowCoords = getShadowCoords(cascades.viewProj[cascadeIndex], inPositionWS);
+    float sunShadowFactor = shadowPCSS(shadowMap, cascadeIndex, lightData.shadowMapSize, shadowCoords, sunBias);
 
     for (uint i = 0u; i < lightData.lightCount; ++i)
     {
@@ -137,11 +143,7 @@ void main()
         vec3 kD = (vec3(1.0) - F) * (1.0 - metallic);
         vec3 diffuse = kD * albedo / PI;
 
-        float bias = max(0.0025 * (1.0 - dot(N, L)), 0.00005);
-        float viewSpaceDepth = length(lightData.cameraPositionWS.xyz - inPositionWS);
-        int cascadeIndex = selectCascade(viewSpaceDepth);
-        vec3 shadowCoords = getShadowCoords(cascades.viewProj[cascadeIndex], inPositionWS);
-        float shadowFactor = isPoint ? 1.0 : shadowPCSS(shadowMap, cascadeIndex, lightData.shadowMapSize, shadowCoords, bias);
+        float shadowFactor = isPoint ? 1.0 : sunShadowFactor;
         result += (diffuse + specular) * radiance * NdotL * shadowFactor;
     }
 

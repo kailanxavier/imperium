@@ -37,6 +37,7 @@ namespace imp::app
 
 		math::Vec3f& sunDirection() { return m_sunDirection; }
 		const math::Vec3f& sunDirection() const { return m_sunDirection; }
+		gfx::CascadeConfig& cascadeConfig() { return m_cascadeConfig; }
 
 		ecs::Transform& pointPos() { return m_localLightTransform; }
 		const ecs::Transform& pointPos() const { return m_localLightTransform; }
@@ -56,12 +57,10 @@ namespace imp::app
 
 	private:
 		void updateSunViewProj();
-		static constexpr u32 kShadowMapSize = 8192;
 
 		std::unique_ptr<gfx::IShader> m_shadowVertShader;
 		std::unique_ptr<gfx::IShader> m_shadowFragShader;
 		std::unique_ptr<gfx::IPipeline> m_shadowPipeline;
-		std::unique_ptr<gfx::IRenderTarget> m_shadowTarget;
 		std::unique_ptr<gfx::ISampler> m_shadowSampler;
 
 		math::Vec3f m_sunDirection = math::Vec3f::zero();

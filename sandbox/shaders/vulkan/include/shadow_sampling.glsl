@@ -37,8 +37,8 @@ float filterPCF(sampler2DArray shadowMap, int cascadeIndex, float shadowMapSize,
     float shadow = 0.0;
     int samples = 0;
 
-    for (int x = -3; x <= 3; x++)
-    for (int y = -3; y <= 3; y++)
+    for (int x = -1; x <= 1; x++)
+    for (int y = -1; y <= 1; y++)
     {
         vec2 offset = vec2(x, y) * radius / shadowMapSize;
         float depth = texture(shadowMap, vec3(coords.xy + offset, float(cascadeIndex))).r;
