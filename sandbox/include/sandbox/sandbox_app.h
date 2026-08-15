@@ -13,6 +13,7 @@
 
 #include <gfx/render_extraction.h>
 #include <gfx/texture_cache.h>
+#include <gfx/cascade_shadow.h>
 
 #include <memory>
 
@@ -79,8 +80,7 @@ namespace imp::app
 		std::unique_ptr<gfx::IPipeline> m_blendPipeline;
 
 		std::unique_ptr<gfx::ISampler> m_sampler;
-		std::unique_ptr<gfx::IBuffer> m_lightBuffer;
-		std::unique_ptr<gfx::IBuffer> m_instanceBuffer;
+		//std::unique_ptr<gfx::IBuffer> m_instanceBuffer;
 
 		static constexpr gfx::SampleCount kMsaaSampleCount = gfx::SampleCount::Four;
 
@@ -96,8 +96,7 @@ namespace imp::app
 		std::unique_ptr<gfx::IShader> m_skyFragShader;
 		std::unique_ptr<gfx::IPipeline> m_skyPipeline;
 
-		/*gfx::Model m_model;
-		gfx::Model m_statue;*/
+		ecs::EntityId m_sunEntity;
 
 		u32 m_instanceCapacity = 16;
 
@@ -108,5 +107,14 @@ namespace imp::app
 		ecs::ModelHandle m_statueHandle{};
 
 		gfx::RenderExtraction m_extraction;
+
+		std::vector<std::unique_ptr<gfx::IRenderTarget>> m_shadowCascadeTargets;
+		gfx::ITexture* m_shadowArrayTexture = nullptr;
+		std::array<gfx::CascadeData, gfx::kCascadeCount> m_cascades;
+		gfx::CascadeConfig m_cascadeConfig;
+
+		std::vector<std::unique_ptr<gfx::IBuffer>> m_cascadeUBOs;
+		std::vector<std::unique_ptr<gfx::IBuffer>> m_lightUBOs;
+		std::vector<std::unique_ptr<gfx::IBuffer>> m_instanceBuffers;
 	};
 }

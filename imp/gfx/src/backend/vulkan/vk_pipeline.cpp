@@ -130,6 +130,15 @@ namespace imp::gfx::vulkan
 			b.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 			bindings.push_back(b);
 		}
+		if (info.hasCascadeUniformBuffer)
+		{
+			VkDescriptorSetLayoutBinding b{};
+			b.binding = 7;
+			b.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+			b.descriptorCount = 1;
+			b.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+			bindings.push_back(b);
+		}
 
 		if (!bindings.empty())
 		{

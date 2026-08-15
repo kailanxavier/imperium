@@ -46,7 +46,9 @@ namespace imp::gfx
         virtual void* mappedData() = 0;
         virtual const void* mappedData() const = 0;
 
-        [[nodiscard]] virtual IndexFormat indexFormat() const = 0;
+        virtual IndexFormat indexFormat() const = 0;
+
+        virtual bool update(const void* data, u64 size, u64 offset = 0) = 0;
     };
 
     enum class TextureFormat
@@ -89,9 +91,10 @@ namespace imp::gfx
     {
         u32 width = 0;
         u32 height = 0;
+        u32 mipLevels = 1;
+        u32 arrayLayers = 1;
         TextureFormat format = TextureFormat::RGBA8Unorm;
         TextureUsage usage = TextureUsage::Sampled;
-        u32 mipLevels = 1;
         SampleCount sampleCount = SampleCount::One;
         const char* debugName = nullptr;
         const void* initialData = nullptr;

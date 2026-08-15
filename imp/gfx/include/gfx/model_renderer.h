@@ -15,10 +15,14 @@ namespace imp::gfx
 		gfx::ICommandList* cmd = nullptr;
 		gfx::ModelRegistry* modelRegistry = nullptr;
 		gfx::ISampler* sampler = nullptr;
+
 		gfx::IBuffer* lightBuffer = nullptr;
 		gfx::IBuffer* instanceBuffer = nullptr;
-		gfx::ITexture* shadowMap = nullptr;
+
+		gfx::ITexture* shadowArrayTexture = nullptr;
+		gfx::IBuffer* cascadeBuffer = nullptr;
 		gfx::ISampler* shadowSampler = nullptr;
+
 		math::Mat4f viewProj;
 	};
 

@@ -5,6 +5,8 @@
 #include <vulkan/vulkan.h>
 #include <vk_mem_alloc.h>
 
+#include <vector>
+
 namespace imp::gfx::vulkan
 {
 	struct VulkanTextureCreateInfo
@@ -19,6 +21,7 @@ namespace imp::gfx::vulkan
 
 		bool transient = false;
 		u32 mipLevels = 1;
+		u32 arrayLayers = 1;
 
 		const VkAllocationCallbacks* allocationCallbacks = nullptr;
 	};
@@ -43,11 +46,16 @@ namespace imp::gfx::vulkan
 		[[nodiscard]] bool isSampled() const { return m_isSampled; }
 
 		[[nodiscard]] VkImage image() const { return m_image; }
-		[[nodiscard]] VkImageView imageView() const { return m_imageView; }
+		[[nodiscard]] VkImageView imageView() const { return m_arrayLayers > 1 ? m_arrayView : m_imageView; }
 		[[nodiscard]] VkFormat vkFormat() const { return m_vkFormat; }
 		[[nodiscard]] bool isValid() const { return m_image != VK_NULL_HANDLE; }
 
 		[[nodiscard]] u32 mipLevels() const { return m_mipLevels; }
+
+		[[nodiscard]] VkImageView arrayView() const { return m_arrayView; }
+		[[nodiscard]] VkImageView layerView(u32 layer) const { 
+			return layer < m_layerViews.size() ? m_layerViews[layer] : m_imageView; }
+		[[nodiscard]] u32 arrayLayers() const { return m_arrayLayers; }
 
 	private:
 		VmaAllocator m_allocator = VK_NULL_HANDLE;
@@ -65,5 +73,8 @@ namespace imp::gfx::vulkan
 		u32 m_height = 0;
 
 		u32 m_mipLevels = 1;
+		u32 m_arrayLayers = 1;
+		VkImageView m_arrayView = VK_NULL_HANDLE;
+		std::vector<VkImageView> m_layerViews;
 	};
 }

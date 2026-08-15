@@ -70,7 +70,7 @@ namespace imp::gfx::vulkan
         [[nodiscard]] VkSemaphore currentRenderFinishedSemaphore() const { return m_renderFinishedSemaphores[m_currentImageIndex]; }
         [[nodiscard]] VkFence currentInFlightFence() const { return m_inFlightFences[m_currentFrame]; }
 
-        [[nodiscard]] bool isReady() const { return m_swapchain != VK_NULL_HANDLE; }
+        [[nodiscard]] bool isReady() const { return m_swapchain != VK_NULL_HANDLE && !m_images.empty(); }
 
     private:
         struct SupportDetails

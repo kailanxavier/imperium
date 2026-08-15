@@ -1,5 +1,5 @@
 #include "vk_swapchain.h"
-#include "vk_config.h"
+#include <gfx/config.h>
 
 #include <core/log/log.h>
 
@@ -148,6 +148,12 @@ namespace imp::gfx::vulkan
             // and sit idle rather than trying to create a 0 by 0 one.
             vkDeviceWaitIdle(m_device);
             destroySwapchainResources();
+
+            if (m_swapchain != VK_NULL_HANDLE)
+            {
+                vkDestroySwapchainKHR(m_device, m_swapchain, m_allocationCallbacks);
+                m_swapchain = VK_NULL_HANDLE;
+            }
             return;
         }
 

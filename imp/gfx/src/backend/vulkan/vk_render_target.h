@@ -27,23 +27,41 @@ namespace imp::gfx::vulkan
 			: m_ownedTexture(&ownedTexture)
 			, m_kind(VulkanRenderTargetKind::OwnedTexture) {}
 
+
+		[[nodiscard]] virtual u32 layer() const { return 0; }
+
 		u32 width() const override;
 		u32 height() const override;
 		gfx::TextureFormat format() const override;
 
 		gfx::SampleCount sampleCount() const override;
-		[[nodiscard]] bool isSampledOwnedDepth() const;
 
-		VkImage image() const;
-		VkImageView imageView() const;
-		VkFormat vkFormat() const;
-
-		[[nodiscard]] VulkanRenderTargetKind kind() const { return m_kind; }
+		[[nodiscard]] virtual bool isSampledOwnedDepth() const;
+		[[nodiscard]] virtual VkImage image() const;
+		[[nodiscard]] virtual VkImageView imageView() const;
+		[[nodiscard]] virtual VkFormat vkFormat() const;
+		[[nodiscard]] virtual VulkanRenderTargetKind kind() const { return m_kind; }
 
 	private:
 		VulkanSwapchain* m_swapchain = nullptr;
 		VulkanTexture* m_ownedTexture = nullptr;
 		VulkanRenderTargetKind m_kind;
+	};
+
+	class VulkanCascadeLayerTarget final : public VulkanRenderTarget
+	{
+	public:
+		VulkanCascadeLayerTarget(std::shared_ptr<VulkanTexture> owner, u32 layer) 
+			: VulkanRenderTarget(*owner), m_owner(std::move(owner)), m_layer(layer) {}
+
+		[[nodiscard]] u32 layer() const override { return m_layer; }
+		[[nodiscard]] VkImage image() const { return m_owner->image(); }
+		[[nodiscard]] VkImageView imageView() const { return m_owner->layerView(m_layer); }
+		[[nodiscard]] bool isSampledOwnedDepth() const { return true; }
+
+	private:
+		std::shared_ptr<VulkanTexture> m_owner;
+		u32 m_layer;
 	};
 
 	class VulkanOwnedColourTarget final : public VulkanRenderTarget

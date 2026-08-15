@@ -1,4 +1,6 @@
 #version 450
+#include "include/shadow_sampling.glsl"
+
 layout(location = 0) in vec3 inNormalWS;
 layout(location = 1) in vec3 inPositionWS;
 layout(location = 2) in vec2 inUV;
@@ -43,7 +45,20 @@ layout(binding = 6) uniform MaterialFactorsUBO
     float alphaMode;
 } material;
 
-layout(binding = 5) uniform sampler2D shadowMap;
+layout(binding = 5) uniform sampler2DArray shadowMap;
+layout(binding = 7) uniform CascadeUBO
+{
+    mat4 viewProj[4];
+    vec4 splitDepths;
+} cascades;
+
+int selectCascade(float viewSpaceDepth)
+{
+    for (int i = 0; i < 4; ++i)
+        if (viewSpaceDepth < cascades.splitDepths[i])
+            return i;
+    return 3;
+}
 
 float distributionGGX(vec3 N, vec3 H, float roughness)
 {
@@ -74,127 +89,6 @@ float geometrySmith(vec3 N, vec3 V, vec3 L, float roughness)
 vec3 fresnelSchlick(float cosTheta, vec3 F0)
 {
     return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
-}
-
-vec3 getShadowCoords(vec3 worldPos)
-{
-    vec4 lightSpace = lightData.sunViewProj * vec4(worldPos, 1.0);
-
-    lightSpace.xyz /= lightSpace.w;
-
-    vec3 coords;
-
-    coords.x = lightSpace.x * 0.5 + 0.5;
-    coords.y = 0.5 - lightSpace.y * 0.5;
-    coords.z = lightSpace.z;
-
-    return coords;
-}
-
-float findBlocker(vec3 coords, float bias)
-{
-    float searchRadius = 4.0 / lightData.shadowMapSize;
-
-    float blockerSum = 0.0;
-    int blockers = 0;
-
-
-    for(int x = -3; x <= 3; x++)
-    {
-        for(int y = -3; y <= 3; y++)
-        {
-            vec2 offset =
-                vec2(x,y) * searchRadius;
-
-            float depth =
-                texture(
-                    shadowMap,
-                    coords.xy + offset
-                ).r;
-
-            if(depth < coords.z - bias)
-            {
-                blockerSum += depth;
-                blockers++;
-            }
-        }
-    }
-
-
-    if(blockers == 0)
-        return -1.0;
-
-    return blockerSum / float(blockers);
-}
-
-float calculatePenumbra(
-    float receiver,
-    float blocker)
-{
-    return
-        (receiver - blocker)
-        / blocker;
-}
-
-float filterPCF(vec3 coords, float radius, float bias)
-{
-    float shadow = 0.0;
-
-    int samples = 0;
-
-
-    for(int x=-3;x<=3;x++)
-    {
-        for(int y=-3;y<=3;y++)
-        {
-            vec2 offset =
-                vec2(x,y)
-                * radius
-                / lightData.shadowMapSize;
-
-            float depth =
-                texture(
-                    shadowMap,
-                    coords.xy + offset
-                ).r;
-
-            shadow += coords.z - bias > depth ? 0.0 : 1.0;
-            samples++;
-        }
-    }
-
-    return shadow / float(samples);
-}
-
-float shadowPCSS(vec3 coords, float bias)
-{
-    if (coords.z > 1.0 || coords.x < 0.0 || coords.x > 1.0 || coords.y < 0.0 || coords.y > 1.0)
-        return 1.0;
-
-    float blocker = findBlocker(coords, bias);
-
-    // fully lit
-    if(blocker < 0.0)
-        return 1.0;
-
-    float penumbra =
-        calculatePenumbra(
-            coords.z,
-            blocker
-        );
-
-    float filterRadius =
-        clamp(
-            penumbra * 40.0,
-            1.0,
-            20.0
-        );
-
-    return filterPCF(
-        coords,
-        filterRadius,
-        bias
-    );
 }
 
 void main()
@@ -243,9 +137,11 @@ void main()
         vec3 kD = (vec3(1.0) - F) * (1.0 - metallic);
         vec3 diffuse = kD * albedo / PI;
 
-        float bias = max(0.0025 * (1.0 - dot(N, L)), 0.0005);
-        vec3 shadowCoords = getShadowCoords(inPositionWS);
-        float shadowFactor = isPoint ? 1.0 : shadowPCSS(shadowCoords, bias);
+        float bias = max(0.0025 * (1.0 - dot(N, L)), 0.00005);
+        float viewSpaceDepth = length(lightData.cameraPositionWS.xyz - inPositionWS);
+        int cascadeIndex = selectCascade(viewSpaceDepth);
+        vec3 shadowCoords = getShadowCoords(cascades.viewProj[cascadeIndex], inPositionWS);
+        float shadowFactor = isPoint ? 1.0 : shadowPCSS(shadowMap, cascadeIndex, lightData.shadowMapSize, shadowCoords, bias);
         result += (diffuse + specular) * radiance * NdotL * shadowFactor;
     }
 

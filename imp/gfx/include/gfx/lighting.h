@@ -49,4 +49,11 @@ namespace imp::gfx
 		GPULight lights[kMaxLights];
 	};
 	static_assert( sizeof(LightUBO) % 16 == 0 && "LightUBO layout must stay std140 consistent" );
+
+	struct CascadeUBO
+	{
+		math::Mat4f viewProj[4];
+		math::Vec4f splitDepths;
+	};
+	static_assert( sizeof(CascadeUBO) % 16 == 0 && "CascadeUBO layout must stay std140 consistent" );
 }

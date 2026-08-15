@@ -65,7 +65,7 @@ namespace imp::gfx::vulkan
 			transitionImage(depthTarget->image(), VK_IMAGE_ASPECT_DEPTH_BIT,
 				VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
 				VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
-				dstAccess, isSwapchainImage);
+				dstAccess, isSwapchainImage, depthTarget->layer());
 		}
 
 		VkRenderingAttachmentInfo colourAttachment{};
@@ -95,7 +95,8 @@ namespace imp::gfx::vulkan
 			depthAttachment.imageView = depthTarget->imageView();
 			depthAttachment.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
 			depthAttachment.loadOp = desc.clearDepth ? VK_ATTACHMENT_LOAD_OP_CLEAR : VK_ATTACHMENT_LOAD_OP_LOAD;
-			depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+			const bool depthWillBeSampled = depthTarget->isSampledOwnedDepth();
+			depthAttachment.storeOp = depthWillBeSampled ? VK_ATTACHMENT_STORE_OP_STORE : VK_ATTACHMENT_STORE_OP_DONT_CARE;
 			depthAttachment.clearValue.depthStencil.depth = desc.clearDepthValue;
 		}
 
@@ -144,7 +145,8 @@ namespace imp::gfx::vulkan
 		{
 			transitionImage(m_depthTarget->image(), VK_IMAGE_ASPECT_DEPTH_BIT,
 				VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-				VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT);
+				VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT,
+				false, m_depthTarget->layer());
 		}
 
 		m_depthTarget = nullptr;
@@ -276,9 +278,10 @@ namespace imp::gfx::vulkan
 		return true;
 	}
 
-	void VulkanCommandList::transitionImage(VkImage image, VkImageAspectFlags aspect, VkImageLayout newLayout, VkPipelineStageFlags2 dstStage, VkAccessFlags2 dstAccess, bool crossesPresentationEngine)
+	void VulkanCommandList::transitionImage(VkImage image, VkImageAspectFlags aspect, VkImageLayout newLayout, 
+		VkPipelineStageFlags2 dstStage, VkAccessFlags2 dstAccess, bool crossesPresentationEngine, u32 baseArrayLayer /* = 0*/ )
 	{
-		ImageSyncState& state = m_imageStates[image];
+		ImageSyncState& state = m_imageStates[{image, baseArrayLayer}];
 
 		VkPipelineStageFlags2 srcStage = state.stage;
 		VkAccessFlags2 srcAccess = state.access;
@@ -300,7 +303,7 @@ namespace imp::gfx::vulkan
 		barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 		barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 		barrier.image = image;
-		barrier.subresourceRange = { aspect, 0, 1, 0, 1 };
+		barrier.subresourceRange = { aspect, 0, 1, baseArrayLayer, 1 };
 
 		VkDependencyInfo dep{};
 		dep.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;

@@ -333,4 +333,17 @@ namespace imp::ecs
 		m_depthRanges.emplace_back(rangeStart, n);
 		m_updateOrderDirty = false;
 	}
+
+	std::optional<Transform> TransformStorage::tryGet(EntityId entity) const
+	{
+		const u32 idx = denseIndexOf(entity);
+		if (idx == kInvalidDense)
+			return std::nullopt;
+
+		return Transform{
+			m_localPos[idx],
+			m_localRot[idx],
+			m_localScale[idx]
+		};
+	}
 }

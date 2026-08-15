@@ -64,8 +64,10 @@ namespace imp::gfx
 						if (factors)
 							ctx.cmd->bindUniformBuffer(*factors, 6);
 
-						if (ctx.shadowMap)
-							ctx.cmd->bindTexture(*ctx.shadowMap, *ctx.shadowSampler, 5);
+						if (ctx.shadowArrayTexture)
+							ctx.cmd->bindTexture(*ctx.shadowArrayTexture, *ctx.shadowSampler, 5);
+						if (ctx.cascadeBuffer)
+							ctx.cmd->bindUniformBuffer(*ctx.cascadeBuffer, 7);
 					}
 
 					ctx.cmd->bindVertexBuffer(*prim.vertexBuffer, 0);

@@ -31,8 +31,6 @@ namespace imp::gfx::vulkan
 		VkCommandBuffer commandBuffer() const { return m_cmd; }
 
 		void transitionToPresent(gfx::IRenderTarget& target);
-
-		void forgetImageState(VkImage image) { m_imageStates.erase(image); }
 		void resetImageTracking() { m_imageStates.clear(); }
 
 	private:
@@ -42,17 +40,33 @@ namespace imp::gfx::vulkan
 		// to allocate against.
 		bool ensureDescriptorSet();
 
+		struct ImageStateKey
+		{
+			VkImage image;
+			u32 layer;
+			bool operator==(const ImageStateKey& o) const 
+				{ return image == o.image && layer == o.layer; }
+		};
+
+		struct ImageStateKeyHash
+		{
+			size_t operator()(const ImageStateKey& k) const
+			{
+				return std::hash<void*>()( k.image ) ^ ( std::hash<u32>()( k.layer ) << 1 );
+			}
+		};
+
 		struct ImageSyncState
 		{
 			VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED;
 			VkPipelineStageFlags2 stage = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;
 			VkAccessFlags2 access = VK_ACCESS_NONE;
 		};
-		std::unordered_map<VkImage, ImageSyncState> m_imageStates;
+		std::unordered_map<ImageStateKey, ImageSyncState, ImageStateKeyHash> m_imageStates;
 
 		void transitionImage(VkImage image, VkImageAspectFlags aspect,
 			VkImageLayout newLayout, VkPipelineStageFlags2 dstStage, VkAccessFlags2 dstAccess, 
-			bool crossesPresentationEngine = false);
+			bool crossesPresentationEngine = false, u32 baseArrayLayer = 0);
 
 		VkCommandBuffer m_cmd = VK_NULL_HANDLE;
 		VkDevice m_device = VK_NULL_HANDLE;

@@ -94,4 +94,13 @@ namespace imp::gfx::vulkan
 		}
 		m_allocator = VK_NULL_HANDLE;
 	}
+
+	bool VulkanBuffer::update(const void* data, u64 size, u64 offset)
+	{
+		if (!data || offset + size > m_size)
+			return false;
+
+		std::memcpy(static_cast<std::byte*>( m_mappedData ) + offset, data, size);
+		return true;
+	}
 }

@@ -9,6 +9,7 @@
 
 #include <utility>
 #include <vector>
+#include <optional>
 
 namespace imp::ecs
 {
@@ -36,6 +37,8 @@ namespace imp::ecs
 		[[nodiscard]] const std::vector<u32>& updateOrder() const noexcept { return m_updateOrder; }
 
 		[[nodiscard]] size_t size() const noexcept { return m_owner.size(); }
+
+		[[nodiscard]] std::optional<Transform> tryGet(EntityId entity) const;
 
 		void updateWorldMatrices();
 		void updateWorldMatricesParallel(

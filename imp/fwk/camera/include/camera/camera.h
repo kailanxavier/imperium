@@ -1,6 +1,7 @@
 #pragma once
 
 #include <core/math/math.h>
+#include <array>
 
 namespace imp::fwk
 {
@@ -13,6 +14,9 @@ namespace imp::fwk
 		[[nodiscard]] math::Mat4f view() const;
 		[[nodiscard]] math::Mat4f projection(float aspect) const;
 		[[nodiscard]] math::Vec3f position() const { return m_position; }
+
+		[[nodiscard]] std::array<math::Vec3f, 8> frustumCornersWorldSpace(
+			float aspect, float sliceNear, float sliceFar) const;
 
 		void setPosition(const math::Vec3f& pos) { m_position = pos; }
 		void setYawPitch(float yawRadians, float pitchRadians) 

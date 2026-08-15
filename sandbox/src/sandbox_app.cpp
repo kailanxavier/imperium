@@ -11,6 +11,7 @@
 #include <gfx/lighting.h>
 #include <gfx/model.h>
 #include <gfx/model_loader.h>
+#include <gfx/config.h>
 
 namespace imp::app
 {
@@ -145,6 +146,7 @@ namespace imp::app
 		meshPipelineDesc.hasInstanceBinding = true;
 		meshPipelineDesc.textureCount = 5;
 		meshPipelineDesc.hasMaterialUniformBuffer = true;
+		meshPipelineDesc.hasCascadeUniformBuffer = true;
 		
 		m_pipeline = ctx.gfx.createPipeline(meshPipelineDesc);
 
@@ -178,6 +180,19 @@ namespace imp::app
 		shadowDesc.usage = gfx::TextureUsage::Sampled | gfx::TextureUsage::DepthStencil;
 		m_shadowTarget = ctx.gfx.createRenderTarget(shadowDesc);
 
+		gfx::TextureDesc cascadeDesc;
+		cascadeDesc.width = m_cascadeConfig.shadowMapResolution;
+		cascadeDesc.height = m_cascadeConfig.shadowMapResolution;
+		cascadeDesc.arrayLayers = gfx::kCascadeCount;
+		cascadeDesc.format = gfx::TextureFormat::Depth32Float;
+		cascadeDesc.usage = gfx::TextureUsage::DepthStencil | gfx::TextureUsage::Sampled;
+		m_shadowCascadeTargets = ctx.gfx.createCascadeRenderTargets(cascadeDesc, &m_shadowArrayTexture);
+		if (m_shadowCascadeTargets.size() != gfx::kCascadeCount)
+		{
+			LOG_ERROR("Sandbox", "createCascadeRenderTargets() returned {} targets, expected {}",
+				m_shadowCascadeTargets.size(), gfx::kCascadeCount);
+		}
+
 		gfx::SamplerDesc shadowSamplerDesc{};
 		shadowSamplerDesc.minFilter = gfx::FilterMode::Linear;
 		shadowSamplerDesc.magFilter = gfx::FilterMode::Linear;
@@ -195,7 +210,7 @@ namespace imp::app
 		shadowPipelineDesc.depthStencilState.depthWriteEnable = true;
 		shadowPipelineDesc.depthStencilState.depthCompareOp = gfx::CompareOp::Less;
 		shadowPipelineDesc.colourFormat = gfx::TextureFormat::Unknown;
-		shadowPipelineDesc.depthFormat = shadowDesc.format;
+		shadowPipelineDesc.depthFormat = gfx::TextureFormat::Depth32Float;
 		shadowPipelineDesc.pushConstantSize = sizeof(gfx::MeshPushConstants);
 		shadowPipelineDesc.hasUniformBuffer = false;
 		shadowPipelineDesc.hasInstanceBinding = true;
@@ -212,14 +227,24 @@ namespace imp::app
 		if (!m_statueHandle.isValid())
 			LOG_ERROR("Sandbox", "Failed to load statue model");
 
+		gfx::BufferDesc cascadeUboDesc{};
+		cascadeUboDesc.size = sizeof(gfx::CascadeUBO);
+		cascadeUboDesc.usage = gfx::BufferUsage::Uniform;
+		cascadeUboDesc.memoryAccess = gfx::MemoryAccess::HostVisible;
+		m_cascadeUBOs.resize(gfx::kMaxFramesInFlight);
+		for (auto& buf : m_cascadeUBOs)
+			buf = ctx.gfx.createBuffer(cascadeUboDesc);
+
 		gfx::BufferDesc lightUboDesc{};
 		lightUboDesc.size = sizeof(gfx::LightUBO);
 		lightUboDesc.usage = gfx::BufferUsage::Uniform;
 		lightUboDesc.memoryAccess = gfx::MemoryAccess::HostVisible;
-		m_lightBuffer = ctx.gfx.createBuffer(lightUboDesc);
+		m_lightUBOs.resize(gfx::kMaxFramesInFlight);
+		for (auto& buf : m_lightUBOs)
+			buf = ctx.gfx.createBuffer(lightUboDesc);
 
 		if (!m_pipeline || !m_blendPipeline || !m_hdrTarget || !m_tonemapPipeline || !m_sampler 
-			|| !m_lightBuffer || !m_environmentHandle.isValid() || !m_shadowPipeline || !m_shadowTarget || !m_shadowSampler || !m_hdrDepthTarget)
+			|| !m_environmentHandle.isValid() || !m_shadowPipeline || !m_shadowTarget || !m_shadowSampler || !m_hdrDepthTarget)
 		{
 			LOG_FATAL("Sandbox", "Failed to create pipelines/sampler/light buffer, or model failed to load");
 			return false;
@@ -232,6 +257,7 @@ namespace imp::app
 		m_sunDirection = math::normalise(math::rotate(sunTransform.rotation, math::Vec3f::forward()));
 		ctx.ecs.transforms.create(sunEntity, sunTransform);
 		ctx.ecs.lights.create(sunEntity, ecs::LightType::Directional, math::Vec3f{ 1.f, 1.f, 1.f }, 10.f);
+		m_sunEntity = sunEntity;
 		m_instances.push_back(sunEntity);
 
 		m_localLight = ctx.ecs.createEntity();
@@ -269,13 +295,6 @@ namespace imp::app
 		ctx.ecs.colliders.createAABB(entity, math::Vec3f{ -1.f, -1.f, -1.f }, math::Vec3f{ 1.f, 1.f, 1.f });
 		m_instances.push_back(entity);
 
-		ensureInstanceBufferCapacity(ctx, static_cast<u32>( m_instances.size() ));
-		if (!m_instanceBuffer)
-		{
-			LOG_FATAL("Sandbox", "Failed to create instance buffer");
-			return false;
-		}
-
 		return true;
 	}
 
@@ -284,19 +303,39 @@ namespace imp::app
 		m_camera.update(ctx.input, deltaSeconds);
 
 		ctx.ecs.transforms.updateWorldMatricesParallel(ctx.jobs);
-
 		ctx.ecs.transforms.setLocalTransform(m_localLight, m_localLightTransform);
+
+		/*if (auto sunTransform = ctx.ecs.transforms.tryGet(m_sunEntity))
+		{
+			const math::Vec3f dir = math::normalise(m_sunDirection);
+			const math::Vec3f fwd = math::Vec3f::forward();
+
+			const float d = math::clamp(math::dot(fwd, dir), -1.f, 1.f);
+			if (d < 0.9999f)
+			{
+				math::Vec3f axis = math::cross(fwd, dir);
+				if (math::lengthSq(axis) < 1e-8f)
+					axis = math::Vec3f::up();
+				else
+					axis = math::normalise(axis);
+
+				const float angle = std::acos(d);
+				sunTransform->rotation = math::Quaternionf::fromAxisAngle(axis, angle);
+			}
+			else
+			{
+				sunTransform->rotation = math::Quaternionf::identity();
+			}
+		}*/
 
 		updateSunViewProj();
 		extractRenderables(ctx.ecs, m_modelRegistry, m_camera.position(), m_extraction);
-		m_extraction.lightData.sunViewProj = m_sunViewProj;
-		m_extraction.lightData.shadowMapSize = static_cast<float>( kShadowMapSize );
-		std::memcpy(m_lightBuffer->mappedData(), &m_extraction.lightData, sizeof(gfx::LightUBO));
 
 		ensureInstanceBufferCapacity(ctx, static_cast<u32>( m_extraction.instanceData.size() ));
-		if (m_instanceBuffer && !m_extraction.instanceData.empty())
+		if (!m_instanceBuffers.empty() && !m_extraction.instanceData.empty())
 		{
-			std::memcpy(m_instanceBuffer->mappedData(), m_extraction.instanceData.data(),
+			u32 currentFrame = ctx.gfx.currentFrameIndex();
+			std::memcpy(m_instanceBuffers[currentFrame]->mappedData(), m_extraction.instanceData.data(),
 				m_extraction.instanceData.size() * sizeof(math::Mat4f));
 		}
 	}
@@ -305,24 +344,45 @@ namespace imp::app
 	{
 		ensureHdrTargetSize(ctx);
 
-		gfx::RenderPassDesc shadowPassDesc{};
-		shadowPassDesc.colourTarget = nullptr;
-		shadowPassDesc.depthTarget = m_shadowTarget.get();
-		shadowPassDesc.clearDepthValue = 1.f;
-		cmd.beginRenderPass(shadowPassDesc);
+		const u32 w = ctx.gfx.backBuffer().width();
+		const u32 h = ctx.gfx.backBuffer().height();
+		const float aspect = h > 0 ? static_cast<float>( w ) / static_cast<float>( h ) : 1.f;
 
-		gfx::ModelRenderContext shadowRenderCtx{};
-		shadowRenderCtx.cmd = &cmd;
-		shadowRenderCtx.modelRegistry = &m_modelRegistry;
-		shadowRenderCtx.sampler = m_sampler.get();
-		shadowRenderCtx.lightBuffer = nullptr;
-		shadowRenderCtx.instanceBuffer = m_instanceBuffer.get();
-		shadowRenderCtx.viewProj = m_sunViewProj;
+		m_cascades = gfx::computeCascades(m_camera, aspect, m_sunDirection, m_cascadeConfig);
 
-		cmd.bindPipeline(*m_shadowPipeline);
-		drawModelBatches(shadowRenderCtx, m_extraction);
+		gfx::CascadeUBO cascadeData{};
+		for (u32 i = 0; i < gfx::kCascadeCount; ++i)
+		{
+			cascadeData.viewProj[i] = m_cascades[i].viewProj;
+			cascadeData.splitDepths[i] = m_cascades[i].splitDepth;
+		}
+		u32 currentFrame = ctx.gfx.currentFrameIndex();
+		m_cascadeUBOs[currentFrame]->update(&cascadeData, sizeof(cascadeData));
 
-		cmd.endRenderPass();
+		m_extraction.lightData.sunViewProj = m_sunViewProj;
+		m_extraction.lightData.shadowMapSize = static_cast<float>( kShadowMapSize );
+		m_lightUBOs[currentFrame]->update(&m_extraction.lightData, sizeof(gfx::LightUBO));
+
+		for (u32 i = 0; i < gfx::kCascadeCount; ++i)
+		{
+			gfx::RenderPassDesc shadowPassDesc{};
+			shadowPassDesc.colourTarget = nullptr;
+			shadowPassDesc.depthTarget = m_shadowCascadeTargets[i].get();
+			shadowPassDesc.clearDepthValue = 1.f;
+			cmd.beginRenderPass(shadowPassDesc);
+
+			gfx::ModelRenderContext shadowRenderCtx{};
+			shadowRenderCtx.cmd = &cmd;
+			shadowRenderCtx.modelRegistry = &m_modelRegistry;
+			shadowRenderCtx.sampler = m_sampler.get();
+			shadowRenderCtx.lightBuffer = nullptr;
+			shadowRenderCtx.instanceBuffer = m_instanceBuffers[currentFrame].get();
+			shadowRenderCtx.viewProj = m_cascades[i].viewProj;
+
+			cmd.bindPipeline(*m_shadowPipeline);
+			drawModelBatches(shadowRenderCtx, m_extraction);
+			cmd.endRenderPass();
+		}
 
 		gfx::RenderPassDesc hdrPassDesc{};
 		hdrPassDesc.colourTarget = m_hdrTarget.get();
@@ -332,18 +392,15 @@ namespace imp::app
 		hdrPassDesc.clearDepthValue = 1.f;
 		cmd.beginRenderPass(hdrPassDesc);
 
-		const u32 w = ctx.gfx.backBuffer().width();
-		const u32 h = ctx.gfx.backBuffer().height();
-		const float aspect = h > 0 ? static_cast<float>( w ) / static_cast<float>( h ) : 1.f;
-
 		gfx::ModelRenderContext renderCtx{};
 		renderCtx.cmd = &cmd;
 		renderCtx.modelRegistry = &m_modelRegistry;
 		renderCtx.sampler = m_sampler.get();
-		renderCtx.lightBuffer = m_lightBuffer.get();
-		renderCtx.instanceBuffer = m_instanceBuffer.get();
+		renderCtx.lightBuffer = m_lightUBOs[currentFrame].get();
+		renderCtx.instanceBuffer = m_instanceBuffers[currentFrame].get();
 		renderCtx.viewProj = m_camera.projection(aspect) * m_camera.view();
-		renderCtx.shadowMap = m_shadowTarget->asTexture();
+		renderCtx.shadowArrayTexture = m_shadowArrayTexture;
+		renderCtx.cascadeBuffer = m_cascadeUBOs[currentFrame].get();
 		renderCtx.shadowSampler = m_shadowSampler.get();
 
 		cmd.bindPipeline(*m_pipeline);
@@ -392,8 +449,6 @@ namespace imp::app
 		m_modelRegistry.shutdown();
 		m_modelRegistry.clear();
 
-		m_instanceBuffer.reset();
-		m_lightBuffer.reset();
 		m_sampler.reset();
 		m_pipeline.reset();
 		m_tonemapPipeline.reset();
@@ -411,9 +466,20 @@ namespace imp::app
 		m_shadowFragShader.reset();
 		m_shadowVertShader.reset();
 
+		m_shadowCascadeTargets.clear();
+
 		m_skyFragShader.reset();
 		m_skyVertShader.reset();
 		m_skyPipeline.reset();
+
+		for (auto& buf : m_cascadeUBOs)
+			buf.reset();
+
+		for (auto& buf : m_lightUBOs)
+			buf.reset();
+
+		for (auto& buf : m_instanceBuffers)
+			buf.reset();
 	}
 
 	void SandboxApp::updateSunViewProj()
@@ -435,7 +501,7 @@ namespace imp::app
 
 	void SandboxApp::ensureInstanceBufferCapacity(AppContext& ctx, u32 instanceCount)
 	{
-		if (m_instanceBuffer && instanceCount <= m_instanceCapacity)
+		if (!m_instanceBuffers.empty() && instanceCount <= m_instanceCapacity)
 			return;
 
 		u32 newCapacity = std::max<u32>(instanceCount, m_instanceCapacity * 2);
@@ -447,14 +513,19 @@ namespace imp::app
 		desc.memoryAccess = gfx::MemoryAccess::HostVisible;
 		desc.debugName = "SandboxApp instance buffer";
 
-		auto newBuffer = ctx.gfx.createBuffer(desc);
-		if (!newBuffer)
+		std::vector<std::unique_ptr<gfx::IBuffer>> newBuffers(gfx::kMaxFramesInFlight);
+		for (auto& buf : newBuffers)
 		{
-			LOG_ERROR("Sandbox", "Failed to create instance buffer for capacity {}", newCapacity);
-			return;
+			buf = ctx.gfx.createBuffer(desc);
+			if (!buf)
+			{
+				LOG_ERROR("Sandbox", "Failed to create instance buffer for capacity {}", newCapacity);
+				return;
+			}
 		}
 
-		m_instanceBuffer = std::move(newBuffer);
+		//ctx.gfx.waitIdle();
+		m_instanceBuffers = std::move(newBuffers);
 		m_instanceCapacity = newCapacity;
 	}
 

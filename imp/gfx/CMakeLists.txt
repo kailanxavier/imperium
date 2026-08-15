@@ -11,6 +11,7 @@ target_link_libraries(imp_gfx
 	PUBLIC 
 		imp_core
 		imp_fwk
+		imp_cam
 	PRIVATE
 		imp_jobs
 		imp_ecs
@@ -57,6 +58,7 @@ target_sources(imp_gfx PRIVATE
 	src/model_renderer.cpp
 	src/render_extraction.cpp
 	src/texture_cache.cpp
+	src/cascade_shadow.cpp
 )
 
 if(IMP_VULKAN_MEM_TEST)

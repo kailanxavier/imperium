@@ -682,6 +682,7 @@ namespace imp::gfx::vulkan
 		info.hasUniformBuffer = desc.hasUniformBuffer;
 		info.textureCount = desc.textureCount;
 		info.hasMaterialUniformBuffer = desc.hasMaterialUniformBuffer;
+		info.hasCascadeUniformBuffer = desc.hasCascadeUniformBuffer;
 		info.instanceBinding.binding = 1;
 		info.instanceBinding.stride = desc.instanceLayout.stride;
 		info.instanceBinding.inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
@@ -722,6 +723,39 @@ namespace imp::gfx::vulkan
 		}
 
 		return std::make_unique<VulkanOwnedColourTarget>(std::move(texture));
+	}
+
+	std::vector<std::unique_ptr<IRenderTarget>> VulkanDevice::createCascadeRenderTargets(const TextureDesc& desc, ITexture** outArrayTexture)
+	{
+		VulkanTextureCreateInfo info{};
+		info.allocator = m_vmaAllocator;
+		info.device = m_device;
+		info.width = desc.width;
+		info.height = desc.height;
+		info.format = toVkFormat(desc.format);
+		info.usage = desc.usage;
+		info.arrayLayers = desc.arrayLayers;
+		info.allocationCallbacks = allocationCallbacks();
+
+		auto texture = std::make_shared<VulkanTexture>();
+		if (!texture->create(info))
+		{
+			LOG_ERROR("Vulkan", "VulkanDevice::createCascadeRenderTargets(): texture creation failed");
+			return {};
+		}
+
+		std::vector<std::unique_ptr<IRenderTarget>> targets;
+		targets.reserve(desc.arrayLayers);
+		for (u32 i = 0; i < desc.arrayLayers; ++i)
+			targets.push_back(std::make_unique<VulkanCascadeLayerTarget>(texture, i));
+
+		if (outArrayTexture) *outArrayTexture = texture.get();
+		return targets;
+	}
+
+	u32 VulkanDevice::currentFrameIndex() const
+	{
+		return m_swapchain->currentFrameIndex();
 	}
 
 	void VulkanDevice::waitIdle()
