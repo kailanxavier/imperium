@@ -8,6 +8,8 @@
 #include "vk_texture.h"
 #include "vk_sampler.h"
 
+#include <algorithm>
+
 namespace imp::gfx::vulkan
 {
 	void VulkanCommandList::reset(VkDevice device, VkCommandBuffer cmd, VulkanDescriptorAllocator* descriptorAllocator, u32 frameIndex)
@@ -24,6 +26,9 @@ namespace imp::gfx::vulkan
 
 		m_descriptorAllocator = descriptorAllocator;
 		m_frameIndex = frameIndex;
+
+		m_pendingBindings.clear();
+		m_descriptorSetCache.clear();
 
 		// NOTE: do NOT reset m_imageStates here, it must survive
 		// across frames to do its job.
@@ -161,6 +166,7 @@ namespace imp::gfx::vulkan
 		m_currentPipelineLayout = vkPipeline.layout();
 		m_currentDescriptorSetLayout = vkPipeline.descriptorSetLayout();
 		m_currentDescriptorSet = VK_NULL_HANDLE;
+		m_pendingBindings.clear();
 	}
 
 	void VulkanCommandList::bindVertexBuffer(gfx::IBuffer& buffer, u32 binding)
@@ -184,49 +190,27 @@ namespace imp::gfx::vulkan
 
 	void VulkanCommandList::bindUniformBuffer(gfx::IBuffer& buffer, u32 binding)
 	{
-		if (!ensureDescriptorSet())
-			return;
-
 		auto& vkBuffer = static_cast<VulkanBuffer&>( buffer );
 
-		VkDescriptorBufferInfo bufferInfo{};
-		bufferInfo.buffer = vkBuffer.handle();
-		bufferInfo.offset = 0;
-		bufferInfo.range = vkBuffer.size();
-
-		VkWriteDescriptorSet write{};
-		write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		write.dstSet = m_currentDescriptorSet;
-		write.dstBinding = binding;
-		write.descriptorCount = 1;
-		write.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		write.pBufferInfo = &bufferInfo;
-
-		vkUpdateDescriptorSets(m_device, 1, &write, 0, nullptr);
+		PendingBinding pb{};
+		pb.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		pb.binding = binding;
+		pb.buffer = vkBuffer.handle();
+		pb.range = vkBuffer.size();
+		setPendingBinding(pb);
 	}
 
 	void VulkanCommandList::bindTexture(gfx::ITexture& texture, gfx::ISampler& sampler, u32 binding)
 	{
-		if (!ensureDescriptorSet())
-			return;
-
 		auto& vkTexture = static_cast<VulkanTexture&>( texture );
 		auto& vkSampler = static_cast<VulkanSampler&>( sampler );
 
-		VkDescriptorImageInfo imageInfo{};
-		imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		imageInfo.imageView = vkTexture.imageView();
-		imageInfo.sampler = vkSampler.handle();
-
-		VkWriteDescriptorSet write{};
-		write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		write.dstSet = m_currentDescriptorSet;
-		write.dstBinding = binding;
-		write.descriptorCount = 1;
-		write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		write.pImageInfo = &imageInfo;
-
-		vkUpdateDescriptorSets(m_device, 1, &write, 0, nullptr);
+		PendingBinding pb{};
+		pb.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		pb.binding = binding;
+		pb.imageView = vkTexture.imageView();
+		pb.sampler = vkSampler.handle();
+		setPendingBinding(pb);
 	}
 
 	void VulkanCommandList::pushConstants(const void* data, u32 size, u32 offset)
@@ -238,14 +222,14 @@ namespace imp::gfx::vulkan
 
 	void VulkanCommandList::draw(u32 vertexCount, u32 instanceCount)
 	{
+		flushDescriptorBindings();
 		vkCmdDraw(m_cmd, vertexCount, instanceCount, 0, 0);
-		m_currentDescriptorSet = VK_NULL_HANDLE;
 	}
 
 	void VulkanCommandList::drawIndexed(u32 indexCount, u32 instanceCount, u32 firstInstance)
 	{
+		flushDescriptorBindings();
 		vkCmdDrawIndexed(m_cmd, indexCount, instanceCount, 0, 0, firstInstance);
-		m_currentDescriptorSet = VK_NULL_HANDLE;
 	}
 
 	void VulkanCommandList::transitionToPresent(gfx::IRenderTarget& target)
@@ -256,30 +240,118 @@ namespace imp::gfx::vulkan
 			VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT, VK_ACCESS_2_NONE);
 	}
 
-	bool VulkanCommandList::ensureDescriptorSet()
+	void VulkanCommandList::setPendingBinding(const PendingBinding& pb)
 	{
-		if (m_currentDescriptorSet != VK_NULL_HANDLE)
-			return true;
+		for (PendingBinding& existing : m_pendingBindings)
+		{
+			if (existing.binding == pb.binding)
+			{
+				existing = pb;
+				return;
+			}
+		}
+		m_pendingBindings.push_back(pb);
+	}
+
+	void VulkanCommandList::flushDescriptorBindings()
+	{
+		if (m_pendingBindings.empty())
+			return;
 
 		if (!m_descriptorAllocator || m_currentDescriptorSetLayout == VK_NULL_HANDLE)
 		{
-			// This should only get triggered if the caller did something
-			// wrong, so we don't need to handle this here.
-			return false;
+			m_pendingBindings.clear();
+			return;
 		}
 
-		m_currentDescriptorSet = m_descriptorAllocator->allocate(m_frameIndex, m_currentDescriptorSetLayout);
-		if (m_currentDescriptorSet == VK_NULL_HANDLE)
-			return false;
+		std::sort(m_pendingBindings.begin(), m_pendingBindings.end(),
+			[](const PendingBinding& a, const PendingBinding& b) { return a.binding < b.binding; });
 
-		vkCmdBindDescriptorSets(m_cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
-			m_currentPipelineLayout, 0, 1, &m_currentDescriptorSet, 0, nullptr);
+		const u64 key = hashPendingBindings();
 
-		return true;
+		VkDescriptorSet set = VK_NULL_HANDLE;
+		auto cached = m_descriptorSetCache.find(key);
+		if (cached != m_descriptorSetCache.end())
+		{
+			set = cached->second;
+		}
+		else
+		{
+			set = m_descriptorAllocator->allocate(m_frameIndex, m_currentDescriptorSetLayout);
+			if (set == VK_NULL_HANDLE)
+			{
+				m_pendingBindings.clear();
+				return;
+			}
+
+			std::vector<VkDescriptorBufferInfo> bufferInfos;
+			std::vector<VkDescriptorImageInfo> imageInfos;
+			bufferInfos.reserve(m_pendingBindings.size());
+			imageInfos.reserve(m_pendingBindings.size());
+
+			std::vector<VkWriteDescriptorSet> writes;
+			writes.reserve(m_pendingBindings.size());
+
+			for (const PendingBinding& pb : m_pendingBindings)
+			{
+				VkWriteDescriptorSet write{};
+				write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+				write.dstSet = set;
+				write.dstBinding = pb.binding;
+				write.descriptorCount = 1;
+				write.descriptorType = pb.type;
+
+				if (pb.type == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER)
+				{
+					bufferInfos.push_back({ pb.buffer, 0, pb.range });
+					write.pBufferInfo = &bufferInfos.back();
+				}
+				else
+				{
+					imageInfos.push_back({ pb.sampler, pb.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
+					write.pImageInfo = &imageInfos.back();
+				}
+
+				writes.push_back(write);
+			}
+
+			vkUpdateDescriptorSets(m_device, static_cast<u32>( writes.size() ), writes.data(), 0, nullptr);
+			m_descriptorSetCache.emplace(key, set);
+		}
+
+		if (set != m_currentDescriptorSet)
+		{
+			vkCmdBindDescriptorSets(m_cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
+				m_currentPipelineLayout, 0, 1, &set, 0, nullptr);
+			m_currentDescriptorSet = set;
+		}
+
+		m_pendingBindings.clear();
 	}
 
-	void VulkanCommandList::transitionImage(VkImage image, VkImageAspectFlags aspect, VkImageLayout newLayout, 
-		VkPipelineStageFlags2 dstStage, VkAccessFlags2 dstAccess, bool crossesPresentationEngine, u32 baseArrayLayer /* = 0*/ )
+	u64 VulkanCommandList::hashPendingBindings() const
+	{
+		u64 hash = 14695981039346656037ull;
+		auto mix = [&hash](u64 v)
+			{
+				hash ^= v;
+				hash *= 1099511628211ull;
+			};
+
+		mix(reinterpret_cast<u64>( m_currentDescriptorSetLayout )); // sets from different layouts must never collide
+		for (const PendingBinding& pb : m_pendingBindings)
+		{
+			mix(static_cast<u64>( pb.binding ));
+			mix(static_cast<u64>( pb.type ));
+			mix(reinterpret_cast<u64>( pb.buffer ));
+			mix(reinterpret_cast<u64>( pb.imageView ));
+			mix(reinterpret_cast<u64>( pb.sampler ));
+		}
+		return hash;
+	}
+
+	void VulkanCommandList::transitionImage(VkImage image, VkImageAspectFlags aspect, VkImageLayout newLayout,
+		VkPipelineStageFlags2 dstStage, VkAccessFlags2 dstAccess, bool crossesPresentationEngine, u32 baseArrayLayer /* = 0*/)
 	{
 		ImageSyncState& state = m_imageStates[{image, baseArrayLayer}];
 

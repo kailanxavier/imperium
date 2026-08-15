@@ -2,7 +2,7 @@
 
 #include <vulkan/vulkan.h>
 #include <core/types/int_types.h>
-#include "vk_config.h"
+#include <gfx/config.h>
 
 #include <array>
 

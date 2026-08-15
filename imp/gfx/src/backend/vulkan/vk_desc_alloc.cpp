@@ -13,7 +13,7 @@ namespace imp::gfx::vulkan
 
 		VkDescriptorPoolSize poolSizes[] = {
 			{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, maxSetsPerFrame * 2 }, // 2 UBOs, light and material factors
-			{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, maxSetsPerFrame * 4 } // 4 samplers, base, metallic, normal, occlusion
+			{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, maxSetsPerFrame * 5 } // 4 samplers, base, metallic, normal, occlusion
 		};
 
 		VkDescriptorPoolCreateInfo poolInfo{};

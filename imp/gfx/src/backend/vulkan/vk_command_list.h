@@ -34,18 +34,12 @@ namespace imp::gfx::vulkan
 		void resetImageTracking() { m_imageStates.clear(); }
 
 	private:
-		// Allocated m_currentDescriptorSet from m_descriptorAllocator
-		// if not already done for the pipeline currently bound.
-		// Returns false and logs if there's no descriptor allocator/layout
-		// to allocate against.
-		bool ensureDescriptorSet();
-
 		struct ImageStateKey
 		{
 			VkImage image;
 			u32 layer;
 			bool operator==(const ImageStateKey& o) const 
-				{ return image == o.image && layer == o.layer; }
+			{ return image == o.image && layer == o.layer; }
 		};
 
 		struct ImageStateKeyHash
@@ -62,6 +56,21 @@ namespace imp::gfx::vulkan
 			VkPipelineStageFlags2 stage = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;
 			VkAccessFlags2 access = VK_ACCESS_NONE;
 		};
+
+		struct PendingBinding
+		{
+			VkDescriptorType type = VK_DESCRIPTOR_TYPE_MAX_ENUM;
+			u32 binding = 0;
+			VkBuffer buffer = VK_NULL_HANDLE;
+			VkDeviceSize range = 0;
+			VkImageView imageView = VK_NULL_HANDLE;
+			VkSampler sampler = VK_NULL_HANDLE;
+		};
+
+		void setPendingBinding(const PendingBinding& pb);
+		void flushDescriptorBindings();
+		u64 hashPendingBindings() const;
+
 		std::unordered_map<ImageStateKey, ImageSyncState, ImageStateKeyHash> m_imageStates;
 
 		void transitionImage(VkImage image, VkImageAspectFlags aspect,
@@ -81,5 +90,8 @@ namespace imp::gfx::vulkan
 		u32 m_frameIndex = 0;
 
 		VkDescriptorSet m_currentDescriptorSet = VK_NULL_HANDLE;
+
+		std::vector<PendingBinding> m_pendingBindings;
+		std::unordered_map<u64, VkDescriptorSet> m_descriptorSetCache;
 	};
 }
