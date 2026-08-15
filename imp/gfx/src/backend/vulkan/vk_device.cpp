@@ -1170,7 +1170,7 @@ namespace imp::gfx::vulkan
 	bool VulkanDevice::createDescriptorAllocatorInternal()
 	{
 		m_descriptorAllocator = std::make_unique<VulkanDescriptorAllocator>();
-		if (!m_descriptorAllocator->create(m_device, 4096, allocationCallbacks()))
+		if (!m_descriptorAllocator->create(m_device, 512, allocationCallbacks()))
 		{
 			LOG_ERROR("Vulkan", "Failed to create descriptor allocator");
 			m_descriptorAllocator.reset();
