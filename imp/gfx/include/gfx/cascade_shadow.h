@@ -12,6 +12,9 @@ namespace imp::gfx
 	struct CascadeData
 	{
 		math::Mat4f viewProj;
+		math::Mat4f lightView;
+		math::Vec3f boxMin;
+		math::Vec3f boxMax;
 		float splitDepth = 0.f;
 		float worldUnitsPerTexel = 0.f;
 	};

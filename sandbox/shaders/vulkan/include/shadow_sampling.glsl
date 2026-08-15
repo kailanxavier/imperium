@@ -62,7 +62,28 @@ float shadowPCSS(sampler2DArray shadowMap, int cascadeIndex, float shadowMapSize
     if (blocker < 0.0) return 1.0;
 
     float penumbra = (coords.z - blocker) / blocker;
-    float filterRadius = clamp(penumbra * 40.0, 1.0, 20.0);
+    float filterRadius = clamp(penumbra * 4.0, 1.0, 6.0);
 
     return filterPCF(shadowMap, cascadeIndex, shadowMapSize, coords, filterRadius, bias);
+}
+
+float computeShadowFactor(sampler2DArray shadowMap, float shadowMapSize,
+    int cascadeA, vec3 coordsA, int cascadeB, vec3 coordsB, float blendAmount, float bias)
+{
+    if (coordsA.z > 1.0 || coordsA.x < 0.0 || coordsA.x > 1.0 || coordsA.y < 0.0 || coordsA.y > 1.0)
+        return 1.0;
+
+    float blocker = findBlocker(shadowMap, cascadeA, shadowMapSize, coordsA, bias);
+    if (blocker < 0.0)
+        return 1.0; // fully lit, no blocker found so we skip PCF and the blend entirely
+
+    float penumbra = (coordsA.z - blocker) / blocker;
+    float filterRadius = clamp(penumbra * 3.0, 1.0, 6.0);
+    float shadowA = filterPCF(shadowMap, cascadeA, shadowMapSize, coordsA, filterRadius, bias);
+
+    if (blendAmount <= 0.0)
+        return shadowA;
+
+    float shadowB = filterPCF(shadowMap, cascadeB, shadowMapSize, coordsB, filterRadius, bias);
+    return mix(shadowA, shadowB, blendAmount);
 }

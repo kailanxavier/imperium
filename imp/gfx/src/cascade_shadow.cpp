@@ -71,6 +71,9 @@ namespace imp::gfx
 				0.f, 2.f * radius + 2.f * config.zPadding);
 
 			out[i].viewProj = lightProj * lightView;
+			out[i].lightView = lightView;
+			out[i].boxMin = { -radius, -radius, 0.f };
+			out[i].boxMax = math::Vec3f{ radius, radius, 2.f * radius + 2.f * config.zPadding };
 			out[i].splitDepth = sliceFar;
 			out[i].worldUnitsPerTexel = worldUnitsPerTexel;
 		}

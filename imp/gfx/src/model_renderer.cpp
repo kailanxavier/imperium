@@ -11,20 +11,40 @@ namespace imp::gfx
 {
 	namespace
 	{
+		bool sphereIntersectsBox(const math::Vec3f& centre, float radius, const math::Vec3f& boxMin, const math::Vec3f& boxMax)
+		{
+			return centre.x >= boxMin.x - radius && centre.x <= boxMax.x + radius
+				&& centre.y >= boxMin.y - radius && centre.y <= boxMax.y + radius
+				&& centre.z >= boxMin.z - radius && centre.z <= boxMax.z + radius;
+		}
+
 		void drawNodeInstanced(const ModelRenderContext& ctx, const gfx::Model& model, u32 nodeIdx,
-			const math::Mat4f parentNodeWorld, u32 firstInstance, u32 instanceCount, gfx::AlphaModePass passKind)
+			const math::Mat4f parentNodeWorld, u32 firstInstance, u32 instanceCount,
+			gfx::AlphaModePass passKind, const math::Mat4f* singleInstanceWorld = nullptr)
 		{
 			const gfx::ModelNode& node = model.nodes[nodeIdx];
 			const math::Mat4f nodeWorld = parentNodeWorld * node.localTransform;
-			
+
 			if (node.meshIndex >= 0)
 			{
+				math::Mat4f entityWorld;
+				bool haveEntityWorld = false;
+				float entityScale = 1.f;
+				if (ctx.cullVolume && singleInstanceWorld)
+				{
+					entityWorld = ( *singleInstanceWorld ) * nodeWorld;
+					haveEntityWorld = true;
+					entityScale = std::max({
+						math::length(math::Vec3f{ entityWorld(0,0), entityWorld(1,0), entityWorld(2,0) }),
+						math::length(math::Vec3f{ entityWorld(0,1), entityWorld(1,1), entityWorld(2,1) }),
+						math::length(math::Vec3f{ entityWorld(0,2), entityWorld(1,2), entityWorld(2,2) }) });
+				}
+
 				for (const gfx::MeshPrimitive& prim : model.meshes[node.meshIndex].primitives)
 				{
-					const gfx::Material* mat = (prim.materialIndex >= 0) ? &model.materials[prim.materialIndex] : nullptr;
+					const gfx::Material* mat = ( prim.materialIndex >= 0 ) ? &model.materials[prim.materialIndex] : nullptr;
 					const gfx::AlphaMode resolvedAlphaMode = mat ? mat->alphaMode : gfx::AlphaMode::Opaque;
-					//const bool primitiveIsBlend = (resolvedAlphaMode == gfx::AlphaMode::Blend);
-					
+
 					if (passKind == gfx::AlphaModePass::OpaqueAndMask)
 					{
 						if (resolvedAlphaMode == gfx::AlphaMode::Blend)
@@ -33,6 +53,16 @@ namespace imp::gfx
 					else
 					{
 						if (resolvedAlphaMode != gfx::AlphaMode::Blend)
+							continue;
+					}
+
+					if (haveEntityWorld)
+					{
+						const math::Vec3f centreWS = math::transformPoint(entityWorld, prim.boundsCentreLocal);
+						const float worldRadius = prim.boundsRadiusLocal * entityScale;
+
+						const math::Vec3f centreLS = math::transformPoint(ctx.cullVolume->lightView, centreWS);
+						if (!sphereIntersectsBox(centreLS, worldRadius, ctx.cullVolume->boxMin, ctx.cullVolume->boxMax))
 							continue;
 					}
 
@@ -47,8 +77,8 @@ namespace imp::gfx
 
 						auto resolveTexture = [&](i32 materialTexIndex, i32 fallbackTexIndex) -> gfx::ITexture*
 							{
-								const i32 texIdx = (materialTexIndex >= 0) ? materialTexIndex : fallbackTexIndex;
-								return (texIdx >= 0 && model.textures[texIdx].texture) ? model.textures[texIdx].texture.get() : nullptr;
+								const i32 texIdx = ( materialTexIndex >= 0 ) ? materialTexIndex : fallbackTexIndex;
+								return ( texIdx >= 0 && model.textures[texIdx].texture ) ? model.textures[texIdx].texture.get() : nullptr;
 							};
 
 						if (gfx::ITexture* albedo = resolveTexture(mat ? mat->baseColourTextureIndex : -1, model.fallbackAlbedoTextureIndex))
@@ -60,7 +90,7 @@ namespace imp::gfx
 						if (gfx::ITexture* occlusion = resolveTexture(mat ? mat->occlusionTextureIndex : -1, model.fallbackOcclusionTextureIndex))
 							ctx.cmd->bindTexture(*occlusion, *ctx.sampler, 4);
 
-						gfx::IBuffer* factors = (mat && mat->factorsBuffer) ? mat->factorsBuffer.get() : model.defaultMaterialFactorsBuffer.get();
+						gfx::IBuffer* factors = ( mat && mat->factorsBuffer ) ? mat->factorsBuffer.get() : model.defaultMaterialFactorsBuffer.get();
 						if (factors)
 							ctx.cmd->bindUniformBuffer(*factors, 6);
 
@@ -77,7 +107,7 @@ namespace imp::gfx
 			}
 
 			for (u32 child : node.children)
-				drawNodeInstanced(ctx, model, child, nodeWorld, firstInstance, instanceCount, passKind);
+				drawNodeInstanced(ctx, model, child, nodeWorld, firstInstance, instanceCount, passKind, singleInstanceWorld);
 		}
 	}
 
@@ -97,8 +127,29 @@ namespace imp::gfx
 				continue;
 			}
 
+			if (ctx.cullVolume && batch.instanceCount > 1)
+			{
+				for (u32 i = 0; i < batch.instanceCount; ++i)
+				{
+					const u32 instanceIdx = batch.firstInstance + i;
+					if (instanceIdx >= extraction.instanceData.size())
+						break;
+
+					const math::Mat4f* instanceWorld = &extraction.instanceData[instanceIdx];
+					for (u32 root : model->rootNodes)
+						drawNodeInstanced(ctx, *model, root, math::Mat4f::identity(),
+							instanceIdx, 1, gfx::AlphaModePass::OpaqueAndMask, instanceWorld);
+				}
+				continue;
+			}
+
+			const math::Mat4f* singleInstanceWorld = nullptr;
+			if (batch.instanceCount == 1 && batch.firstInstance < extraction.instanceData.size())
+				singleInstanceWorld = &extraction.instanceData[batch.firstInstance];
+
 			for (u32 root : model->rootNodes)
-				drawNodeInstanced(ctx, *model, root, math::Mat4f::identity(), batch.firstInstance, batch.instanceCount, gfx::AlphaModePass::OpaqueAndMask);
+				drawNodeInstanced(ctx, *model, root, math::Mat4f::identity(),
+					batch.firstInstance, batch.instanceCount, gfx::AlphaModePass::OpaqueAndMask, singleInstanceWorld);
 		}
 	}
 

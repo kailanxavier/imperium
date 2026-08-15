@@ -216,9 +216,9 @@ namespace imp::app
 		if (!m_environmentHandle.isValid())
 			LOG_ERROR("Sandbox", "Failed to load environment model");
 
-		m_statueHandle = m_modelRegistry.load(ctx.gfx, "assets/models/statue.glb", ctx.jobs, &ctx.vfs);
+		/*m_statueHandle = m_modelRegistry.load(ctx.gfx, "assets/models/statue.glb", ctx.jobs, &ctx.vfs);
 		if (!m_statueHandle.isValid())
-			LOG_ERROR("Sandbox", "Failed to load statue model");
+			LOG_ERROR("Sandbox", "Failed to load statue model");*/
 
 		gfx::BufferDesc cascadeUboDesc{};
 		cascadeUboDesc.size = sizeof(gfx::CascadeUBO);
@@ -260,25 +260,25 @@ namespace imp::app
 		ctx.ecs.lights.create(m_localLight, ecs::LightType::Point, math::Vec3f{ 1.f, 0.6f, 0.3f }, 1.5f);
 		m_instances.push_back(m_localLight);
 
-		constexpr int kGridSize = 3;
-		constexpr float kSpacing = 30.f;
-		for (int x = 0; x < kGridSize; ++x)
-		{
-			for (int z = 0; z < kGridSize; ++z)
-			{
-				const math::Vec3f position
-				{
-					static_cast<float>(x - kGridSize / 2.f) * kSpacing,
-					0.f,
-					static_cast<float>(z - kGridSize / 2.f) * kSpacing
-				};
+		//constexpr int kGridSize = 3;
+		//constexpr float kSpacing = 30.f;
+		//for (int x = 0; x < kGridSize; ++x)
+		//{
+		//	for (int z = 0; z < kGridSize; ++z)
+		//	{
+		//		const math::Vec3f position
+		//		{
+		//			static_cast<float>(x - kGridSize / 2.f) * kSpacing,
+		//			0.f,
+		//			static_cast<float>(z - kGridSize / 2.f) * kSpacing
+		//		};
 
-				ecs::Transform t;
-				t.position = position;
-				//t.scale = math::Vec3f{ 10.f, 10.f, 10.f };
-				spawnInstance(ctx, t);
-			}
-		}
+		//		ecs::Transform t;
+		//		t.position = position;
+		//		//t.scale = math::Vec3f{ 10.f, 10.f, 10.f };
+		//		spawnInstance(ctx, t);
+		//	}
+		//}
 
 		const ecs::EntityId entity = ctx.ecs.createEntity();
 		ecs::Transform t;
@@ -365,6 +365,8 @@ namespace imp::app
 			shadowPassDesc.clearDepthValue = 1.f;
 			cmd.beginRenderPass(shadowPassDesc);
 
+			gfx::CullVolume cullVolume{ m_cascades[i].lightView, m_cascades[i].boxMin, m_cascades[i].boxMax };
+
 			gfx::ModelRenderContext shadowRenderCtx{};
 			shadowRenderCtx.cmd = &cmd;
 			shadowRenderCtx.modelRegistry = &m_modelRegistry;
@@ -372,6 +374,7 @@ namespace imp::app
 			shadowRenderCtx.lightBuffer = nullptr;
 			shadowRenderCtx.instanceBuffer = m_instanceBuffers[currentFrame].get();
 			shadowRenderCtx.viewProj = m_cascades[i].viewProj;
+			shadowRenderCtx.cullVolume = &cullVolume;
 
 			cmd.bindPipeline(*m_shadowPipeline);
 			drawModelBatches(shadowRenderCtx, m_extraction);

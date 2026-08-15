@@ -4,6 +4,7 @@
 #include <cassert>
 #include <type_traits>
 #include <core/math/vec2.h>
+#include <core/math/scalar.h>
 
 namespace imp::math
 {
@@ -155,6 +156,18 @@ namespace imp::math
 		const T sinAngle = std::sin(angle);
 		return a * ( std::sin(( T(1) - t ) * angle) / sinAngle ) 
 			+ b * ( std::sin(t * angle) / sinAngle );
+	}
+
+	template <typename T>
+	[[nodiscard]] constexpr Vec3<T> min(const Vec3<T>& a, const Vec3<T>& b) noexcept
+	{
+		return { min(a.x, b.x), min(a.y, b.y), min(a.z, b.z) };
+	}
+
+	template <typename T>
+	[[nodiscard]] constexpr Vec3<T> max(const Vec3<T>& a, const Vec3<T>& b) noexcept
+	{
+		return { max(a.x, b.x), max(a.y, b.y), max(a.z, b.z) };
 	}
 
 	// Type defs

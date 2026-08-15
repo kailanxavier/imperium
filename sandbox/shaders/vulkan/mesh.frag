@@ -1,6 +1,8 @@
 #version 450
 #include "include/shadow_sampling.glsl"
 
+#define SHADOW_DEBUG_MODE 0
+
 layout(location = 0) in vec3 inNormalWS;
 layout(location = 1) in vec3 inPositionWS;
 layout(location = 2) in vec2 inUV;
@@ -132,18 +134,26 @@ void main()
     vec3 sunL = normalize(-lightData.sunDirection);
     float sunBias = max(0.0025 * (1.0 - dot(N, sunL)), 0.00005);
     float viewSpaceDepth = length(lightData.cameraPositionWS.xyz - inPositionWS);
+
     int cascadeIndex, nextCascadeIndex;
     float cascadeBlend;
     cascadeIndex = selectCascade(viewSpaceDepth, cascadeBlend, nextCascadeIndex);
-    vec3 shadowCoordsA = getShadowCoords(cascades.viewProj[cascadeIndex], inPositionWS);
-    float sunShadowFactor = shadowPCSS(shadowMap, cascadeIndex, lightData.shadowMapSize, shadowCoordsA, sunBias);
 
-    if (cascadeBlend > 0.0)
-    {
-        vec3 shadowCoordsB = getShadowCoords(cascades.viewProj[nextCascadeIndex], inPositionWS);
-        float shadowB = shadowPCSS(shadowMap, nextCascadeIndex, lightData.shadowMapSize, shadowCoordsB, sunBias);
-        sunShadowFactor = mix(sunShadowFactor, shadowB, cascadeBlend);
-    }
+    vec3 shadowCoordsA = getShadowCoords(cascades.viewProj[cascadeIndex], inPositionWS);
+    vec3 shadowCoordsB = (cascadeBlend > 0.0)
+        ? getShadowCoords(cascades.viewProj[nextCascadeIndex], inPositionWS)
+        : vec3(0.0);
+
+#if SHADOW_DEBUG_MODE == 1
+            float sunShadowFactor = 1.0;
+#elif SHADOW_DEBUG_MODE == 2
+            float sunShadowFactor = (shadowCoordsA.z > 1.0 || shadowCoordsA.x < 0.0 || shadowCoordsA.x > 1.0
+                || shadowCoordsA.y < 0.0 || shadowCoordsA.y > 1.0) ? 1.0
+                : (shadowCoordsA.z - sunBias > texture(shadowMap, vec3(shadowCoordsA.xy, float(cascadeIndex))).r ? 0.0 : 1.0);
+#else
+            float sunShadowFactor = computeShadowFactor(shadowMap, lightData.shadowMapSize,
+                cascadeIndex, shadowCoordsA, nextCascadeIndex, shadowCoordsB, cascadeBlend, sunBias);
+#endif
 
     for (uint i = 0u; i < lightData.lightCount; ++i)
     {

@@ -156,6 +156,22 @@ namespace imp::gfx
 				}
 			}
 
+			math::Vec3f boundsMin = vertices[0].position;
+			math::Vec3f boundsMax = vertices[0].position;
+			for (const auto& v : vertices)
+			{
+				boundsMin = math::min(boundsMin, v.position);
+				boundsMax = math::max(boundsMax, v.position);
+			}
+			const math::Vec3f centre = (boundsMin + boundsMax) * 0.5f;
+
+			float radiusSq = 0.f;
+			for (const auto& v : vertices)
+				radiusSq = std::max(radiusSq, math::lengthSq(v.position - centre));
+
+			out.boundsCentreLocal = centre;
+			out.boundsRadiusLocal = std::sqrt(radiusSq);
+
 			std::vector<u32> indices;
 			if (prim.indices)
 			{

@@ -10,6 +10,13 @@ namespace imp::gfx
 	class ISampler;
 	class ModelRegistry;
 
+	struct CullVolume
+	{
+		math::Mat4f lightView;
+		math::Vec3f boxMin;
+		math::Vec3f boxMax;
+	};
+
 	struct ModelRenderContext
 	{
 		gfx::ICommandList* cmd = nullptr;
@@ -24,6 +31,8 @@ namespace imp::gfx
 		gfx::ISampler* shadowSampler = nullptr;
 
 		math::Mat4f viewProj;
+
+		const CullVolume* cullVolume = nullptr;
 	};
 
 	void drawModelBatches(const ModelRenderContext& ctx, const RenderExtraction& extraction);
