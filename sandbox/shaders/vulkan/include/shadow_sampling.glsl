@@ -10,16 +10,20 @@ vec3 getShadowCoords(mat4 lightViewProj, vec3 worldPos)
     return coords;
 }
 
+const vec2 kPoissonDisk[8] = vec2[](
+    vec2(-0.5, 0.5), vec2(0.5, 0.5), vec2(-0.5, -0.5), vec2(0.5, -0.5),
+    vec2(0.0, 0.75), vec2(0.75, 0.0), vec2(0.0, -0.75), vec2(-0.75, 0.0)
+);
+
 float findBlocker(sampler2DArray shadowMap, int cascadeIndex, float shadowMapSize, vec3 coords, float bias)
 {
     float searchRadius = 4.0 / shadowMapSize;
     float blockerSum = 0.0;
     int blockers = 0;
 
-    for (int x = -3; x <= 3; x++)
-    for (int y = -3; y <= 3; y++)
+    for (int i = 0; i < 8; ++i)
     {
-        vec2 offset = vec2(x, y) * searchRadius;
+        vec2 offset = kPoissonDisk[i] * searchRadius;
         float depth = texture(shadowMap, vec3(coords.xy + offset, float(cascadeIndex))).r;
         if (depth < coords.z - bias)
         {

@@ -349,6 +349,7 @@ namespace imp::app
 			cascadeData.viewProj[i] = m_cascades[i].viewProj;
 			cascadeData.splitDepths[i] = m_cascades[i].splitDepth;
 		}
+		cascadeData.blendParams = math::Vec4f{ m_camera.nearPlane, m_cascadeConfig.blendFraction, 0.f, 0.f };
 		u32 currentFrame = ctx.gfx.currentFrameIndex();
 		m_cascadeUBOs[currentFrame]->update(&cascadeData, sizeof(cascadeData));
 

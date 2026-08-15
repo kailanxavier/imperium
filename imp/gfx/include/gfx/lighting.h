@@ -54,6 +54,7 @@ namespace imp::gfx
 	{
 		math::Mat4f viewProj[4];
 		math::Vec4f splitDepths;
+		math::Vec4f blendParams;
 	};
 	static_assert( sizeof(CascadeUBO) % 16 == 0 && "CascadeUBO layout must stay std140 consistent" );
 }

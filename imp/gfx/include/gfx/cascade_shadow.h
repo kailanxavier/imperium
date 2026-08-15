@@ -21,6 +21,8 @@ namespace imp::gfx
 		u32 shadowMapResolution = 4096;
 		float splitLambda = 0.95f;
 		float zPadding = 25.f;
+		float blendFraction = 0.15f;
+		std::array<float, kCascadeCount> radiusMultiplier = { 1.f, 1.f, 1.f, 1.f };
 	};
 
 	std::array<CascadeData, kCascadeCount> computeCascades(

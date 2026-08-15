@@ -50,6 +50,7 @@ namespace imp::gfx
 			for (const auto& c : corners)
 				radius = std::max(radius, math::length(c - centre));
 			radius = std::ceil(radius * 16.f) / 16.f;
+			radius *= config.radiusMultiplier[i];
 
 			const float worldUnitsPerTexel = ( radius * 2.f ) / static_cast<float>( config.shadowMapResolution );
 			const math::Mat4f lookAtNoSnap = math::makeLookAtLH(centre - lightDir * radius, centre, upHint);

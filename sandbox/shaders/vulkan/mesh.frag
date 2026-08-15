@@ -50,13 +50,31 @@ layout(binding = 7) uniform CascadeUBO
 {
     mat4 viewProj[4];
     vec4 splitDepths;
+    vec4 blendParams;
 } cascades;
 
-int selectCascade(float viewSpaceDepth)
+int selectCascade(float viewSpaceDepth, out float blend, out int nextCascade)
 {
+    float nearPlane = cascades.blendParams.x;
+    float blendFraction = cascades.blendParams.y;
+
     for (int i = 0; i < 4; ++i)
-        if (viewSpaceDepth < cascades.splitDepths[i])
+    {
+        float far = cascades.splitDepths[i];
+        if (viewSpaceDepth < far || i == 3)
+        {
+            float near = (i == 0) ? nearPlane : cascades.splitDepths[i - 1];
+            float range = far - near;
+            float blendRange = range * blendFraction;
+            float distToFar = far - viewSpaceDepth;
+
+            blend = (i < 3 && blendRange > 0.0) ? clamp(1.0 - distToFar / blendRange, 0.0, 1.0) : 0.0;
+            nextCascade = min(i + 1, 3);
             return i;
+        }
+    }
+    blend = 0.0;
+    nextCascade = 3;
     return 3;
 }
 
@@ -114,9 +132,18 @@ void main()
     vec3 sunL = normalize(-lightData.sunDirection);
     float sunBias = max(0.0025 * (1.0 - dot(N, sunL)), 0.00005);
     float viewSpaceDepth = length(lightData.cameraPositionWS.xyz - inPositionWS);
-    int cascadeIndex = selectCascade(viewSpaceDepth);
-    vec3 shadowCoords = getShadowCoords(cascades.viewProj[cascadeIndex], inPositionWS);
-    float sunShadowFactor = shadowPCSS(shadowMap, cascadeIndex, lightData.shadowMapSize, shadowCoords, sunBias);
+    int cascadeIndex, nextCascadeIndex;
+    float cascadeBlend;
+    cascadeIndex = selectCascade(viewSpaceDepth, cascadeBlend, nextCascadeIndex);
+    vec3 shadowCoordsA = getShadowCoords(cascades.viewProj[cascadeIndex], inPositionWS);
+    float sunShadowFactor = shadowPCSS(shadowMap, cascadeIndex, lightData.shadowMapSize, shadowCoordsA, sunBias);
+
+    if (cascadeBlend > 0.0)
+    {
+        vec3 shadowCoordsB = getShadowCoords(cascades.viewProj[nextCascadeIndex], inPositionWS);
+        float shadowB = shadowPCSS(shadowMap, nextCascadeIndex, lightData.shadowMapSize, shadowCoordsB, sunBias);
+        sunShadowFactor = mix(sunShadowFactor, shadowB, cascadeBlend);
+    }
 
     for (uint i = 0u; i < lightData.lightCount; ++i)
     {
