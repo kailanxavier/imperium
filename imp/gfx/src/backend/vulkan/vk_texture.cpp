@@ -83,7 +83,12 @@ namespace imp::gfx::vulkan
 			arrayViewInfo.subresourceRange.baseArrayLayer = 0;
 			arrayViewInfo.subresourceRange.layerCount = m_arrayLayers;
 
-			VK_CHECK(vkCreateImageView(m_device, &arrayViewInfo, m_allocationCallbacks, &m_arrayView));
+			if (vkCreateImageView(m_device, &arrayViewInfo, m_allocationCallbacks, &m_arrayView) != VK_SUCCESS)
+			{
+				LOG_ERROR("Vulkan", "VulkanTexture::create(): array view creation failed!");
+				destroy();
+				return false;
+			}
 
 			m_layerViews.resize(m_arrayLayers);
 			for (u32 layer = 0; layer < m_arrayLayers; ++layer)
@@ -92,7 +97,12 @@ namespace imp::gfx::vulkan
 				layerViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
 				layerViewInfo.subresourceRange.baseArrayLayer = layer;
 				layerViewInfo.subresourceRange.layerCount = 1;
-				VK_CHECK(vkCreateImageView(m_device, &layerViewInfo, m_allocationCallbacks, &m_layerViews[layer]));
+				if (vkCreateImageView(m_device, &layerViewInfo, m_allocationCallbacks, &m_layerViews[layer]) != VK_SUCCESS)
+				{
+					LOG_ERROR("Vulkan", "VulkanTexture::create(): layer view {} creation failed!", layer);
+					destroy();
+					return false;
+				}
 			}
 		}
 		else
@@ -112,9 +122,7 @@ namespace imp::gfx::vulkan
 			if (vkCreateImageView(m_device, &viewInfo, m_allocationCallbacks, &m_imageView) != VK_SUCCESS)
 			{
 				LOG_ERROR("Vulkan", "vkCreateImageView (texture) failed");
-				vmaDestroyImage(m_allocator, m_image, m_allocation);
-				m_image = VK_NULL_HANDLE;
-				m_allocation = VK_NULL_HANDLE;
+				destroy();
 				return false;
 			}
 		}
