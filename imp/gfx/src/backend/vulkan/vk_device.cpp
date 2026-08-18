@@ -28,6 +28,8 @@
 #include <fstream>
 #include <set>
 
+#include "vk_check.h"
+
 namespace imp::gfx::vulkan
 {
 	namespace
@@ -172,6 +174,32 @@ namespace imp::gfx::vulkan
 			default: return VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 			}
 		}
+
+		struct ScopedCommandBuffer
+		{
+			VkDevice device;
+			VkCommandPool pool;
+			VkCommandBuffer cmd = VK_NULL_HANDLE;
+
+			~ScopedCommandBuffer()
+			{
+				if (cmd != VK_NULL_HANDLE)
+					vkFreeCommandBuffers(device, pool, 1, &cmd);
+			}
+		};
+
+		struct ScopedFence
+		{
+			VkDevice device;
+			const VkAllocationCallbacks* allocationCallbacks;
+			VkFence fence = VK_NULL_HANDLE;
+
+			~ScopedFence()
+			{
+				if (fence != VK_NULL_HANDLE)
+					vkDestroyFence(device, fence, allocationCallbacks);
+			}
+		};
 	}
 
 	VulkanDevice::VulkanDevice() = default;
@@ -239,11 +267,6 @@ namespace imp::gfx::vulkan
 		m_descriptorAllocator.reset();
 		m_commands.reset();
 		m_swapchain.reset();
-		m_tonemapVertShader.reset();
-		m_hdrRenderTarget.reset();
-		m_hdrColourTexture.reset();
-		m_backBufferTarget.reset();
-		m_depthBufferTarget.reset();
 		m_stagingBuffer.destroy();
 
 		if (m_vmaAllocator != VK_NULL_HANDLE)
@@ -777,12 +800,7 @@ namespace imp::gfx::vulkan
 		poolInfo.maxSets = 64;
 		poolInfo.poolSizeCount = static_cast<u32>( std::size(poolSizes) );
 		poolInfo.pPoolSizes = poolSizes;
-
-		if (vkCreateDescriptorPool(m_device, &poolInfo, allocationCallbacks(), &m_imguiDescriptorPool) != VK_SUCCESS)
-		{
-			LOG_ERROR("Vulkan", "vkCreateDescriptorPool failed");
-			return false;
-		}
+		VK_CHECK(vkCreateDescriptorPool(m_device, &poolInfo, allocationCallbacks(), &m_imguiDescriptorPool));
 
 		const VkFormat colourFormat = m_swapchain->imageFormat();
 		const VkFormat depthFormat = m_swapchain->depthFormat();
@@ -979,11 +997,7 @@ namespace imp::gfx::vulkan
 		}
 #endif // !NDEBUG
 
-		if (vkCreateInstance(&createInfo, allocationCallbacks(), &m_instance) != VK_SUCCESS)
-		{
-			LOG_ERROR("Vulkan", "vkCreateInstance failed");
-			return false;
-		}
+		VK_CHECK(vkCreateInstance(&createInfo, allocationCallbacks(), &m_instance));
 		return true;
 	}
 
@@ -1004,22 +1018,14 @@ namespace imp::gfx::vulkan
 
 		createInfo.pfnUserCallback = debugCallback;
 
-		if (createDebugUtilsMessengerEXT(m_instance, &createInfo, allocationCallbacks(), &m_debugMessenger) != VK_SUCCESS)
-		{
-			LOG_ERROR("Vulkan", "Failed to set up debug messenger");
-			return false;
-		}
+		VK_CHECK(createDebugUtilsMessengerEXT(m_instance, &createInfo, allocationCallbacks(), &m_debugMessenger));
 #endif
 		return true;
 	}
 
 	bool VulkanDevice::createSurface(fwk::Window* window)
 	{
-		if (glfwCreateWindowSurface(m_instance, window->getNativeHandle(), allocationCallbacks(), &m_surface) != VK_SUCCESS)
-		{
-			LOG_ERROR("Vulkan", "glfwCreateWindowSurface() failed");
-			return false;
-		}
+		VK_CHECK(glfwCreateWindowSurface(m_instance, window->getNativeHandle(), allocationCallbacks(), &m_surface));
 		return true;
 	}
 
@@ -1101,11 +1107,7 @@ namespace imp::gfx::vulkan
 		createInfo.enabledExtensionCount = static_cast<u32>( kDeviceExtensions.size() );
 		createInfo.ppEnabledExtensionNames = kDeviceExtensions.data();
 
-		if (vkCreateDevice(m_physicalDevice, &createInfo, allocationCallbacks(), &m_device) != VK_SUCCESS)
-		{
-			LOG_ERROR("Vulkan", "vkCreateDevice() failed");
-			return false;
-		}
+		VK_CHECK(vkCreateDevice(m_physicalDevice, &createInfo, allocationCallbacks(), &m_device));
 
 		vkGetDeviceQueue(m_device, m_queueFamilies.graphics.value(), 0, &m_graphicsQueue);
 		vkGetDeviceQueue(m_device, m_queueFamilies.present.value(), 0, &m_presentQueue);
@@ -1286,43 +1288,39 @@ namespace imp::gfx::vulkan
 		vkCmdPipelineBarrier2(cmd, &dep3);
 	}
 
-	void VulkanDevice::submitOneTimeCommands(const std::function<void(VkCommandBuffer)>& record)
+	bool VulkanDevice::submitOneTimeCommands(const std::function<void(VkCommandBuffer)>& record)
 	{
+		ScopedCommandBuffer cmdGuard{ m_device, m_commands->pool() };
+
 		VkCommandBufferAllocateInfo allocInfo{};
 		allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
 		allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 		allocInfo.commandPool = m_commands->pool();
 		allocInfo.commandBufferCount = 1;
 
-		VkCommandBuffer cmd = VK_NULL_HANDLE;
-		if (vkAllocateCommandBuffers(m_device, &allocInfo, &cmd) != VK_SUCCESS)
-		{
-			LOG_ERROR("Vulkan", "submitOneTimeCommands(): vkAllocateCommandBuffers failed");
-			return;
-		}
+		VK_CHECK(vkAllocateCommandBuffers(m_device, &allocInfo, &cmdGuard.cmd));
 
 		VkCommandBufferBeginInfo beginInfo{};
 		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 		beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-		vkBeginCommandBuffer(cmd, &beginInfo);
-		record(cmd);
-		vkEndCommandBuffer(cmd);
+		VK_CHECK(vkBeginCommandBuffer(cmdGuard.cmd, &beginInfo));
+		record(cmdGuard.cmd);
+		VK_CHECK(vkEndCommandBuffer(cmdGuard.cmd));
 
+		ScopedFence fenceGuard{ m_device, allocationCallbacks() };
 		VkFenceCreateInfo fenceInfo{};
 		fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-		VkFence fence = VK_NULL_HANDLE;
-		vkCreateFence(m_device, &fenceInfo, allocationCallbacks(), &fence);
+		VK_CHECK(vkCreateFence(m_device, &fenceInfo, allocationCallbacks(), &fenceGuard.fence));
 
 		VkSubmitInfo submitInfo{};
 		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 		submitInfo.commandBufferCount = 1;
-		submitInfo.pCommandBuffers = &cmd;
-		vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, fence);
+		submitInfo.pCommandBuffers = &cmdGuard.cmd;
+		VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, fenceGuard.fence));
 
-		vkWaitForFences(m_device, 1, &fence, VK_TRUE, UINT64_MAX);
+		vkWaitForFences(m_device, 1, &fenceGuard.fence, VK_TRUE, UINT64_MAX);
 
-		vkDestroyFence(m_device, fence, allocationCallbacks());
-		vkFreeCommandBuffers(m_device, m_commands->pool(), 1, &cmd);
+		return true;
 	}
 
 	bool VulkanDevice::readFileBytes(const std::string& path, std::vector<u8>& outBytes) const

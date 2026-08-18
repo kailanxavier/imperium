@@ -87,7 +87,7 @@ namespace imp::gfx::vulkan
 
 		void generateMipmaps(VkCommandBuffer cmd, VkImage image, VkFormat format, u32 width, u32 height, u32 mipLevels);
 
-		void submitOneTimeCommands(const std::function<void(VkCommandBuffer)>& record);
+		bool submitOneTimeCommands(const std::function<void(VkCommandBuffer)>& record);
 		bool readFileBytes(const std::string& path, std::vector<u8>& outBytes) const;
 
 		QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device) const;
@@ -116,10 +116,6 @@ namespace imp::gfx::vulkan
 		std::unique_ptr<VulkanRenderTarget> m_backBufferTarget;
 		std::unique_ptr<VulkanRenderTarget> m_depthBufferTarget;
 		std::unique_ptr<VulkanCommandList> m_commandList;
-
-		std::unique_ptr<gfx::IShader> m_tonemapVertShader;
-		std::unique_ptr<VulkanTexture> m_hdrColourTexture;
-		std::unique_ptr<VulkanRenderTarget> m_hdrRenderTarget;
 
 		VmaAllocator m_vmaAllocator = VK_NULL_HANDLE;
 

@@ -1,4 +1,6 @@
 #include "vk_swapchain.h"
+#include "vk_check.h"
+
 #include <gfx/config.h>
 
 #include <core/log/log.h>
@@ -304,11 +306,7 @@ namespace imp::gfx::vulkan
         createInfo.oldSwapchain = oldSwapchain;
 
         VkSwapchainKHR newSwapchain = VK_NULL_HANDLE;
-        if (vkCreateSwapchainKHR(m_device, &createInfo, m_allocationCallbacks, &newSwapchain) != VK_SUCCESS)
-        {
-            LOG_ERROR("Vulkan", "vkCreateSwapchainKHR failed.");
-            return false;
-        }
+        VK_CHECK(vkCreateSwapchainKHR(m_device, &createInfo, m_allocationCallbacks, &newSwapchain));
 
         // Tear down the previous images/views (but not the old
         // VkSwapchainKHR itself - the caller destroy that only after
@@ -342,13 +340,7 @@ namespace imp::gfx::vulkan
             VkSemaphoreCreateInfo semInfo{};
             semInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
             for (u32 i = 0; i < actualCount; ++i)
-            {
-                if (vkCreateSemaphore(m_device, &semInfo, m_allocationCallbacks, &m_renderFinishedSemaphores[i]) != VK_SUCCESS)
-                {
-                    LOG_ERROR("Vulkan", "vkCreateSemaphore (renderFinished) failed.");
-                    return false;
-                }
-            }
+                VK_CHECK(vkCreateSemaphore(m_device, &semInfo, m_allocationCallbacks, &m_renderFinishedSemaphores[i]));
         }
 
         m_currentImageIndex = 0;
@@ -371,11 +363,7 @@ namespace imp::gfx::vulkan
             viewInfo.subresourceRange.baseArrayLayer = 0;
             viewInfo.subresourceRange.layerCount = 1;
 
-            if (vkCreateImageView(m_device, &viewInfo, m_allocationCallbacks, &m_imageViews[i]) != VK_SUCCESS)
-            {
-                LOG_ERROR("Vulkan", "vkCreateImageView failed.");
-                return false;
-            }
+            VK_CHECK(vkCreateImageView(m_device, &viewInfo, m_allocationCallbacks, &m_imageViews[i]));
         }
 
         return true;

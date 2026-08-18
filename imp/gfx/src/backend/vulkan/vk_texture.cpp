@@ -1,6 +1,7 @@
 #if defined(IMP_GFX_VULKAN)
 #include "vk_texture.h"
 #include "vk_render_target.h" // toGfxFormat
+#include "vk_check.h"
 #include <core/log/log.h>
 
 namespace imp::gfx::vulkan
@@ -82,11 +83,7 @@ namespace imp::gfx::vulkan
 			arrayViewInfo.subresourceRange.baseArrayLayer = 0;
 			arrayViewInfo.subresourceRange.layerCount = m_arrayLayers;
 
-			if (vkCreateImageView(m_device, &arrayViewInfo, m_allocationCallbacks, &m_arrayView) != VK_SUCCESS)
-			{
-				LOG_ERROR("Vulkan", "VulkanTexture::create(): array view creation failed!");
-				return false;
-			}
+			VK_CHECK(vkCreateImageView(m_device, &arrayViewInfo, m_allocationCallbacks, &m_arrayView));
 
 			m_layerViews.resize(m_arrayLayers);
 			for (u32 layer = 0; layer < m_arrayLayers; ++layer)
@@ -95,13 +92,7 @@ namespace imp::gfx::vulkan
 				layerViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
 				layerViewInfo.subresourceRange.baseArrayLayer = layer;
 				layerViewInfo.subresourceRange.layerCount = 1;
-
-				if (vkCreateImageView(m_device, &layerViewInfo, m_allocationCallbacks, &m_layerViews[layer]) 
-					!= VK_SUCCESS)
-				{
-					LOG_ERROR("Vulkan", "VulkanTexture::create(): layer view {} creation failed!", layer);
-					return false;
-				}
+				VK_CHECK(vkCreateImageView(m_device, &layerViewInfo, m_allocationCallbacks, &m_layerViews[layer]));
 			}
 		}
 		else

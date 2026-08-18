@@ -1,4 +1,5 @@
 #include "vk_shader.h"
+#include "vk_check.h"
 
 #include <core/log/log.h>
 #include <core/types/int_types.h>
@@ -53,11 +54,7 @@ namespace imp::gfx::vulkan
 		createInfo.codeSize = code.size();
 		createInfo.pCode = alignedCode.data();
 
-		if (vkCreateShaderModule(device, &createInfo, allocationCallbacks, &m_module) != VK_SUCCESS)
-		{
-			LOG_ERROR("Vulkan", "vkCreateShaderModule failed");
-			return false;
-		}
+		VK_CHECK(vkCreateShaderModule(device, &createInfo, allocationCallbacks, &m_module));
 
 		m_device = device;
 		m_stage = stage;
@@ -94,12 +91,7 @@ namespace imp::gfx::vulkan
 		createInfo.codeSize = raw.size();
 		createInfo.pCode = code.data();
 
-		if (vkCreateShaderModule(m_device, &createInfo, m_allocationCallbacks, &m_module) != VK_SUCCESS)
-		{
-			LOG_ERROR("Vulkan", "vkCreateShaderModule failed {}", path.c_str());
-			return false;
-		}
-
+		VK_CHECK(vkCreateShaderModule(m_device, &createInfo, m_allocationCallbacks, &m_module));
 		return true;
 	}
 

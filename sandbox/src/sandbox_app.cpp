@@ -91,6 +91,12 @@ namespace imp::app
 			{ 3, static_cast<u32>( offsetof(gfx::ModelVertex, tangent) ), 4, true},
 		};
 
+		gfx::VertexAttribute shadowAttrs[3] = {
+			{ 0, static_cast<u32>( offsetof(gfx::ModelVertex, position) ), 3, true },
+			{ 1, static_cast<u32>( offsetof(gfx::ModelVertex, normal) ), 3, true },
+			{ 2, static_cast<u32>( offsetof(gfx::ModelVertex, uv) ), 2, true },
+		};
+
 		gfx::VertexAttribute instanceAttrs[4] = {
 			{ 4, static_cast<u32>( sizeof(math::Vec4f) * 0 ), 4, true },
 			{ 5, static_cast<u32>( sizeof(math::Vec4f) * 1 ), 4, true },
@@ -197,7 +203,9 @@ namespace imp::app
 		gfx::PipelineDesc shadowPipelineDesc{};
 		shadowPipelineDesc.vertexShader = m_shadowVertShader.get();
 		shadowPipelineDesc.fragmentShader = m_shadowFragShader.get();
-		shadowPipelineDesc.vertexLayout = meshPipelineDesc.vertexLayout;
+		shadowPipelineDesc.vertexLayout.attributeCount = 3;
+		shadowPipelineDesc.vertexLayout.attributes = shadowAttrs;
+		shadowPipelineDesc.vertexLayout.stride = sizeof(gfx::ModelVertex);
 		shadowPipelineDesc.instanceLayout = meshPipelineDesc.instanceLayout;
 		shadowPipelineDesc.rasterizerState.cullMode = gfx::CullMode::Back; // reduces acne on closed meshes
 		shadowPipelineDesc.depthStencilState.depthTestEnable = true;
@@ -220,10 +228,6 @@ namespace imp::app
 		m_environmentTestHandle = m_modelRegistry.load(ctx.gfx, "assets/models/environment_test.glb", ctx.jobs, &ctx.vfs);
 		if (!m_environmentTestHandle.isValid())
 			LOG_ERROR("Sandbox", "Failed to load environment test model");
-
-		/*m_statueHandle = m_modelRegistry.load(ctx.gfx, "assets/models/statue.glb", ctx.jobs, &ctx.vfs);
-		if (!m_statueHandle.isValid())
-			LOG_ERROR("Sandbox", "Failed to load statue model");*/
 
 		gfx::BufferDesc cascadeUboDesc{};
 		cascadeUboDesc.size = sizeof(gfx::CascadeUBO);
@@ -288,29 +292,6 @@ namespace imp::app
 
 		ctx.ecs.transforms.updateWorldMatricesParallel(ctx.jobs);
 		ctx.ecs.transforms.setLocalTransform(m_localLight, m_localLightTransform);
-
-		/*if (auto sunTransform = ctx.ecs.transforms.tryGet(m_sunEntity))
-		{
-			const math::Vec3f dir = math::normalise(m_sunDirection);
-			const math::Vec3f fwd = math::Vec3f::forward();
-
-			const float d = math::clamp(math::dot(fwd, dir), -1.f, 1.f);
-			if (d < 0.9999f)
-			{
-				math::Vec3f axis = math::cross(fwd, dir);
-				if (math::lengthSq(axis) < 1e-8f)
-					axis = math::Vec3f::up();
-				else
-					axis = math::normalise(axis);
-
-				const float angle = std::acos(d);
-				sunTransform->rotation = math::Quaternionf::fromAxisAngle(axis, angle);
-			}
-			else
-			{
-				sunTransform->rotation = math::Quaternionf::identity();
-			}
-		}*/
 
 		updateSunViewProj();
 		extractRenderables(ctx.ecs, m_modelRegistry, m_camera.position(), m_extraction);
@@ -511,7 +492,7 @@ namespace imp::app
 			}
 		}
 
-		//ctx.gfx.waitIdle();
+		ctx.gfx.waitIdle();
 		m_instanceBuffers = std::move(newBuffers);
 		m_instanceCapacity = newCapacity;
 	}

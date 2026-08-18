@@ -1,6 +1,8 @@
 #if defined(IMP_GFX_VULKAN)
 
 #include "vk_desc_alloc.h"
+#include "vk_check.h"
+
 #include <core/log/log.h>
 
 namespace imp::gfx::vulkan
@@ -23,13 +25,7 @@ namespace imp::gfx::vulkan
 		poolInfo.pPoolSizes = poolSizes;
 
 		for (u32 i = 0; i < kMaxFramesInFlight; ++i)
-		{
-			if (vkCreateDescriptorPool(m_device, &poolInfo, m_allocationCallbacks, &m_pools[i]) != VK_SUCCESS)
-			{
-				LOG_ERROR("Vulkan", "vkCreateDescriptorPool failed");
-				return false;
-			}
-		}
+			VK_CHECK(vkCreateDescriptorPool(m_device, &poolInfo, m_allocationCallbacks, &m_pools[i]));
 
 		return true;
 	}
