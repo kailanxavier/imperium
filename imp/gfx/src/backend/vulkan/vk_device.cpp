@@ -13,6 +13,8 @@
 #include "vk_desc_alloc.h"
 #include "vk_allocator.h"
 
+#include "vk_debug_utils.h"
+
 #include <imgui.h>
 #include <backends/imgui_impl_vulkan.h>
 
@@ -64,6 +66,20 @@ namespace imp::gfx::vulkan
 			}
 
 			return true;
+		}
+
+		bool checkInstanceExtensionSupport(const char* extensionName)
+		{
+			u32 count = 0;
+			vkEnumerateInstanceExtensionProperties(nullptr, &count, nullptr);
+			std::vector<VkExtensionProperties> available(count);
+			vkEnumerateInstanceExtensionProperties(nullptr, &count, available.data());
+
+			for (const auto& ext : available)
+				if (std::strcmp(ext.extensionName, extensionName) == 0)
+					return true;
+
+			return false;
 		}
 
 		VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
@@ -866,6 +882,7 @@ namespace imp::gfx::vulkan
 		imguiPassDesc.colourTarget = &backBuffer();
 		imguiPassDesc.depthTarget = nullptr;
 		imguiPassDesc.clearColour = false;
+		imguiPassDesc.debugName = "ImGui";
 
 		vkCmd.beginRenderPass(imguiPassDesc);
 		ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), vkCmd.commandBuffer());
@@ -992,12 +1009,16 @@ namespace imp::gfx::vulkan
 			validationFeatures.enabledValidationFeatureCount = 1;
 			validationFeatures.pEnabledValidationFeatures = enabledFeatures;
 
-			debugCreateInfo.pNext= &validationFeatures;
+			debugCreateInfo.pNext = &validationFeatures;
 			createInfo.pNext = &debugCreateInfo;
 		}
 #endif // !NDEBUG
 
 		VK_CHECK(vkCreateInstance(&createInfo, allocationCallbacks(), &m_instance));
+
+		if (!loadDebugUtilsFunctions(m_instance))
+			LOG_WARN("Vulkan", "vkCreateInstance succeeded but debug utils functions could not be loaded");
+
 		return true;
 	}
 
@@ -1434,10 +1455,12 @@ namespace imp::gfx::vulkan
 		u32 glfwExtensionCount = 0;
 		const char** glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
 		std::vector<const char*> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
-#ifndef NDEBUG
-		if (wantValidation)
+
+		if (checkInstanceExtensionSupport(VK_EXT_DEBUG_UTILS_EXTENSION_NAME))
 			extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-#endif // !NDEBUG
+		else if (wantValidation)
+			LOG_WARN("Vulkan", "VK_EXT_debug_utils not supported");
+
 		return extensions;
 	}
 

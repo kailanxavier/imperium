@@ -29,6 +29,8 @@ namespace imp::gfx
 
         bool clearDepth = true;
         float clearDepthValue = 1.f;
+
+        const char* debugName = "unnamed pass";
     };
 
     class ICommandList

@@ -335,6 +335,11 @@ namespace imp::app
 			shadowPassDesc.colourTarget = nullptr;
 			shadowPassDesc.depthTarget = m_shadowCascadeTargets[i].get();
 			shadowPassDesc.clearDepthValue = 1.f;
+
+			char label[32];
+			snprintf(label, sizeof(label), "Shadow Cascade %u", i);
+			shadowPassDesc.debugName = label;
+
 			cmd.beginRenderPass(shadowPassDesc);
 
 			gfx::CullVolume cullVolume{ m_cascades[i].lightView, m_cascades[i].boxMin, m_cascades[i].boxMax };
@@ -359,6 +364,7 @@ namespace imp::app
 		hdrPassDesc.depthTarget = m_hdrDepthTarget.get();
 		hdrPassDesc.clearColourValue = { 0.023153f, 0.000911f, 0.004391f, 1.f };
 		hdrPassDesc.clearDepthValue = 1.f;
+		hdrPassDesc.debugName = "HDR";
 		cmd.beginRenderPass(hdrPassDesc);
 
 		gfx::ModelRenderContext renderCtx{};
@@ -398,6 +404,7 @@ namespace imp::app
 		tonemapPassDesc.colourTarget = &ctx.gfx.backBuffer();
 		tonemapPassDesc.depthTarget = nullptr;
 		tonemapPassDesc.clearColour = false;
+		tonemapPassDesc.debugName = "Tonemap";
 		cmd.beginRenderPass(tonemapPassDesc);
 
 		cmd.bindPipeline(*m_tonemapPipeline);

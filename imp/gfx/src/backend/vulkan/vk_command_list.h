@@ -93,5 +93,7 @@ namespace imp::gfx::vulkan
 
 		std::vector<PendingBinding> m_pendingBindings;
 		std::unordered_map<u64, VkDescriptorSet> m_descriptorSetCache;
+
+		bool m_activeLabelPushed = false;
 	};
 }

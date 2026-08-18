@@ -7,6 +7,7 @@
 #include "vk_desc_alloc.h"
 #include "vk_texture.h"
 #include "vk_sampler.h"
+#include "vk_debug_utils.h"
 
 #include <algorithm>
 
@@ -29,6 +30,8 @@ namespace imp::gfx::vulkan
 
 		m_pendingBindings.clear();
 		m_descriptorSetCache.clear();
+
+		m_activeLabelPushed = false;
 
 		// NOTE: do NOT reset m_imageStates here, it must survive
 		// across frames to do its job.
@@ -118,6 +121,9 @@ namespace imp::gfx::vulkan
 
 		vkCmdBeginRendering(m_cmd, &renderingInfo);
 
+		cmdBeginDebugLabel(m_cmd, desc.debugName);
+		m_activeLabelPushed = true;
+
 		VkViewport viewport{};
 		viewport.x = 0.f;
 		viewport.y = static_cast<float>( extent.height );;
@@ -138,6 +144,12 @@ namespace imp::gfx::vulkan
 	void VulkanCommandList::endRenderPass()
 	{
 		vkCmdEndRendering(m_cmd);
+
+		if (m_activeLabelPushed)
+		{
+			cmdEndDebugLabel(m_cmd);
+			m_activeLabelPushed = false;
+		}
 
 		if (m_resolveTarget)
 		{

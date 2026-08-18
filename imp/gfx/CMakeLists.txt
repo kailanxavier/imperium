@@ -42,6 +42,7 @@ target_sources(imp_gfx PRIVATE
 		src/backend/vulkan/vk_desc_alloc.cpp
 		src/backend/vulkan/vk_allocator.cpp
 		src/backend/vulkan/vk_vma_impl.cpp
+		src/backend/vulkan/vk_debug_utils.cpp
 )
 target_link_libraries(imp_gfx PRIVATE Vulkan::Vulkan glfw PUBLIC imgui)
 target_include_directories(imp_gfx SYSTEM PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third_party/vma)
