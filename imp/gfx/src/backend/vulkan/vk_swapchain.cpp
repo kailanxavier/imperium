@@ -93,8 +93,12 @@ namespace imp::gfx::vulkan
             vkDestroySemaphore(m_device, m_imageAvailableSemaphores[m_currentFrame], m_allocationCallbacks);
             VkSemaphoreCreateInfo semInfo{};
             semInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-            vkCreateSemaphore(m_device, &semInfo, m_allocationCallbacks, 
-                &m_imageAvailableSemaphores[m_currentFrame]);
+            if (vkCreateSemaphore(m_device, &semInfo, m_allocationCallbacks,
+                &m_imageAvailableSemaphores[m_currentFrame]) != VK_SUCCESS)
+            {
+                LOG_ERROR("Vulkan", "beginFrame(): failed to recreate image available semaphore");
+                m_imageAvailableSemaphores[m_currentFrame] = VK_NULL_HANDLE; // avoid destroying garbage
+            }
 
             return false;
         }
@@ -103,6 +107,13 @@ namespace imp::gfx::vulkan
         {
             LOG_ERROR("Vulkan", "vkAcquireNextImageKHR failed ({})", static_cast<int>(result));
             return false;
+        }
+
+        if (result == VK_SUBOPTIMAL_KHR)
+        {
+            m_needsRecreate = true;
+            m_pendingWidth = m_extent.width;
+            m_pendingHeight = m_extent.height;
         }
 
         // Only reset the fence once we know we're actually going to
