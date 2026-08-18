@@ -17,7 +17,7 @@ namespace imp::app
 {
 	bool SandboxApp::onInit(AppContext& ctx)
 	{
-		m_camera.setPosition({ 25.f, 1.f, 4.f });
+		m_camera.setPosition({ 0.f, 1.f, 4.f });
 		m_camera.setYawPitch(math::toRadians(-90.f), 0.f);
 
 		gfx::ShaderDesc meshVertDesc;
@@ -84,17 +84,18 @@ namespace imp::app
 			return false;
 		}
 
-		gfx::VertexAttribute meshAttrs[3] = {
+		gfx::VertexAttribute meshAttrs[4] = {
 			{ 0, static_cast<u32>( offsetof(gfx::ModelVertex, position) ), 3, true },
 			{ 1, static_cast<u32>( offsetof(gfx::ModelVertex, normal) ), 3, true },
 			{ 2, static_cast<u32>( offsetof(gfx::ModelVertex, uv) ), 2, true },
+			{ 3, static_cast<u32>( offsetof(gfx::ModelVertex, tangent) ), 4, true},
 		};
 
 		gfx::VertexAttribute instanceAttrs[4] = {
-			{ 3, static_cast<u32>( sizeof(math::Vec4f) * 0 ), 4, true },
-			{ 4, static_cast<u32>( sizeof(math::Vec4f) * 1 ), 4, true },
-			{ 5, static_cast<u32>( sizeof(math::Vec4f) * 2 ), 4, true },
-			{ 6, static_cast<u32>( sizeof(math::Vec4f) * 3 ), 4, true },
+			{ 4, static_cast<u32>( sizeof(math::Vec4f) * 0 ), 4, true },
+			{ 5, static_cast<u32>( sizeof(math::Vec4f) * 1 ), 4, true },
+			{ 6, static_cast<u32>( sizeof(math::Vec4f) * 2 ), 4, true },
+			{ 7, static_cast<u32>( sizeof(math::Vec4f) * 3 ), 4, true },
 		};
 
 		ensureHdrTargetSize(ctx);
@@ -128,7 +129,7 @@ namespace imp::app
 		meshPipelineDesc.vertexShader = m_meshVertShader.get();
 		meshPipelineDesc.fragmentShader = m_meshFragShader.get();
 		meshPipelineDesc.vertexLayout.stride = sizeof(gfx::ModelVertex);
-		meshPipelineDesc.vertexLayout.attributeCount = 3;
+		meshPipelineDesc.vertexLayout.attributeCount = 4;
 		meshPipelineDesc.vertexLayout.attributes = meshAttrs;
 		meshPipelineDesc.instanceLayout.stride = sizeof(math::Mat4f);
 		meshPipelineDesc.instanceLayout.attributeCount = 4;
@@ -212,9 +213,13 @@ namespace imp::app
 
 		m_shadowPipeline = ctx.gfx.createPipeline(shadowPipelineDesc);
 
-		m_environmentHandle = m_modelRegistry.load(ctx.gfx, "assets/models/sanmiguel.glb", ctx.jobs, &ctx.vfs);
+		m_environmentHandle = m_modelRegistry.load(ctx.gfx, "assets/models/khr-sponza.glb", ctx.jobs, &ctx.vfs);
 		if (!m_environmentHandle.isValid())
 			LOG_ERROR("Sandbox", "Failed to load environment model");
+
+		m_environmentTestHandle = m_modelRegistry.load(ctx.gfx, "assets/models/environment_test.glb", ctx.jobs, &ctx.vfs);
+		if (!m_environmentTestHandle.isValid())
+			LOG_ERROR("Sandbox", "Failed to load environment test model");
 
 		/*m_statueHandle = m_modelRegistry.load(ctx.gfx, "assets/models/statue.glb", ctx.jobs, &ctx.vfs);
 		if (!m_statueHandle.isValid())
@@ -257,28 +262,14 @@ namespace imp::app
 		ecs::Transform pointTransform;
 		pointTransform.position = math::Vec3f{ 0.f, 5.f, 0.f };
 		ctx.ecs.transforms.create(m_localLight, pointTransform);
+		ctx.ecs.colliders.createAABB(m_localLight, math::Vec3f{ -1.f, -1.f, -1.f }, math::Vec3f{ 1.f, 1.f, 1.f });
 		ctx.ecs.lights.create(m_localLight, ecs::LightType::Point, math::Vec3f{ 1.f, 0.6f, 0.3f }, 1.5f);
 		m_instances.push_back(m_localLight);
 
-		//constexpr int kGridSize = 3;
-		//constexpr float kSpacing = 30.f;
-		//for (int x = 0; x < kGridSize; ++x)
-		//{
-		//	for (int z = 0; z < kGridSize; ++z)
-		//	{
-		//		const math::Vec3f position
-		//		{
-		//			static_cast<float>(x - kGridSize / 2.f) * kSpacing,
-		//			0.f,
-		//			static_cast<float>(z - kGridSize / 2.f) * kSpacing
-		//		};
-
-		//		ecs::Transform t;
-		//		t.position = position;
-		//		//t.scale = math::Vec3f{ 10.f, 10.f, 10.f };
-		//		spawnInstance(ctx, t);
-		//	}
-		//}
+		{
+			ecs::Transform t;
+			spawnInstance(ctx, t, m_environmentTestHandle);
+		}
 
 		const ecs::EntityId entity = ctx.ecs.createEntity();
 		ecs::Transform t;
@@ -525,11 +516,11 @@ namespace imp::app
 		m_instanceCapacity = newCapacity;
 	}
 
-	ecs::EntityId SandboxApp::spawnInstance(AppContext& ctx, const ecs::Transform& t)
+	ecs::EntityId SandboxApp::spawnInstance(AppContext& ctx, const ecs::Transform& t, const gfx::ModelHandle& model)
 	{
 		const ecs::EntityId entity = ctx.ecs.createEntity();
 		ctx.ecs.transforms.create(entity, t);
-		ctx.ecs.renderables.create(entity, m_statueHandle);
+		ctx.ecs.renderables.create(entity, model);
 		ctx.ecs.colliders.createAABB(entity, math::Vec3f{ -0.5f, -0.5f, -0.5f }, math::Vec3f{ 0.5f, 0.5f, 0.5f });
 		m_instances.push_back(entity);
 		return entity;

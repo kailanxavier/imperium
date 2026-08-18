@@ -6,6 +6,9 @@
 layout(location = 0) in vec3 inNormalWS;
 layout(location = 1) in vec3 inPositionWS;
 layout(location = 2) in vec2 inUV;
+layout(location = 3) in vec3 inTangentWS;
+layout(location = 4) in float inTangentSign;
+
 layout(location = 0) out vec4 outColour;
 
 const int MAX_LIGHTS = 16;
@@ -126,6 +129,14 @@ void main()
     float occlusion = texture(occlusionTexture, inUV).r;
 
     vec3 N = normalize(inNormalWS);
+    vec3 T = normalize(inTangentWS);
+
+    vec3 B = normalize(cross(N, T)) * inTangentSign;
+    mat3 TBN = mat3(T, B, N);
+    vec3 tangentNormal = texture(normalTexture, inUV).xyz;
+    tangentNormal = tangentNormal * 2.0 - 1.0;
+    N = normalize(TBN * tangentNormal);
+
     vec3 V = normalize(lightData.cameraPositionWS.xyz - inPositionWS);
 
     vec3 F0 = mix(vec3(0.04), albedo, metallic);

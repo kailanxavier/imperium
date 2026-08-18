@@ -54,6 +54,64 @@ namespace imp::gfx
 			return result;
 		}
 
+		void generateTangents(std::vector<ModelVertex>& vertices, const std::vector<u32>& indices)
+		{
+			std::vector<math::Vec3f> tan1(vertices.size(), math::Vec3f::zero());
+			std::vector<math::Vec3f> tan2(vertices.size(), math::Vec3f::zero());
+
+			for (size_t i = 0; i + 2 < indices.size(); i += 3)
+			{
+				const u32 i0 = indices[i];
+				const u32 i1 = indices[i + 1];
+				const u32 i2 = indices[i + 2];
+
+				const ModelVertex& v0 = vertices[i0];
+				const ModelVertex& v1 = vertices[i1];
+				const ModelVertex& v2 = vertices[i2];
+
+				const math::Vec3f edge1 = v1.position - v0.position;
+				const math::Vec3f edge2 = v2.position - v0.position;
+
+				const float deltaU1 = v1.uv.x - v0.uv.x;
+				const float deltaV1 = v1.uv.y - v0.uv.y;
+				const float deltaU2 = v2.uv.x - v0.uv.x;
+				const float deltaV2 = v2.uv.y - v0.uv.y;
+
+				const float det = deltaU1 * deltaV2 - deltaU2 * deltaV1;
+				if (std::abs(det) < 1e-8f)
+					continue; // degenerate/zero area UVs for this triangle, skip its contribution
+
+				const float r = 1.f / det;
+				const math::Vec3f tangent = ( edge1 * deltaV2 - edge2 * deltaV1 ) * r;
+				const math::Vec3f bitangent = ( edge2 * deltaU1 - edge1 * deltaU2 ) * r;
+
+				tan1[i0] += tangent; tan1[i1] += tangent; tan1[i2] += tangent;
+				tan2[i0] += bitangent; tan2[i1] += bitangent; tan2[i2] += bitangent;
+			}
+
+			for (size_t i = 0; i < vertices.size(); ++i)
+			{
+				const math::Vec3f& n = vertices[i].normal;
+				const math::Vec3f& t = tan1[i];
+
+				math::Vec3f tangent = t - n * math::dot(n, t);
+				const float len = math::length(tangent);
+
+				if (len > 1e-8f)
+				{
+					tangent = tangent / len;
+				}
+				else
+				{
+					const math::Vec3f fallback = std::abs(n.x) < 0.9f ? math::Vec3f::unitX() : math::Vec3f::unitY();
+					tangent = math::normalise(math::cross(n, fallback));
+				}
+
+				const float handedness = ( math::dot(math::cross(n, tangent), tan2[i]) < 0.f ) ? -1.f : 1.f;
+				vertices[i].tangent = { tangent.x, tangent.y, tangent.z, handedness };
+			}
+		}
+
 		u32 readIndex(const cgltf_accessor* accessor, cgltf_size i)
 		{
 			return static_cast<u32>( cgltf_accessor_read_index(accessor, i) );
@@ -109,6 +167,7 @@ namespace imp::gfx
 			const cgltf_accessor* posAccessor = nullptr;
 			const cgltf_accessor* normalAccessor = nullptr;
 			const cgltf_accessor* uvAccessor = nullptr;
+			const cgltf_accessor* tangentAccessor = nullptr;
 
 			for (cgltf_size i = 0; i < prim.attributes_count; ++i)
 			{
@@ -116,6 +175,7 @@ namespace imp::gfx
 				if (attr.type == cgltf_attribute_type_position) posAccessor = attr.data;
 				else if (attr.type == cgltf_attribute_type_normal) normalAccessor = attr.data;
 				else if (attr.type == cgltf_attribute_type_texcoord && !uvAccessor) uvAccessor = attr.data;
+				else if (attr.type == cgltf_attribute_type_tangent) tangentAccessor = attr.data;
 			}
 
 			if (!posAccessor)
@@ -154,6 +214,13 @@ namespace imp::gfx
 				{
 					vertices[i].uv = { 0.f, 0.f };
 				}
+
+				if (tangentAccessor)
+				{
+					float tangent[4] = { 1.f, 0.f, 0.f, 1.f };
+					cgltf_accessor_read_float(tangentAccessor, i, tangent, 4);
+					vertices[i].tangent = { tangent[0], tangent[1], tangent[2], tangent[3] };
+				}
 			}
 
 			math::Vec3f boundsMin = vertices[0].position;
@@ -163,7 +230,7 @@ namespace imp::gfx
 				boundsMin = math::min(boundsMin, v.position);
 				boundsMax = math::max(boundsMax, v.position);
 			}
-			const math::Vec3f centre = (boundsMin + boundsMax) * 0.5f;
+			const math::Vec3f centre = ( boundsMin + boundsMax ) * 0.5f;
 
 			float radiusSq = 0.f;
 			for (const auto& v : vertices)
@@ -185,6 +252,9 @@ namespace imp::gfx
 				for (cgltf_size i = 0; i < vertexCount; ++i)
 					indices[i] = static_cast<u32>(i);
 			}
+
+			if (!tangentAccessor)
+				generateTangents(vertices, indices);
 
 			const bool needs32BitIndices = vertexCount > 0xFFFFu;
 			const IndexFormat indexFormat = needs32BitIndices ? IndexFormat::Uint32 : IndexFormat::Uint16;
@@ -392,8 +462,8 @@ namespace imp::gfx
 			factors.roughnessFactor = dstMat.roughnessFactor;
 			factors.alphaCutoff = dstMat.alphaCutoff;
 			factors.alphaMode = static_cast<float>(static_cast<int>(dstMat.alphaMode));	// or in the lovely C: 
-																						// (float)(*(int *)((char *)&dstMat 
-																						//		+ offsetof(typeof(dstMat), alphaMode)));
+			// (float)(*(int *)((char *)&dstMat 
+			//		+ offsetof(typeof(dstMat), alphaMode)));
 
 			BufferDesc factorsDesc;
 			factorsDesc.size = sizeof(MaterialFactorsUBO);
@@ -495,11 +565,11 @@ namespace imp::gfx
 				continue; // decode or upload failed, material falls back to -1
 
 			outModel.textures.push_back(ModelTexture{ resolvedTextures[i] });
-			modelTextureIndexForRequest[i] = static_cast<i32>( outModel.textures.size() - 1 );
+			modelTextureIndexForRequest[i] = static_cast<i32>(outModel.textures.size() - 1);
 		}
 
 		outModel.textures.push_back(ModelTexture{ textureCache.fallbackAlbedo() });
-		outModel.fallbackAlbedoTextureIndex = static_cast<i32>( outModel.textures.size() - 1 );
+		outModel.fallbackAlbedoTextureIndex = static_cast<i32>(outModel.textures.size() - 1);
 
 		outModel.textures.push_back(ModelTexture{ textureCache.fallbackMetallicRoughness() });
 		outModel.fallbackMetallicRoughnessTextureIndex = static_cast<i32>( outModel.textures.size() - 1 );

@@ -17,6 +17,7 @@ namespace imp::gfx
 		math::Vec3f position;
 		math::Vec3f normal;
 		math::Vec2f uv;
+		math::Vec4f tangent;
 	};
 
 	struct MeshPrimitive

@@ -24,10 +24,13 @@ namespace imp::app
         ImGui::SliderAngle("Elevation", &elevation, -89.f, 89.f);
         ImGui::End();
 
+        math::Vec3f pos, scale;
+        math::Quaternionf rot;
+
         ImGui::Begin("Point Light");
-        ImGui::DragFloat3("Position", &m_pointLightT.position.x, 0.01f);
-        ImGui::DragFloat3("Rotation", &m_pointLightT.rotation.x, 0.01f);
-        ImGui::DragFloat3("Scale", &m_pointLightT.scale.x, 0.01f);
+        ImGui::DragFloat3("Position", &pos.x, 0.01f);
+        ImGui::DragFloat3("Rotation", &rot.x, 0.01f);
+        ImGui::DragFloat3("Scale", &scale.x, 0.01f);
         ImGui::End();
 
         ImGui::Begin("CSM");
@@ -38,5 +41,9 @@ namespace imp::app
         m_sunDirection.x =  std::cos(elevation) * std::sin(azimuth);
         m_sunDirection.y =  std::sin(elevation);
         m_sunDirection.z =  std::cos(elevation) * std::cos(azimuth);
+
+        m_pointLightT.position = pos;
+        m_pointLightT.rotation = rot;
+        m_pointLightT.scale = scale;
     }
 }

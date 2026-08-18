@@ -53,7 +53,7 @@ namespace imp::app
 		void ensureInstanceBufferCapacity(AppContext& ctx, u32 instanceCount);
 		void ensureHdrTargetSize(AppContext& ctx);
 
-		ecs::EntityId spawnInstance(AppContext& ctx, const ecs::Transform& t);
+		ecs::EntityId spawnInstance(AppContext& ctx, const ecs::Transform& t, const gfx::ModelHandle& model);
 
 	private:
 		void updateSunViewProj();
@@ -103,7 +103,7 @@ namespace imp::app
 		gfx::ModelRegistry m_modelRegistry;
 
 		ecs::ModelHandle m_environmentHandle{};
-		ecs::ModelHandle m_statueHandle{};
+		ecs::ModelHandle m_environmentTestHandle{};
 
 		gfx::RenderExtraction m_extraction;
 
