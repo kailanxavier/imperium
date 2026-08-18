@@ -8,6 +8,17 @@
 
 namespace imp::gfx::vulkan
 {
+	struct DescriptorBindingCount
+	{
+		VkDescriptorType type;
+		u32 countPerSet;
+	};
+
+	inline constexpr DescriptorBindingCount kDescriptorBindingTable[] = {
+		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 3 },
+		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 5 },
+	};
+
 	class VulkanDescriptorAllocator
 	{
 	public:
