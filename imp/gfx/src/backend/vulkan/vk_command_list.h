@@ -3,6 +3,7 @@
 #include <gfx/commands.h>
 #include <vulkan/vulkan.h>
 #include <unordered_map>
+#include <vector>
 
 namespace imp::gfx::vulkan
 {

@@ -1,4 +1,5 @@
 #include <gfx/cascade_shadow.h>
+#include <algorithm>
 
 namespace imp::gfx
 {

@@ -55,9 +55,9 @@ namespace imp::gfx::vulkan
 			: VulkanRenderTarget(*owner), m_owner(std::move(owner)), m_layer(layer) {}
 
 		[[nodiscard]] u32 layer() const override { return m_layer; }
-		[[nodiscard]] VkImage image() const { return m_owner->image(); }
-		[[nodiscard]] VkImageView imageView() const { return m_owner->layerView(m_layer); }
-		[[nodiscard]] bool isSampledOwnedDepth() const { return true; }
+		[[nodiscard]] VkImage image() const override { return m_owner->image(); }
+		[[nodiscard]] VkImageView imageView() const override { return m_owner->layerView(m_layer); }
+		[[nodiscard]] bool isSampledOwnedDepth() const override { return true; }
 
 	private:
 		std::shared_ptr<VulkanTexture> m_owner;
