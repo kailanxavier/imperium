@@ -1042,30 +1042,65 @@ namespace imp::gfx::vulkan
 		std::vector<VkPhysicalDevice> devices(count);
 		vkEnumeratePhysicalDevices(m_instance, &count, devices.data());
 
+		VkPhysicalDevice best = VK_NULL_HANDLE;
+		i32 bestScore = -1;
+		u32 bestMem = 0;
+
 		for (VkPhysicalDevice device : devices)
 		{
-			if (isDeviceSuitable(device))
+			if (!isDeviceSuitable(device))
+				continue;
+
+			VkPhysicalDeviceProperties props{};
+			vkGetPhysicalDeviceProperties(device, &props);
+
+			i32 score = 0;
+			switch (props.deviceType)
 			{
-				m_physicalDevice = device;
-				m_queueFamilies = findQueueFamilies(device);
+			case VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU: score += 10000; break;
+			case VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU: score += 1000; break;
+			case VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU: score += 100; break;
+			default: break;
+			}
 
-				VkPhysicalDeviceFeatures supportedFeatures{};
-				vkGetPhysicalDeviceFeatures(device, &supportedFeatures);
-				m_anisotropySupported = supportedFeatures.samplerAnisotropy == VK_TRUE;
+			VkPhysicalDeviceMemoryProperties memProps{};
+			vkGetPhysicalDeviceMemoryProperties(device, &memProps);
+			VkDeviceSize deviceLocalBytes = 0;
+			for (u32 h = 0; h < memProps.memoryHeapCount; ++h)
+				if (memProps.memoryHeaps[h].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT)
+					deviceLocalBytes = std::max(deviceLocalBytes, memProps.memoryHeaps[h].size);
+			score += static_cast<i32>(deviceLocalBytes / ( 256ull * 1024 * 1024 ));
 
-				VkPhysicalDeviceProperties props{};
-				vkGetPhysicalDeviceProperties(device, &props);
-				m_maxSamplerAnisotropy = props.limits.maxSamplerAnisotropy;
-
-				if (!m_anisotropySupported)
-					LOG_WARN("Vulkan", "Device does not support sampler anisotropy");
-
-				return true;
+			if (score > bestScore)
+			{
+				bestScore = score;
+				bestMem = static_cast<u32>( deviceLocalBytes / 1048576 );
+				best = device;
 			}
 		}
 
-		LOG_FATAL("Vulkan", "No suitable GPU was found");
-		return false;
+		if (best == VK_NULL_HANDLE)
+		{
+			LOG_FATAL("Vulkan", "No suitable GPU was found");
+			return false;
+		}
+
+		m_physicalDevice = best;
+		m_queueFamilies = findQueueFamilies(best);
+
+		VkPhysicalDeviceFeatures supportedFeatures{};
+		vkGetPhysicalDeviceFeatures(best, &supportedFeatures);
+		m_anisotropySupported = supportedFeatures.samplerAnisotropy == VK_TRUE;
+
+		VkPhysicalDeviceProperties props{};
+		vkGetPhysicalDeviceProperties(best, &props);
+		m_maxSamplerAnisotropy = props.limits.maxSamplerAnisotropy;
+
+		if (!m_anisotropySupported)
+			LOG_WARN("Vulkan", "Device does not support sampler anisotropy");
+
+		LOG_INFO("Vulkan", "Selected physical device: {} (score={}, memory={} MiB)", props.deviceName, bestScore, bestMem);
+		return true;
 	}
 
 	bool VulkanDevice::createLogicalDevice()
