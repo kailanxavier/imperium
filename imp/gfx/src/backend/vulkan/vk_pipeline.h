@@ -7,11 +7,13 @@
 namespace imp::fs { class VirtualFileSystem; }
 namespace imp::gfx::vulkan
 {
+	class VulkanShaderModule;
+
 	struct VulkanGraphicsPipelineCreateInfo
 	{
 		VkDevice device = VK_NULL_HANDLE;
-		VkShaderModule vertexShader = VK_NULL_HANDLE;
-		VkShaderModule fragmentShader = VK_NULL_HANDLE;
+		VulkanShaderModule* vertexShader = nullptr;
+		VulkanShaderModule* fragmentShader = nullptr;
 		VkVertexInputBindingDescription vertexBinding{};
 
 		bool hasInstanceBinding = false;
@@ -31,13 +33,6 @@ namespace imp::gfx::vulkan
 
 		u32 pushConstantSize = 0;
 
-		bool hasUniformBuffer = false;
-
-		u32 textureCount = 0;
-		bool hasMaterialUniformBuffer = false;
-
-		bool hasCascadeUniformBuffer = false;
-
 		bool blendEnable = false;
 
 		const fs::VirtualFileSystem* vfs = nullptr;
@@ -48,7 +43,7 @@ namespace imp::gfx::vulkan
 	{
 	public:
 		VulkanGraphicsPipeline() = default;
-		~VulkanGraphicsPipeline();
+		~VulkanGraphicsPipeline() override;
 
 		VulkanGraphicsPipeline(const VulkanGraphicsPipeline&) = delete;
 		VulkanGraphicsPipeline& operator=(const VulkanGraphicsPipeline&) = delete;

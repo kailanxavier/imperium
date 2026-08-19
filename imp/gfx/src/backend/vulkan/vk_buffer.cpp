@@ -67,7 +67,7 @@ namespace imp::gfx::vulkan
 		}
 
 		VmaAllocationInfo resultInfo{};
-		VkResult result = vmaCreateBuffer(m_allocator, &bufferInfo, &allocInfo,
+		const VkResult result = vmaCreateBuffer(m_allocator, &bufferInfo, &allocInfo,
 			&m_buffer, &m_allocation, &resultInfo);
 
 		if (result != VK_SUCCESS)

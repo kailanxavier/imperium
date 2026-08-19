@@ -49,6 +49,9 @@ target_include_directories(imp_gfx SYSTEM PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/th
 target_include_directories(imp_gfx SYSTEM PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb)
 target_include_directories(imp_gfx SYSTEM PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third_party/glTF)
 
+target_include_directories(imp_gfx SYSTEM PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third_party/spirv_reflect)
+target_sources(imp_gfx PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third_party/spirv_reflect/spirv_reflect.c)
+
 target_sources(imp_gfx PRIVATE
 	src/stb_image_impl.cpp
 	src/cgltf_impl.cpp

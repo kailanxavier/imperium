@@ -28,7 +28,7 @@ namespace imp::gfx
     {
     public:
         virtual ~IShader() = default;
-        virtual ShaderStage stage() const = 0;
+        [[nodiscard]] virtual ShaderStage stage() const = 0;
     };
 
     enum class PrimitiveTopology { TriangleList, LineList, PointList };

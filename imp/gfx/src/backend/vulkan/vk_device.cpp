@@ -674,8 +674,8 @@ namespace imp::gfx::vulkan
 
 		VulkanGraphicsPipelineCreateInfo info{};
 		info.device = m_device;
-		info.vertexShader = static_cast<VulkanShaderModule*>( desc.vertexShader )->handle();
-		info.fragmentShader = static_cast<VulkanShaderModule*>( desc.fragmentShader )->handle();
+		info.vertexShader = static_cast<VulkanShaderModule*>( desc.vertexShader );
+		info.fragmentShader = static_cast<VulkanShaderModule*>( desc.fragmentShader );
 
 		info.vertexBinding.binding = 0;
 		info.vertexBinding.stride = desc.vertexLayout.stride;
@@ -718,10 +718,6 @@ namespace imp::gfx::vulkan
 		info.depthAttachmentFormat = toVkFormat(desc.depthFormat);
 		info.sampleCount = toVkSampleCount(desc.sampleCount);
 		info.pushConstantSize = desc.pushConstantSize;
-		info.hasUniformBuffer = desc.hasUniformBuffer;
-		info.textureCount = desc.textureCount;
-		info.hasMaterialUniformBuffer = desc.hasMaterialUniformBuffer;
-		info.hasCascadeUniformBuffer = desc.hasCascadeUniformBuffer;
 		info.instanceBinding.binding = 1;
 		info.instanceBinding.stride = desc.instanceLayout.stride;
 		info.instanceBinding.inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
