@@ -105,27 +105,20 @@ namespace imp::gfx::vulkan
 		pushConstantRange.offset = 0;
 		pushConstantRange.size = info.pushConstantSize;
 
-		struct MergedBinding
-		{
-			VkDescriptorType type = VK_DESCRIPTOR_TYPE_MAX_ENUM;
-			u32 count = 1;
-			VkShaderStageFlags stageFlags = 0;
-			std::string firstSeenIn;
-		};
-		std::unordered_map<u32, MergedBinding> merged;
+		m_bindingLayout.clear();
 		auto mergeStage = [&](const std::vector<ReflectedBinding>& bindings, VkShaderStageFlagBits stageFlag, const char* stageName) -> bool
 		{
 			for (const ReflectedBinding& b : bindings)
 			{
-				auto it = merged.find(b.binding);
-				if (it == merged.end())
+				auto it = m_bindingLayout.find(b.binding);
+				if (it == m_bindingLayout.end())
 				{
-					merged[b.binding] = { b.descriptorType, b.descriptorCount, static_cast<VkShaderStageFlags>( stageFlag ), stageName };
+					m_bindingLayout[b.binding] = { b.descriptorType, b.descriptorCount, static_cast<VkShaderStageFlags>( stageFlag ), stageName };
 				}
 				else if (it->second.type != b.descriptorType || it->second.count != b.descriptorCount)
 				{
 					LOG_ERROR("Vulkan", "Descriptor binding {} ('{}') disagrees between {} and {} stages. Refusing to create pipeline...",
-						b.binding, b.name, it->second.firstSeenIn, stageName);
+						b.binding, b.name, it->second.name, stageName);
 					return false;
 				}
 				else
@@ -143,8 +136,8 @@ namespace imp::gfx::vulkan
 		}
 
 		std::vector<VkDescriptorSetLayoutBinding> bindings;
-		bindings.resize(merged.size());
-		for (const auto& [bindingIndex, mb] : merged)
+		bindings.reserve(m_bindingLayout.size());
+		for (const auto& [bindingIndex, mb] : m_bindingLayout)
 		{
 			VkDescriptorSetLayoutBinding b{};
 			b.binding = bindingIndex;

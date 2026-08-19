@@ -54,7 +54,7 @@ namespace imp::app
 		[[nodiscard]] ecs::World& world() noexcept { return m_world; }
 		[[nodiscard]] memory::HeapAllocator& gfxAllocator() noexcept { return m_gfxAllocator; }
 		[[nodiscard]] fwk::Window& window() noexcept { return m_window; }
-		[[nodiscard]] gfx::IDevice& device() noexcept { return *m_device; }
+		[[nodiscard]] gfx::IDevice& device() const noexcept { return *m_device; }
 		[[nodiscard]] std::unique_ptr<IApp>& app() noexcept { return m_app; }
 
 	private:

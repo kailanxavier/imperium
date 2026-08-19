@@ -276,13 +276,16 @@ namespace imp::gfx::vulkan
 
 	void VulkanDevice::shutdown()
 	{
+		if (m_device)
+			waitIdle();
+
 		// All of these must go before the device
 		m_commandList.reset();
 		m_backBufferTarget.reset();
 		m_depthBufferTarget.reset();
+		m_swapchain.reset();
 		m_descriptorAllocator.reset();
 		m_commands.reset();
-		m_swapchain.reset();
 		m_stagingBuffer.destroy();
 
 		if (m_vmaAllocator != VK_NULL_HANDLE)
@@ -292,7 +295,6 @@ namespace imp::gfx::vulkan
 		}
 		if (m_device)
 		{
-			vkDeviceWaitIdle(m_device);
 			vkDestroyDevice(m_device, allocationCallbacks());
 			m_device = VK_NULL_HANDLE;
 		}

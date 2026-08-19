@@ -44,6 +44,8 @@ namespace imp::fwk
         void updateAll(float deltaSeconds);
         void renderAll(gfx::ICommandList& cmd);
 
+        void clear();
+
         [[nodiscard]] size_t layerCount() const { return m_layers.size(); }
         [[nodiscard]] size_t overlayCount() const { return m_overlays.size(); }
     private:

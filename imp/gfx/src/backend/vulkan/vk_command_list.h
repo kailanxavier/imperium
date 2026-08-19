@@ -2,6 +2,7 @@
 
 #include <gfx/commands.h>
 #include <vulkan/vulkan.h>
+#include "vk_pipeline.h"
 #include <unordered_map>
 #include <vector>
 
@@ -29,7 +30,7 @@ namespace imp::gfx::vulkan
 		void draw(u32 vertexCount, u32 instanceCount) override;
 		void drawIndexed(u32 indexCount, u32 instanceCount, u32 firstInstance) override;
 
-		VkCommandBuffer commandBuffer() const { return m_cmd; }
+		[[nodiscard]] VkCommandBuffer commandBuffer() const { return m_cmd; }
 
 		void transitionToPresent(gfx::IRenderTarget& target);
 		void resetImageTracking() { m_imageStates.clear(); }
@@ -70,7 +71,8 @@ namespace imp::gfx::vulkan
 
 		void setPendingBinding(const PendingBinding& pb);
 		void flushDescriptorBindings();
-		u64 hashPendingBindings() const;
+		[[nodiscard]] u64 hashPendingBindings() const;
+		[[nodiscard]] bool validatePendingBindings() const;
 
 		std::unordered_map<ImageStateKey, ImageSyncState, ImageStateKeyHash> m_imageStates;
 
@@ -83,6 +85,8 @@ namespace imp::gfx::vulkan
 		VkPipelineLayout m_currentPipelineLayout = VK_NULL_HANDLE;
 		VkDescriptorSetLayout m_currentDescriptorSetLayout = VK_NULL_HANDLE;
 
+		const std::unordered_map<u32, PipelineBindingInfo>* m_currentBindingLayout = nullptr;
+
 		VulkanRenderTarget* m_colourTarget = nullptr;
 		VulkanRenderTarget* m_depthTarget = nullptr;
 		VulkanRenderTarget* m_resolveTarget = nullptr;
@@ -94,7 +98,5 @@ namespace imp::gfx::vulkan
 
 		std::vector<PendingBinding> m_pendingBindings;
 		std::unordered_map<u64, VkDescriptorSet> m_descriptorSetCache;
-
-		bool m_activeLabelPushed = false;
 	};
 }

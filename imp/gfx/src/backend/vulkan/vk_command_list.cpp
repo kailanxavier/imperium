@@ -8,6 +8,7 @@
 #include "vk_texture.h"
 #include "vk_sampler.h"
 #include "vk_debug_utils.h"
+#include <core/log/log.h>
 
 #include <algorithm>
 
@@ -31,17 +32,15 @@ namespace imp::gfx::vulkan
 		m_pendingBindings.clear();
 		m_descriptorSetCache.clear();
 
-		m_activeLabelPushed = false;
-
 		// NOTE: do NOT reset m_imageStates here, it must survive
 		// across frames to do its job.
 	}
 
 	void VulkanCommandList::beginRenderPass(const gfx::RenderPassDesc& desc)
 	{
-		auto* colourTarget = static_cast<VulkanRenderTarget*>( desc.colourTarget );
-		auto* depthTarget = static_cast<VulkanRenderTarget*>( desc.depthTarget );
-		auto* resolveTarget = static_cast<VulkanRenderTarget*>( desc.resolveTarget );
+		auto* colourTarget = dynamic_cast<VulkanRenderTarget*>( desc.colourTarget );
+		auto* depthTarget = dynamic_cast<VulkanRenderTarget*>( desc.depthTarget );
+		auto* resolveTarget = dynamic_cast<VulkanRenderTarget*>( desc.resolveTarget );
 
 		if (colourTarget)
 		{
@@ -109,7 +108,12 @@ namespace imp::gfx::vulkan
 		}
 
 		VulkanRenderTarget* extentSource = colourTarget ? colourTarget : depthTarget;
-		VkExtent2D extent{ extentSource->width(), extentSource->height() };
+		VkExtent2D extent;
+		if (extentSource)
+		{
+			extent.width = extentSource->width();
+			extent.height = extentSource->height();
+		}
 
 		VkRenderingInfo renderingInfo{};
 		renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
@@ -122,7 +126,6 @@ namespace imp::gfx::vulkan
 		vkCmdBeginRendering(m_cmd, &renderingInfo);
 
 		cmdBeginDebugLabel(m_cmd, desc.debugName);
-		m_activeLabelPushed = true;
 
 		VkViewport viewport{};
 		viewport.x = 0.f;
@@ -144,12 +147,8 @@ namespace imp::gfx::vulkan
 	void VulkanCommandList::endRenderPass()
 	{
 		vkCmdEndRendering(m_cmd);
+		cmdEndDebugLabel(m_cmd);
 
-		if (m_activeLabelPushed)
-		{
-			cmdEndDebugLabel(m_cmd);
-			m_activeLabelPushed = false;
-		}
 
 		if (m_resolveTarget)
 		{
@@ -173,25 +172,26 @@ namespace imp::gfx::vulkan
 
 	void VulkanCommandList::bindPipeline(gfx::IPipeline& pipeline)
 	{
-		auto& vkPipeline = static_cast<VulkanGraphicsPipeline&>( pipeline );
+		const auto& vkPipeline = dynamic_cast<VulkanGraphicsPipeline&>( pipeline );
 		vkCmdBindPipeline(m_cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, vkPipeline.pipeline());
 		m_currentPipelineLayout = vkPipeline.layout();
 		m_currentDescriptorSetLayout = vkPipeline.descriptorSetLayout();
+		m_currentBindingLayout = &vkPipeline.bindingLayout();
 		m_currentDescriptorSet = VK_NULL_HANDLE;
 		m_pendingBindings.clear();
 	}
 
 	void VulkanCommandList::bindVertexBuffer(gfx::IBuffer& buffer, u32 binding)
 	{
-		auto& vkBuffer = static_cast<VulkanBuffer&>( buffer );
-		VkBuffer buffers[] = { vkBuffer.handle() };
-		VkDeviceSize offsets[] = { 0 };
+		const auto& vkBuffer = dynamic_cast<VulkanBuffer&>( buffer );
+		const VkBuffer buffers[] = { vkBuffer.handle() };
+		constexpr VkDeviceSize offsets[] = { 0 };
 		vkCmdBindVertexBuffers(m_cmd, binding, 1, buffers, offsets);
 	}
 
 	void VulkanCommandList::bindIndexBuffer(gfx::IBuffer& buffer)
 	{
-		auto& vkBuffer = static_cast<VulkanBuffer&>( buffer );
+		const auto& vkBuffer = dynamic_cast<VulkanBuffer&>( buffer );
 		const VkIndexType indexType = ( vkBuffer.indexFormat() == gfx::IndexFormat::Uint32
 			? VK_INDEX_TYPE_UINT32
 			: VK_INDEX_TYPE_UINT16
@@ -202,7 +202,7 @@ namespace imp::gfx::vulkan
 
 	void VulkanCommandList::bindUniformBuffer(gfx::IBuffer& buffer, u32 binding)
 	{
-		auto& vkBuffer = static_cast<VulkanBuffer&>( buffer );
+		const auto& vkBuffer = dynamic_cast<VulkanBuffer&>( buffer );
 
 		PendingBinding pb{};
 		pb.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -214,8 +214,8 @@ namespace imp::gfx::vulkan
 
 	void VulkanCommandList::bindTexture(gfx::ITexture& texture, gfx::ISampler& sampler, u32 binding)
 	{
-		auto& vkTexture = static_cast<VulkanTexture&>( texture );
-		auto& vkSampler = static_cast<VulkanSampler&>( sampler );
+		const auto& vkTexture = dynamic_cast<VulkanTexture&>( texture );
+		const auto& vkSampler = dynamic_cast<VulkanSampler&>( sampler );
 
 		PendingBinding pb{};
 		pb.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -246,7 +246,7 @@ namespace imp::gfx::vulkan
 
 	void VulkanCommandList::transitionToPresent(gfx::IRenderTarget& target)
 	{
-		auto& vkTarget = static_cast<VulkanRenderTarget&>( target );
+		const auto& vkTarget = dynamic_cast<VulkanRenderTarget&>( target );
 		transitionImage(vkTarget.image(), VK_IMAGE_ASPECT_COLOR_BIT,
 			VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
 			VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT, VK_ACCESS_2_NONE);
@@ -276,8 +276,13 @@ namespace imp::gfx::vulkan
 			return;
 		}
 
-		std::sort(m_pendingBindings.begin(), m_pendingBindings.end(),
-			[](const PendingBinding& a, const PendingBinding& b) { return a.binding < b.binding; });
+#ifndef NDEBUG
+		if (!validatePendingBindings())
+			LOG_ERROR("Vulkan", "Refusing to flush descriptor bindings due to failure above");
+#endif
+
+		std::ranges::sort(m_pendingBindings,
+		                  [](const PendingBinding& a, const PendingBinding& b) { return a.binding < b.binding; });
 
 		const u64 key = hashPendingBindings();
 
@@ -362,8 +367,55 @@ namespace imp::gfx::vulkan
 		return hash;
 	}
 
+#ifndef NDEBUG
+	bool VulkanCommandList::validatePendingBindings() const
+	{
+		if (!m_currentBindingLayout)
+			return true;
+
+		bool ok = true;
+
+		for (const PendingBinding& pb : m_pendingBindings)
+		{
+			auto it = m_currentBindingLayout->find(pb.binding);
+			if (it == m_currentBindingLayout->end())
+			{
+				LOG_ERROR("Vulkan",
+						"Draw call bound resource at binding {} but the active shader doesn't declare a descriptor there \n{}",
+						pb.binding, "(likely a stale or incorrect binding index at the call site)");
+				ok = false;
+				continue;
+			}
+
+			if (it->second.type != pb.type)
+			{
+				LOG_ERROR("Vulkan",
+					"Draw call bound binding {} ('{}') as {} but the shader declares it as {}",
+					pb.binding, it->second.name, static_cast<int>( pb.type ), static_cast<int>( it->second.type ));
+				ok = false;
+			}
+		}
+
+		for (const auto& [bindingIndex, info] : *m_currentBindingLayout)
+		{
+			const bool staged = std::ranges::any_of(m_pendingBindings,
+			                                        [bindingIndex](const PendingBinding& pb) { return pb.binding == bindingIndex; });
+
+			if (!staged)
+			{
+				LOG_ERROR("Vulkan",
+					"Shader declares binding {} ('{}') but this draw call never bound anything to it",
+					bindingIndex, info.name);
+				ok = false;
+			}
+		}
+
+		return ok;
+	}
+#endif
+
 	void VulkanCommandList::transitionImage(VkImage image, VkImageAspectFlags aspect, VkImageLayout newLayout,
-		VkPipelineStageFlags2 dstStage, VkAccessFlags2 dstAccess, bool crossesPresentationEngine, u32 baseArrayLayer /* = 0*/)
+	                                        VkPipelineStageFlags2 dstStage, VkAccessFlags2 dstAccess, bool crossesPresentationEngine, u32 baseArrayLayer /* = 0*/)
 	{
 		ImageSyncState& state = m_imageStates[{image, baseArrayLayer}];
 

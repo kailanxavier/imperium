@@ -20,8 +20,7 @@ namespace imp::fwk
 
     LayerStack::~LayerStack()
     {
-        for (auto& l : m_overlays) l->onDetach();
-        for (auto& l : m_layers) l->onDetach();
+        clear();
     }
 
     void LayerStack::pushLayer(std::unique_ptr<ILayer> layer)
@@ -51,4 +50,12 @@ namespace imp::fwk
         for (auto& l : m_overlays) l->onRender(cmd);
     }
 
+    void LayerStack::clear()
+    {
+        for (const auto& l : m_layers) l->onDetach();
+        for (const auto& l : m_overlays) l->onDetach();
+
+        m_overlays.clear();
+        m_layers.clear();
+    }
 }
