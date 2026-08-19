@@ -5,7 +5,7 @@
 
 namespace imp::log
 {
-    static const char* imperialMessage()
+    inline const char* imperialMessage()
     {
         static constexpr std::array messages =
         {
