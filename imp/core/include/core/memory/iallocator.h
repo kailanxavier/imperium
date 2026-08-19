@@ -6,6 +6,7 @@
 
 #include <cstddef>
 #include <string_view>
+#include <source_location>
 #include <new> // std::bad_alloc
 
 namespace imp::memory
@@ -23,12 +24,14 @@ namespace imp::memory
 		[[nodiscard]] virtual void* alloc(
 			size_t bytes, 
 			size_t alignment = kMinAlignment, 
-			MemTag tag = MemTag::Untagged) noexcept = 0;
+			MemTag tag = MemTag::Untagged,
+			const std::source_location& loc = std::source_location::current()) noexcept = 0;
 
 		virtual void free(
 			void* ptr, 
 			size_t bytes,
-			MemTag tag = MemTag::Untagged) noexcept = 0;
+			MemTag tag = MemTag::Untagged,
+			const std::source_location& loc = std::source_location::current()) noexcept = 0;
 
 		virtual void reset() noexcept {}
 
@@ -47,6 +50,15 @@ namespace imp::memory
 
 	private:
 		std::string_view m_name;
+	};
+
+	struct AllocatorHandle
+	{
+		IAllocator& allocator;
+		std::source_location loc;
+
+		explicit AllocatorHandle(IAllocator& a, const std::source_location& l = std::source_location::current())
+			: allocator(a), loc(l) {}
 	};
 
 	// Allocate and construct a T with forwarded constructor arguments.
