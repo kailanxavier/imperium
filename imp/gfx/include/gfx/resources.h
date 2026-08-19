@@ -41,14 +41,14 @@ namespace imp::gfx
     {
     public:
         virtual ~IBuffer() = default;
-        virtual u64 size() const = 0;
+        [[nodiscard]] virtual u64 size() const = 0;
 
         virtual void* mappedData() = 0;
-        virtual const void* mappedData() const = 0;
+        [[nodiscard]] virtual const void* mappedData() const = 0;
 
-        virtual IndexFormat indexFormat() const = 0;
+        [[nodiscard]] virtual IndexFormat indexFormat() const = 0;
 
-        virtual bool update(const void* data, u64 size, u64 offset = 0) = 0;
+        virtual bool update(const void* data, u64 size, u64 offset) = 0;
     };
 
     enum class TextureFormat

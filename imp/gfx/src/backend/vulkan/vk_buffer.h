@@ -40,7 +40,7 @@ namespace imp::gfx::vulkan
 
 		[[nodiscard]] gfx::IndexFormat indexFormat() const override { return m_indexFormat; }
 
-		bool update(const void* data, u64 size, u64 offset = 0) override;
+		bool update(const void* data, u64 size, u64 offset) override;
 
 	private:
 		VmaAllocator m_allocator = VK_NULL_HANDLE;

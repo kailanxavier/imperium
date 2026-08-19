@@ -323,11 +323,11 @@ namespace imp::app
 		}
 		cascadeData.blendParams = math::Vec4f{ m_camera.nearPlane, m_cascadeConfig.blendFraction, 0.f, 0.f };
 		u32 currentFrame = ctx.gfx.currentFrameIndex();
-		m_cascadeUBOs[currentFrame]->update(&cascadeData, sizeof(cascadeData));
+		m_cascadeUBOs[currentFrame]->update(&cascadeData, sizeof(cascadeData), 0);
 
 		m_extraction.lightData.sunViewProj = m_sunViewProj;
 		m_extraction.lightData.shadowMapSize = static_cast<float>( m_cascadeConfig.shadowMapResolution );
-		m_lightUBOs[currentFrame]->update(&m_extraction.lightData, sizeof(gfx::LightUBO));
+		m_lightUBOs[currentFrame]->update(&m_extraction.lightData, sizeof(gfx::LightUBO), 0);
 
 		for (u32 i = 0; i < gfx::kCascadeCount; ++i)
 		{
