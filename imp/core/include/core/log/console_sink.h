@@ -1,5 +1,6 @@
 #pragma once
 #include "log.h"
+#include "imperial_messages.h"
 
 namespace imp::log
 {
@@ -15,11 +16,21 @@ namespace imp::log
 			static const char* BLUE = "\033[94m";
 			static const char* WHITE = "\033[37m";
 			static const char* BOLD = "\033[1m";
+			static const char* DIM = "\033[2m";
 
 			const char* colour = WHITE;
-			if (e.level == LogLevel::Info) colour = BLUE;
-			if (e.level == LogLevel::Warning) colour = YELLOW;
-			else if (e.level >= LogLevel::Error) colour = RED;
+
+			switch (e.level)
+			{
+				case LogLevel::Info:
+					colour = BLUE; break;
+				case LogLevel::Warning:
+					colour = YELLOW; break;
+				case LogLevel::Error:
+				case LogLevel::Fatal:
+					colour = RED; break;
+				default: break;
+			}
 
 			auto& stream = ( e.level >= LogLevel::Error ) ? std::cerr : std::cout;
 
@@ -30,7 +41,13 @@ namespace imp::log
 				<< "[" << e.category << "] "
 				<< e.message << " "
 				<< "(" << e.file << ":" << e.line << ")"
-				<< RESET << std::endl;
+				<< RESET << '\n';
+
+			if (e.level >= LogLevel::Error)
+			{
+				stream << DIM << "		> " << imperialMessage() << RESET << '\n';
+				stream.flush();
+			}
 		}
 	};
 }
