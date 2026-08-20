@@ -21,6 +21,10 @@ namespace imp::gfx::dx12
 		[[nodiscard]] std::unique_ptr<gfx::IPipeline> createPipeline(const gfx::PipelineDesc& desc) override;
 
 		std::unique_ptr<gfx::IRenderTarget> createRenderTarget(const gfx::TextureDesc& desc) override;
+		[[nodiscard]] std::vector<std::unique_ptr<IRenderTarget>> createCascadeRenderTargets(
+			const TextureDesc& desc, ITexture** outArrayTexture) override;
+
+		[[nodiscard]] u32 currentFrameIndex() const override { return 0; }
 
 		void waitIdle() override;
 

@@ -1,4 +1,5 @@
 #include "vk_commands.h"
+#include "vk_check.h"
 
 #include <core/log/log.h>
 
@@ -23,11 +24,7 @@ namespace imp::gfx::vulkan
 		// we want to reuse each frame's buffer independently.
 		poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 
-		if (vkCreateCommandPool(m_device, &poolInfo, allocationCallbacks, &m_commandPool) != VK_SUCCESS)
-		{
-			LOG_ERROR("Vulkan", "vkCreateCommandPool failed");
-			return false;
-		}
+		VK_CHECK(vkCreateCommandPool(m_device, &poolInfo, allocationCallbacks, &m_commandPool));
 
 		VkCommandBufferAllocateInfo allocInfo{};
 		allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -63,20 +60,15 @@ namespace imp::gfx::vulkan
 	VkCommandBuffer VulkanCommandContext::beginRecording(u32 frameIndex)
 	{
 		VkCommandBuffer cmd = m_commandBuffers[frameIndex];
-
-		// vkBeginCommandBuffer implicitly resets a buffer allocated
-		// from a pool created with RESET_COMMAND_BUFFER, so no explicit
-		// vkResetCommandBuffer call is needed here.
 		VkCommandBufferBeginInfo beginInfo{};
 		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 		beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-		vkBeginCommandBuffer(cmd, &beginInfo);
+		VK_CHECK_VOID(vkBeginCommandBuffer(cmd, &beginInfo));
 		return cmd;
 	}
 
 	void VulkanCommandContext::endRecording(u32 frameIndex)
 	{
-		vkEndCommandBuffer(m_commandBuffers[frameIndex]);
+		VK_CHECK_VOID(vkEndCommandBuffer(m_commandBuffers[frameIndex]));
 	}
 }

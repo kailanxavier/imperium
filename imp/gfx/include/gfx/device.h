@@ -45,6 +45,9 @@ namespace imp::gfx
         virtual std::unique_ptr<IPipeline> createPipeline(const PipelineDesc& desc) = 0;
 
         virtual std::unique_ptr<IRenderTarget> createRenderTarget(const TextureDesc& desc) = 0;
+        virtual std::vector<std::unique_ptr<IRenderTarget>> createCascadeRenderTargets(const TextureDesc& desc, ITexture** outArrayTexture) = 0;
+
+        virtual u32 currentFrameIndex() const = 0;
 
         virtual void waitIdle() = 0;
 

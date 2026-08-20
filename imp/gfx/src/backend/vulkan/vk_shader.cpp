@@ -1,4 +1,6 @@
 #include "vk_shader.h"
+#include "vk_check.h"
+#include <spirv_reflect.h>
 
 #include <core/log/log.h>
 #include <core/types/int_types.h>
@@ -14,7 +16,12 @@ namespace imp::gfx::vulkan
 	}
 
 	VulkanShaderModule::VulkanShaderModule(VulkanShaderModule&& other) noexcept
-		: m_device(other.m_device), m_module(other.m_module)
+		: m_device(other.m_device)
+		, m_module(other.m_module)
+		, m_stage(other.m_stage)
+		, m_allocationCallbacks(other.m_allocationCallbacks)
+		, m_spirvWords(std::move(other.m_spirvWords))
+		, m_bindings(std::move(other.m_bindings))
 	{
 		other.m_device = VK_NULL_HANDLE;
 		other.m_module = VK_NULL_HANDLE;
@@ -27,6 +34,10 @@ namespace imp::gfx::vulkan
 			destroy();
 			m_device = other.m_device;
 			m_module = other.m_module;
+			m_stage = other.m_stage;
+			m_allocationCallbacks = other.m_allocationCallbacks;
+			m_spirvWords = std::move(other.m_spirvWords);
+			m_bindings = std::move(other.m_bindings);
 			other.m_device = VK_NULL_HANDLE;
 			other.m_module = VK_NULL_HANDLE;
 		}
@@ -53,15 +64,20 @@ namespace imp::gfx::vulkan
 		createInfo.codeSize = code.size();
 		createInfo.pCode = alignedCode.data();
 
-		if (vkCreateShaderModule(device, &createInfo, allocationCallbacks, &m_module) != VK_SUCCESS)
-		{
-			LOG_ERROR("Vulkan", "vkCreateShaderModule failed");
-			return false;
-		}
+		VK_CHECK(vkCreateShaderModule(device, &createInfo, allocationCallbacks, &m_module));
 
 		m_device = device;
 		m_stage = stage;
 		m_allocationCallbacks = allocationCallbacks;
+		m_spirvWords = std::move(alignedCode);
+
+		if (!reflect())
+		{
+			LOG_ERROR("Vulkan", "Shader reflection failed. Refused to treat this module as loaded!");
+			destroy();
+			return false;
+		}
+
 		return true;
 	}
 
@@ -94,12 +110,7 @@ namespace imp::gfx::vulkan
 		createInfo.codeSize = raw.size();
 		createInfo.pCode = code.data();
 
-		if (vkCreateShaderModule(m_device, &createInfo, m_allocationCallbacks, &m_module) != VK_SUCCESS)
-		{
-			LOG_ERROR("Vulkan", "vkCreateShaderModule failed {}", path.c_str());
-			return false;
-		}
-
+		VK_CHECK(vkCreateShaderModule(m_device, &createInfo, m_allocationCallbacks, &m_module));
 		return true;
 	}
 
@@ -112,7 +123,50 @@ namespace imp::gfx::vulkan
 		}
 		m_device = VK_NULL_HANDLE;
 	}
-	
+
+	bool VulkanShaderModule::reflect()
+	{
+		SpvReflectShaderModule module{};
+		SpvReflectResult result = spvReflectCreateShaderModule(
+			m_spirvWords.size() * sizeof(u32), m_spirvWords.data(), &module);
+
+		if (result != SPV_REFLECT_RESULT_SUCCESS)
+		{
+			LOG_ERROR("Vulkan", "spvReflectCreateShaderModule failed: ({})", static_cast<int>(result));
+			return false;
+		}
+
+		u32 setCount = 0;
+		spvReflectEnumerateDescriptorSets(&module, &setCount, nullptr);
+		std::vector<SpvReflectDescriptorSet*> sets(setCount);
+		spvReflectEnumerateDescriptorSets(&module, &setCount, sets.data());
+
+		m_bindings.clear();
+		for (const SpvReflectDescriptorSet* set : sets)
+		{
+			if (set->set != 0)
+			{
+				LOG_WARN("Vulkan", "Shader declares descriptor set {}. Only 0 supported, ignoring", set->set);
+				continue;
+			}
+
+			for (u32 i = 0; i < set->binding_count; ++i)
+			{
+				const SpvReflectDescriptorBinding* b = set->bindings[i];
+
+				ReflectedBinding rb{};
+				rb.binding = b->binding;
+				rb.descriptorType = static_cast<VkDescriptorType>( b->descriptor_type );
+				rb.descriptorCount = ( b->count > 0 ) ? b->count : 1;
+				rb.name = b->name ? b->name : "";
+				m_bindings.push_back(rb);
+			}
+		}
+
+		spvReflectDestroyShaderModule(&module);
+		return true;
+	}
+
 	VkShaderStageFlagBits toVkShaderStage(gfx::ShaderStage stage)
 	{
 		switch (stage)

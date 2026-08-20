@@ -1,6 +1,9 @@
 #if defined(IMP_GFX_VULKAN)
 
 #include "vk_pipeline.h"
+#include "vk_shader.h"
+
+#include "vk_check.h"
 
 #include <core/log/log.h>
 #include <core/math/mat4.h>
@@ -22,12 +25,12 @@ namespace imp::gfx::vulkan
 		VkPipelineShaderStageCreateInfo stages[2]{};
 		stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 		stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
-		stages[0].module = info.vertexShader;
+		stages[0].module = info.vertexShader->handle();
 		stages[0].pName = "main";
 
 		stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 		stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-		stages[1].module = info.fragmentShader;
+		stages[1].module = info.fragmentShader->handle();
 		stages[1].pName = "main";
 
 		VkVertexInputBindingDescription bindingDescs[2] = { info.vertexBinding, info.instanceBinding };
@@ -102,35 +105,47 @@ namespace imp::gfx::vulkan
 		pushConstantRange.offset = 0;
 		pushConstantRange.size = info.pushConstantSize;
 
-		std::vector<VkDescriptorSetLayoutBinding> bindings;
-		if (info.hasUniformBuffer)
+		m_bindingLayout.clear();
+		auto mergeStage = [&](const std::vector<ReflectedBinding>& bindings, VkShaderStageFlagBits stageFlag, const char* stageName) -> bool
 		{
-			VkDescriptorSetLayoutBinding b{};
-			b.binding = 0;
-			b.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-			b.descriptorCount = 1;
-			b.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
-			bindings.push_back(b);
-		}
-		for (u32 i = 0; i < info.textureCount; ++i)
+			for (const ReflectedBinding& b : bindings)
+			{
+				auto it = m_bindingLayout.find(b.binding);
+				if (it == m_bindingLayout.end())
+				{
+					m_bindingLayout[b.binding] = { b.descriptorType, b.descriptorCount, static_cast<VkShaderStageFlags>( stageFlag ), stageName };
+				}
+				else if (it->second.type != b.descriptorType || it->second.count != b.descriptorCount)
+				{
+					LOG_ERROR("Vulkan", "Descriptor binding {} ('{}') disagrees between {} and {} stages. Refusing to create pipeline...",
+						b.binding, b.name, it->second.name, stageName);
+					return false;
+				}
+				else
+				{
+					it->second.stageFlags |= stageFlag;
+				}
+			}
+			return true;
+		};
+
+		if (!mergeStage(info.vertexShader->reflectedBindings(), VK_SHADER_STAGE_VERTEX_BIT, "vertex")
+			|| !mergeStage(info.fragmentShader->reflectedBindings(), VK_SHADER_STAGE_FRAGMENT_BIT, "fragment"))
 		{
-			VkDescriptorSetLayoutBinding b{};
-			b.binding = 1 + i;
-			b.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-			b.descriptorCount = 1;
-			b.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-			bindings.push_back(b);
-		}
-		if (info.hasMaterialUniformBuffer)
-		{
-			VkDescriptorSetLayoutBinding b{};
-			b.binding = 1 + info.textureCount;
-			b.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-			b.descriptorCount = 1;
-			b.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-			bindings.push_back(b);
+			return false;
 		}
 
+		std::vector<VkDescriptorSetLayoutBinding> bindings;
+		bindings.reserve(m_bindingLayout.size());
+		for (const auto& [bindingIndex, mb] : m_bindingLayout)
+		{
+			VkDescriptorSetLayoutBinding b{};
+			b.binding = bindingIndex;
+			b.descriptorType = mb.type;
+			b.descriptorCount = mb.count;
+			b.stageFlags = mb.stageFlags;
+			bindings.push_back(b);
+		}
 		if (!bindings.empty())
 		{
 			VkDescriptorSetLayoutCreateInfo layoutInfo{};
@@ -138,11 +153,7 @@ namespace imp::gfx::vulkan
 			layoutInfo.bindingCount = static_cast<u32>( bindings.size() );
 			layoutInfo.pBindings = bindings.data();
 
-			if (vkCreateDescriptorSetLayout(m_device, &layoutInfo, m_allocationCallbacks, &m_descriptorSetLayout) != VK_SUCCESS)
-			{
-				LOG_ERROR("Vulkan", "vkCreateDescriptorSetLayout failed");
-				return false;
-			}
+			VK_CHECK(vkCreateDescriptorSetLayout(m_device, &layoutInfo, m_allocationCallbacks, &m_descriptorSetLayout));
 		}
 
 		VkPipelineLayoutCreateInfo layoutInfo{};
@@ -158,11 +169,7 @@ namespace imp::gfx::vulkan
 			layoutInfo.pSetLayouts = &m_descriptorSetLayout;
 		}
 
-		if (vkCreatePipelineLayout(m_device, &layoutInfo, m_allocationCallbacks, &m_layout) != VK_SUCCESS)
-		{
-			LOG_ERROR("Vulkan", "vkCreatePipelineLayout failed");
-			return false;
-		}
+		VK_CHECK(vkCreatePipelineLayout(m_device, &layoutInfo, m_allocationCallbacks, &m_layout));
 
 		VkPipelineRenderingCreateInfo renderingCreateInfo{};
 		renderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;

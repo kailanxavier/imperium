@@ -2,7 +2,9 @@
 
 #include <gfx/commands.h>
 #include <vulkan/vulkan.h>
+#include "vk_pipeline.h"
 #include <unordered_map>
+#include <vector>
 
 namespace imp::gfx::vulkan
 {
@@ -28,19 +30,27 @@ namespace imp::gfx::vulkan
 		void draw(u32 vertexCount, u32 instanceCount) override;
 		void drawIndexed(u32 indexCount, u32 instanceCount, u32 firstInstance) override;
 
-		VkCommandBuffer commandBuffer() const { return m_cmd; }
+		[[nodiscard]] VkCommandBuffer commandBuffer() const { return m_cmd; }
 
 		void transitionToPresent(gfx::IRenderTarget& target);
-
-		void forgetImageState(VkImage image) { m_imageStates.erase(image); }
 		void resetImageTracking() { m_imageStates.clear(); }
 
 	private:
-		// Allocated m_currentDescriptorSet from m_descriptorAllocator
-		// if not already done for the pipeline currently bound.
-		// Returns false and logs if there's no descriptor allocator/layout
-		// to allocate against.
-		bool ensureDescriptorSet();
+		struct ImageStateKey
+		{
+			VkImage image;
+			u32 layer;
+			bool operator==(const ImageStateKey& o) const 
+			{ return image == o.image && layer == o.layer; }
+		};
+
+		struct ImageStateKeyHash
+		{
+			size_t operator()(const ImageStateKey& k) const
+			{
+				return std::hash<void*>()( k.image ) ^ ( std::hash<u32>()( k.layer ) << 1 );
+			}
+		};
 
 		struct ImageSyncState
 		{
@@ -48,16 +58,34 @@ namespace imp::gfx::vulkan
 			VkPipelineStageFlags2 stage = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;
 			VkAccessFlags2 access = VK_ACCESS_NONE;
 		};
-		std::unordered_map<VkImage, ImageSyncState> m_imageStates;
+
+		struct PendingBinding
+		{
+			VkDescriptorType type = VK_DESCRIPTOR_TYPE_MAX_ENUM;
+			u32 binding = 0;
+			VkBuffer buffer = VK_NULL_HANDLE;
+			VkDeviceSize range = 0;
+			VkImageView imageView = VK_NULL_HANDLE;
+			VkSampler sampler = VK_NULL_HANDLE;
+		};
+
+		void setPendingBinding(const PendingBinding& pb);
+		void flushDescriptorBindings();
+		[[nodiscard]] u64 hashPendingBindings() const;
+		[[nodiscard]] bool validatePendingBindings() const;
+
+		std::unordered_map<ImageStateKey, ImageSyncState, ImageStateKeyHash> m_imageStates;
 
 		void transitionImage(VkImage image, VkImageAspectFlags aspect,
 			VkImageLayout newLayout, VkPipelineStageFlags2 dstStage, VkAccessFlags2 dstAccess, 
-			bool crossesPresentationEngine = false);
+			bool crossesPresentationEngine = false, u32 baseArrayLayer = 0);
 
 		VkCommandBuffer m_cmd = VK_NULL_HANDLE;
 		VkDevice m_device = VK_NULL_HANDLE;
 		VkPipelineLayout m_currentPipelineLayout = VK_NULL_HANDLE;
 		VkDescriptorSetLayout m_currentDescriptorSetLayout = VK_NULL_HANDLE;
+
+		const std::unordered_map<u32, PipelineBindingInfo>* m_currentBindingLayout = nullptr;
 
 		VulkanRenderTarget* m_colourTarget = nullptr;
 		VulkanRenderTarget* m_depthTarget = nullptr;
@@ -67,5 +95,8 @@ namespace imp::gfx::vulkan
 		u32 m_frameIndex = 0;
 
 		VkDescriptorSet m_currentDescriptorSet = VK_NULL_HANDLE;
+
+		std::vector<PendingBinding> m_pendingBindings;
+		std::unordered_map<u64, VkDescriptorSet> m_descriptorSetCache;
 	};
 }

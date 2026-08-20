@@ -11,6 +11,7 @@ target_link_libraries(imp_gfx
 	PUBLIC 
 		imp_core
 		imp_fwk
+		imp_cam
 	PRIVATE
 		imp_jobs
 		imp_ecs
@@ -41,11 +42,15 @@ target_sources(imp_gfx PRIVATE
 		src/backend/vulkan/vk_desc_alloc.cpp
 		src/backend/vulkan/vk_allocator.cpp
 		src/backend/vulkan/vk_vma_impl.cpp
+		src/backend/vulkan/vk_debug_utils.cpp
 )
 target_link_libraries(imp_gfx PRIVATE Vulkan::Vulkan glfw PUBLIC imgui)
 target_include_directories(imp_gfx SYSTEM PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third_party/vma)
 target_include_directories(imp_gfx SYSTEM PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb)
 target_include_directories(imp_gfx SYSTEM PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third_party/glTF)
+
+target_include_directories(imp_gfx SYSTEM PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third_party/spirv_reflect)
+target_sources(imp_gfx PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third_party/spirv_reflect/spirv_reflect.c)
 
 target_sources(imp_gfx PRIVATE
 	src/stb_image_impl.cpp
@@ -57,6 +62,7 @@ target_sources(imp_gfx PRIVATE
 	src/model_renderer.cpp
 	src/render_extraction.cpp
 	src/texture_cache.cpp
+	src/cascade_shadow.cpp
 )
 
 if(IMP_VULKAN_MEM_TEST)

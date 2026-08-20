@@ -17,6 +17,7 @@ namespace imp::gfx
 		math::Vec3f position;
 		math::Vec3f normal;
 		math::Vec2f uv;
+		math::Vec4f tangent;
 	};
 
 	struct MeshPrimitive
@@ -25,6 +26,9 @@ namespace imp::gfx
 		std::unique_ptr<IBuffer> indexBuffer;
 		u32 indexCount = 0;
 		i32 materialIndex = -1;
+
+		math::Vec3f boundsCentreLocal = math::Vec3f::zero();
+		float boundsRadiusLocal = 0.f;
 	};
 
 	struct Mesh

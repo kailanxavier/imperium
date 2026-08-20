@@ -22,6 +22,11 @@ namespace imp::gfx::dx11
 
 	std::unique_ptr<gfx::IRenderTarget> DX11Device::createRenderTarget(const gfx::TextureDesc& desc) { return nullptr; }
 
+	std::vector<std::unique_ptr<IRenderTarget>> DX11Device::createCascadeRenderTargets(const TextureDesc& desc, ITexture** outArrayTexture)
+	{
+		return std::vector<std::unique_ptr<IRenderTarget>>();
+	}
+
 	void DX11Device::waitIdle() { return; }
 
 	gfx::IRenderTarget& DX11Device::backBuffer() { std::abort(); }

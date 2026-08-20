@@ -60,4 +60,27 @@ namespace imp::fwk
 	{
 		return math::makePerspectiveLH(fovRadians, aspect, nearPlane, farPlane);
 	}
+
+	std::array<math::Vec3f, 8> Camera::frustumCornersWorldSpace(float aspect, float sliceNear, float sliceFar) const
+	{
+		const math::Mat4f sliceProj = math::makePerspectiveLH(fovRadians, aspect, sliceNear, sliceFar);
+		const math::Mat4f invViewProj = math::inverse(sliceProj * view());
+
+		std::array<math::Vec3f, 8> corners{};
+		u32 i = 0;
+		for (int x = 0; x < 2; ++x)
+			for (int y = 0; y < 2; ++y)
+				for (int z = 0; z < 2; ++z)
+				{
+					math::Vec4f ndc{
+						2.f * static_cast<float>(x) - 1.f,
+						2.f * static_cast<float>(y) - 1.f,
+						static_cast<float>(z),
+						1.f
+					};
+					math::Vec4f world = invViewProj * ndc;
+					corners[i++] = math::perspectiveDivide(world);
+				}
+		return corners;
+	}
 }

@@ -7,6 +7,10 @@
 #include "vk_desc_alloc.h"
 #include "vk_texture.h"
 #include "vk_sampler.h"
+#include "vk_debug_utils.h"
+#include <core/log/log.h>
+
+#include <algorithm>
 
 namespace imp::gfx::vulkan
 {
@@ -25,15 +29,18 @@ namespace imp::gfx::vulkan
 		m_descriptorAllocator = descriptorAllocator;
 		m_frameIndex = frameIndex;
 
+		m_pendingBindings.clear();
+		m_descriptorSetCache.clear();
+
 		// NOTE: do NOT reset m_imageStates here, it must survive
 		// across frames to do its job.
 	}
 
 	void VulkanCommandList::beginRenderPass(const gfx::RenderPassDesc& desc)
 	{
-		auto* colourTarget = static_cast<VulkanRenderTarget*>( desc.colourTarget );
-		auto* depthTarget = static_cast<VulkanRenderTarget*>( desc.depthTarget );
-		auto* resolveTarget = static_cast<VulkanRenderTarget*>( desc.resolveTarget );
+		auto* colourTarget = dynamic_cast<VulkanRenderTarget*>( desc.colourTarget );
+		auto* depthTarget = dynamic_cast<VulkanRenderTarget*>( desc.depthTarget );
+		auto* resolveTarget = dynamic_cast<VulkanRenderTarget*>( desc.resolveTarget );
 
 		if (colourTarget)
 		{
@@ -65,7 +72,7 @@ namespace imp::gfx::vulkan
 			transitionImage(depthTarget->image(), VK_IMAGE_ASPECT_DEPTH_BIT,
 				VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
 				VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
-				dstAccess, isSwapchainImage);
+				dstAccess, isSwapchainImage, depthTarget->layer());
 		}
 
 		VkRenderingAttachmentInfo colourAttachment{};
@@ -95,12 +102,18 @@ namespace imp::gfx::vulkan
 			depthAttachment.imageView = depthTarget->imageView();
 			depthAttachment.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
 			depthAttachment.loadOp = desc.clearDepth ? VK_ATTACHMENT_LOAD_OP_CLEAR : VK_ATTACHMENT_LOAD_OP_LOAD;
-			depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+			const bool depthWillBeSampled = depthTarget->isSampledOwnedDepth();
+			depthAttachment.storeOp = depthWillBeSampled ? VK_ATTACHMENT_STORE_OP_STORE : VK_ATTACHMENT_STORE_OP_DONT_CARE;
 			depthAttachment.clearValue.depthStencil.depth = desc.clearDepthValue;
 		}
 
 		VulkanRenderTarget* extentSource = colourTarget ? colourTarget : depthTarget;
-		VkExtent2D extent{ extentSource->width(), extentSource->height() };
+		VkExtent2D extent{};
+		if (extentSource)
+		{
+			extent.width = extentSource->width();
+			extent.height = extentSource->height();
+		}
 
 		VkRenderingInfo renderingInfo{};
 		renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
@@ -111,6 +124,8 @@ namespace imp::gfx::vulkan
 		if (depthTarget) renderingInfo.pDepthAttachment = &depthAttachment;
 
 		vkCmdBeginRendering(m_cmd, &renderingInfo);
+
+		cmdBeginDebugLabel(m_cmd, desc.debugName);
 
 		VkViewport viewport{};
 		viewport.x = 0.f;
@@ -132,6 +147,8 @@ namespace imp::gfx::vulkan
 	void VulkanCommandList::endRenderPass()
 	{
 		vkCmdEndRendering(m_cmd);
+		cmdEndDebugLabel(m_cmd);
+
 
 		if (m_resolveTarget)
 		{
@@ -144,7 +161,8 @@ namespace imp::gfx::vulkan
 		{
 			transitionImage(m_depthTarget->image(), VK_IMAGE_ASPECT_DEPTH_BIT,
 				VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-				VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT);
+				VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT,
+				false, m_depthTarget->layer());
 		}
 
 		m_depthTarget = nullptr;
@@ -154,24 +172,26 @@ namespace imp::gfx::vulkan
 
 	void VulkanCommandList::bindPipeline(gfx::IPipeline& pipeline)
 	{
-		auto& vkPipeline = static_cast<VulkanGraphicsPipeline&>( pipeline );
+		const auto& vkPipeline = dynamic_cast<VulkanGraphicsPipeline&>( pipeline );
 		vkCmdBindPipeline(m_cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, vkPipeline.pipeline());
 		m_currentPipelineLayout = vkPipeline.layout();
 		m_currentDescriptorSetLayout = vkPipeline.descriptorSetLayout();
+		m_currentBindingLayout = &vkPipeline.bindingLayout();
 		m_currentDescriptorSet = VK_NULL_HANDLE;
+		m_pendingBindings.clear();
 	}
 
 	void VulkanCommandList::bindVertexBuffer(gfx::IBuffer& buffer, u32 binding)
 	{
-		auto& vkBuffer = static_cast<VulkanBuffer&>( buffer );
-		VkBuffer buffers[] = { vkBuffer.handle() };
-		VkDeviceSize offsets[] = { 0 };
+		const auto& vkBuffer = dynamic_cast<VulkanBuffer&>( buffer );
+		const VkBuffer buffers[] = { vkBuffer.handle() };
+		constexpr VkDeviceSize offsets[] = { 0 };
 		vkCmdBindVertexBuffers(m_cmd, binding, 1, buffers, offsets);
 	}
 
 	void VulkanCommandList::bindIndexBuffer(gfx::IBuffer& buffer)
 	{
-		auto& vkBuffer = static_cast<VulkanBuffer&>( buffer );
+		const auto& vkBuffer = dynamic_cast<VulkanBuffer&>( buffer );
 		const VkIndexType indexType = ( vkBuffer.indexFormat() == gfx::IndexFormat::Uint32
 			? VK_INDEX_TYPE_UINT32
 			: VK_INDEX_TYPE_UINT16
@@ -182,49 +202,27 @@ namespace imp::gfx::vulkan
 
 	void VulkanCommandList::bindUniformBuffer(gfx::IBuffer& buffer, u32 binding)
 	{
-		if (!ensureDescriptorSet())
-			return;
+		const auto& vkBuffer = dynamic_cast<VulkanBuffer&>( buffer );
 
-		auto& vkBuffer = static_cast<VulkanBuffer&>( buffer );
-
-		VkDescriptorBufferInfo bufferInfo{};
-		bufferInfo.buffer = vkBuffer.handle();
-		bufferInfo.offset = 0;
-		bufferInfo.range = vkBuffer.size();
-
-		VkWriteDescriptorSet write{};
-		write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		write.dstSet = m_currentDescriptorSet;
-		write.dstBinding = binding;
-		write.descriptorCount = 1;
-		write.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		write.pBufferInfo = &bufferInfo;
-
-		vkUpdateDescriptorSets(m_device, 1, &write, 0, nullptr);
+		PendingBinding pb{};
+		pb.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		pb.binding = binding;
+		pb.buffer = vkBuffer.handle();
+		pb.range = vkBuffer.size();
+		setPendingBinding(pb);
 	}
 
 	void VulkanCommandList::bindTexture(gfx::ITexture& texture, gfx::ISampler& sampler, u32 binding)
 	{
-		if (!ensureDescriptorSet())
-			return;
+		const auto& vkTexture = dynamic_cast<VulkanTexture&>( texture );
+		const auto& vkSampler = dynamic_cast<VulkanSampler&>( sampler );
 
-		auto& vkTexture = static_cast<VulkanTexture&>( texture );
-		auto& vkSampler = static_cast<VulkanSampler&>( sampler );
-
-		VkDescriptorImageInfo imageInfo{};
-		imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		imageInfo.imageView = vkTexture.imageView();
-		imageInfo.sampler = vkSampler.handle();
-
-		VkWriteDescriptorSet write{};
-		write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		write.dstSet = m_currentDescriptorSet;
-		write.dstBinding = binding;
-		write.descriptorCount = 1;
-		write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		write.pImageInfo = &imageInfo;
-
-		vkUpdateDescriptorSets(m_device, 1, &write, 0, nullptr);
+		PendingBinding pb{};
+		pb.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		pb.binding = binding;
+		pb.imageView = vkTexture.imageView();
+		pb.sampler = vkSampler.handle();
+		setPendingBinding(pb);
 	}
 
 	void VulkanCommandList::pushConstants(const void* data, u32 size, u32 offset)
@@ -236,49 +234,190 @@ namespace imp::gfx::vulkan
 
 	void VulkanCommandList::draw(u32 vertexCount, u32 instanceCount)
 	{
+		flushDescriptorBindings();
 		vkCmdDraw(m_cmd, vertexCount, instanceCount, 0, 0);
-		m_currentDescriptorSet = VK_NULL_HANDLE;
 	}
 
 	void VulkanCommandList::drawIndexed(u32 indexCount, u32 instanceCount, u32 firstInstance)
 	{
+		flushDescriptorBindings();
 		vkCmdDrawIndexed(m_cmd, indexCount, instanceCount, 0, 0, firstInstance);
-		m_currentDescriptorSet = VK_NULL_HANDLE;
 	}
 
 	void VulkanCommandList::transitionToPresent(gfx::IRenderTarget& target)
 	{
-		auto& vkTarget = static_cast<VulkanRenderTarget&>( target );
+		const auto& vkTarget = dynamic_cast<VulkanRenderTarget&>( target );
 		transitionImage(vkTarget.image(), VK_IMAGE_ASPECT_COLOR_BIT,
 			VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
 			VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT, VK_ACCESS_2_NONE);
 	}
 
-	bool VulkanCommandList::ensureDescriptorSet()
+	void VulkanCommandList::setPendingBinding(const PendingBinding& pb)
 	{
-		if (m_currentDescriptorSet != VK_NULL_HANDLE)
-			return true;
+		for (PendingBinding& existing : m_pendingBindings)
+		{
+			if (existing.binding == pb.binding)
+			{
+				existing = pb;
+				return;
+			}
+		}
+		m_pendingBindings.push_back(pb);
+	}
+
+	void VulkanCommandList::flushDescriptorBindings()
+	{
+		if (m_pendingBindings.empty())
+			return;
 
 		if (!m_descriptorAllocator || m_currentDescriptorSetLayout == VK_NULL_HANDLE)
 		{
-			// This should only get triggered if the caller did something
-			// wrong, so we don't need to handle this here.
-			return false;
+			m_pendingBindings.clear();
+			return;
 		}
 
-		m_currentDescriptorSet = m_descriptorAllocator->allocate(m_frameIndex, m_currentDescriptorSetLayout);
-		if (m_currentDescriptorSet == VK_NULL_HANDLE)
-			return false;
+#ifndef NDEBUG
+		if (!validatePendingBindings())
+			LOG_ERROR("Vulkan", "Refusing to flush descriptor bindings due to failure above");
+#endif
 
-		vkCmdBindDescriptorSets(m_cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
-			m_currentPipelineLayout, 0, 1, &m_currentDescriptorSet, 0, nullptr);
+		std::ranges::sort(m_pendingBindings,
+		                  [](const PendingBinding& a, const PendingBinding& b) { return a.binding < b.binding; });
 
-		return true;
+		const u64 key = hashPendingBindings();
+
+		VkDescriptorSet set = VK_NULL_HANDLE;
+		auto cached = m_descriptorSetCache.find(key);
+		if (cached != m_descriptorSetCache.end())
+		{
+			set = cached->second;
+		}
+		else
+		{
+			set = m_descriptorAllocator->allocate(m_frameIndex, m_currentDescriptorSetLayout);
+			if (set == VK_NULL_HANDLE)
+			{
+				m_pendingBindings.clear();
+				return;
+			}
+
+			std::vector<VkDescriptorBufferInfo> bufferInfos;
+			std::vector<VkDescriptorImageInfo> imageInfos;
+			bufferInfos.reserve(m_pendingBindings.size());
+			imageInfos.reserve(m_pendingBindings.size());
+
+			std::vector<VkWriteDescriptorSet> writes;
+			writes.reserve(m_pendingBindings.size());
+
+			for (const PendingBinding& pb : m_pendingBindings)
+			{
+				VkWriteDescriptorSet write{};
+				write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+				write.dstSet = set;
+				write.dstBinding = pb.binding;
+				write.descriptorCount = 1;
+				write.descriptorType = pb.type;
+
+				if (pb.type == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER)
+				{
+					bufferInfos.push_back({ pb.buffer, 0, pb.range });
+					write.pBufferInfo = &bufferInfos.back();
+				}
+				else
+				{
+					imageInfos.push_back({ pb.sampler, pb.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
+					write.pImageInfo = &imageInfos.back();
+				}
+
+				writes.push_back(write);
+			}
+
+			vkUpdateDescriptorSets(m_device, static_cast<u32>( writes.size() ), writes.data(), 0, nullptr);
+			m_descriptorSetCache.emplace(key, set);
+		}
+
+		if (set != m_currentDescriptorSet)
+		{
+			vkCmdBindDescriptorSets(m_cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
+				m_currentPipelineLayout, 0, 1, &set, 0, nullptr);
+			m_currentDescriptorSet = set;
+		}
+
+		m_pendingBindings.clear();
 	}
 
-	void VulkanCommandList::transitionImage(VkImage image, VkImageAspectFlags aspect, VkImageLayout newLayout, VkPipelineStageFlags2 dstStage, VkAccessFlags2 dstAccess, bool crossesPresentationEngine)
+	u64 VulkanCommandList::hashPendingBindings() const
 	{
-		ImageSyncState& state = m_imageStates[image];
+		u64 hash = 14695981039346656037ull;
+		auto mix = [&hash](u64 v)
+			{
+				hash ^= v;
+				hash *= 1099511628211ull;
+			};
+
+		mix(reinterpret_cast<u64>( m_currentDescriptorSetLayout )); // sets from different layouts must never collide
+		for (const PendingBinding& pb : m_pendingBindings)
+		{
+			mix(static_cast<u64>( pb.binding ));
+			mix(static_cast<u64>( pb.type ));
+			mix(reinterpret_cast<u64>( pb.buffer ));
+			mix(reinterpret_cast<u64>( pb.imageView ));
+			mix(reinterpret_cast<u64>( pb.sampler ));
+		}
+		return hash;
+	}
+
+#ifndef NDEBUG
+	bool VulkanCommandList::validatePendingBindings() const
+	{
+		if (!m_currentBindingLayout)
+			return true;
+
+		bool ok = true;
+
+		for (const PendingBinding& pb : m_pendingBindings)
+		{
+			auto it = m_currentBindingLayout->find(pb.binding);
+			if (it == m_currentBindingLayout->end())
+			{
+				LOG_ERROR("Vulkan",
+						"Draw call bound resource at binding {} but the active shader doesn't declare a descriptor there \n{}",
+						pb.binding, "(likely a stale or incorrect binding index at the call site)");
+				ok = false;
+				continue;
+			}
+
+			if (it->second.type != pb.type)
+			{
+				LOG_ERROR("Vulkan",
+					"Draw call bound binding {} ('{}') as {} but the shader declares it as {}",
+					pb.binding, it->second.name, static_cast<int>( pb.type ), static_cast<int>( it->second.type ));
+				ok = false;
+			}
+		}
+
+		for (const auto& [bindingIndex, info] : *m_currentBindingLayout)
+		{
+			const bool staged = std::ranges::any_of(m_pendingBindings,
+			                                        [bindingIndex](const PendingBinding& pb) { return pb.binding == bindingIndex; });
+
+			if (!staged)
+			{
+				LOG_ERROR("Vulkan",
+					"Shader declares binding {} ('{}') but this draw call never bound anything to it",
+					bindingIndex, info.name);
+				ok = false;
+			}
+		}
+
+		return ok;
+	}
+#endif
+
+	void VulkanCommandList::transitionImage(VkImage image, VkImageAspectFlags aspect, VkImageLayout newLayout,
+	                                        VkPipelineStageFlags2 dstStage, VkAccessFlags2 dstAccess, bool crossesPresentationEngine, u32 baseArrayLayer /* = 0*/)
+	{
+		ImageSyncState& state = m_imageStates[{image, baseArrayLayer}];
 
 		VkPipelineStageFlags2 srcStage = state.stage;
 		VkAccessFlags2 srcAccess = state.access;
@@ -300,7 +439,7 @@ namespace imp::gfx::vulkan
 		barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 		barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 		barrier.image = image;
-		barrier.subresourceRange = { aspect, 0, 1, 0, 1 };
+		barrier.subresourceRange = { aspect, 0, 1, baseArrayLayer, 1 };
 
 		VkDependencyInfo dep{};
 		dep.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;

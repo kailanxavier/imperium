@@ -112,13 +112,14 @@ namespace imp::log
 			// Swap the whole queue to minimise lock time
 			std::queue<LogEntry> localQueue;
 			std::swap(localQueue, m_messageQueue);
+			std::vector<std::shared_ptr<ILogSink>> localSinks = m_sinks;
 			lock.unlock();
 
 			// Write to all sinks outside the lock
 			while (!localQueue.empty())
 			{
 				const auto& entry = localQueue.front();
-				for (auto& sink : m_sinks)
+				for (const auto& sink : localSinks)
 					sink->write(entry);
 				localQueue.pop();
 			}
@@ -126,13 +127,16 @@ namespace imp::log
 
 		// Final flush to process any remaining entries we may have missed
 		std::queue<LogEntry> remaining;
+		std::vector<std::shared_ptr<ILogSink>> localSinks;
 		{
 			std::lock_guard<std::mutex> lock(m_queueMutex);
 			std::swap(remaining, m_messageQueue);
+			localSinks = m_sinks;
+
 		}
 		while (!remaining.empty())
 		{
-			for (auto& sink : m_sinks)
+			for (const auto& sink : localSinks)
 				sink->write(remaining.front());
 			remaining.pop();
 		}

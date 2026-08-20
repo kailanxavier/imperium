@@ -13,6 +13,8 @@
 #include "vk_desc_alloc.h"
 #include "vk_allocator.h"
 
+#include "vk_debug_utils.h"
+
 #include <imgui.h>
 #include <backends/imgui_impl_vulkan.h>
 
@@ -27,6 +29,8 @@
 #include <cstring>
 #include <fstream>
 #include <set>
+
+#include "vk_check.h"
 
 namespace imp::gfx::vulkan
 {
@@ -62,6 +66,20 @@ namespace imp::gfx::vulkan
 			}
 
 			return true;
+		}
+
+		bool checkInstanceExtensionSupport(const char* extensionName)
+		{
+			u32 count = 0;
+			vkEnumerateInstanceExtensionProperties(nullptr, &count, nullptr);
+			std::vector<VkExtensionProperties> available(count);
+			vkEnumerateInstanceExtensionProperties(nullptr, &count, available.data());
+
+			for (const auto& ext : available)
+				if (std::strcmp(ext.extensionName, extensionName) == 0)
+					return true;
+
+			return false;
 		}
 
 		VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
@@ -172,6 +190,32 @@ namespace imp::gfx::vulkan
 			default: return VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 			}
 		}
+
+		struct ScopedCommandBuffer
+		{
+			VkDevice device;
+			VkCommandPool pool;
+			VkCommandBuffer cmd = VK_NULL_HANDLE;
+
+			~ScopedCommandBuffer()
+			{
+				if (cmd != VK_NULL_HANDLE)
+					vkFreeCommandBuffers(device, pool, 1, &cmd);
+			}
+		};
+
+		struct ScopedFence
+		{
+			VkDevice device;
+			const VkAllocationCallbacks* allocationCallbacks;
+			VkFence fence = VK_NULL_HANDLE;
+
+			~ScopedFence()
+			{
+				if (fence != VK_NULL_HANDLE)
+					vkDestroyFence(device, fence, allocationCallbacks);
+			}
+		};
 	}
 
 	VulkanDevice::VulkanDevice() = default;
@@ -232,18 +276,16 @@ namespace imp::gfx::vulkan
 
 	void VulkanDevice::shutdown()
 	{
+		if (m_device)
+			waitIdle();
+
 		// All of these must go before the device
 		m_commandList.reset();
 		m_backBufferTarget.reset();
 		m_depthBufferTarget.reset();
+		m_swapchain.reset();
 		m_descriptorAllocator.reset();
 		m_commands.reset();
-		m_swapchain.reset();
-		m_tonemapVertShader.reset();
-		m_hdrRenderTarget.reset();
-		m_hdrColourTexture.reset();
-		m_backBufferTarget.reset();
-		m_depthBufferTarget.reset();
 		m_stagingBuffer.destroy();
 
 		if (m_vmaAllocator != VK_NULL_HANDLE)
@@ -253,7 +295,6 @@ namespace imp::gfx::vulkan
 		}
 		if (m_device)
 		{
-			vkDeviceWaitIdle(m_device);
 			vkDestroyDevice(m_device, allocationCallbacks());
 			m_device = VK_NULL_HANDLE;
 		}
@@ -635,8 +676,8 @@ namespace imp::gfx::vulkan
 
 		VulkanGraphicsPipelineCreateInfo info{};
 		info.device = m_device;
-		info.vertexShader = static_cast<VulkanShaderModule*>( desc.vertexShader )->handle();
-		info.fragmentShader = static_cast<VulkanShaderModule*>( desc.fragmentShader )->handle();
+		info.vertexShader = static_cast<VulkanShaderModule*>( desc.vertexShader );
+		info.fragmentShader = static_cast<VulkanShaderModule*>( desc.fragmentShader );
 
 		info.vertexBinding.binding = 0;
 		info.vertexBinding.stride = desc.vertexLayout.stride;
@@ -679,9 +720,6 @@ namespace imp::gfx::vulkan
 		info.depthAttachmentFormat = toVkFormat(desc.depthFormat);
 		info.sampleCount = toVkSampleCount(desc.sampleCount);
 		info.pushConstantSize = desc.pushConstantSize;
-		info.hasUniformBuffer = desc.hasUniformBuffer;
-		info.textureCount = desc.textureCount;
-		info.hasMaterialUniformBuffer = desc.hasMaterialUniformBuffer;
 		info.instanceBinding.binding = 1;
 		info.instanceBinding.stride = desc.instanceLayout.stride;
 		info.instanceBinding.inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
@@ -724,6 +762,39 @@ namespace imp::gfx::vulkan
 		return std::make_unique<VulkanOwnedColourTarget>(std::move(texture));
 	}
 
+	std::vector<std::unique_ptr<IRenderTarget>> VulkanDevice::createCascadeRenderTargets(const TextureDesc& desc, ITexture** outArrayTexture)
+	{
+		VulkanTextureCreateInfo info{};
+		info.allocator = m_vmaAllocator;
+		info.device = m_device;
+		info.width = desc.width;
+		info.height = desc.height;
+		info.format = toVkFormat(desc.format);
+		info.usage = desc.usage;
+		info.arrayLayers = desc.arrayLayers;
+		info.allocationCallbacks = allocationCallbacks();
+
+		auto texture = std::make_shared<VulkanTexture>();
+		if (!texture->create(info))
+		{
+			LOG_ERROR("Vulkan", "VulkanDevice::createCascadeRenderTargets(): texture creation failed");
+			return {};
+		}
+
+		std::vector<std::unique_ptr<IRenderTarget>> targets;
+		targets.reserve(desc.arrayLayers);
+		for (u32 i = 0; i < desc.arrayLayers; ++i)
+			targets.push_back(std::make_unique<VulkanCascadeLayerTarget>(texture, i));
+
+		if (outArrayTexture) *outArrayTexture = texture.get();
+		return targets;
+	}
+
+	u32 VulkanDevice::currentFrameIndex() const
+	{
+		return m_swapchain->currentFrameIndex();
+	}
+
 	void VulkanDevice::waitIdle()
 	{
 		vkDeviceWaitIdle(m_device);
@@ -743,12 +814,7 @@ namespace imp::gfx::vulkan
 		poolInfo.maxSets = 64;
 		poolInfo.poolSizeCount = static_cast<u32>( std::size(poolSizes) );
 		poolInfo.pPoolSizes = poolSizes;
-
-		if (vkCreateDescriptorPool(m_device, &poolInfo, allocationCallbacks(), &m_imguiDescriptorPool) != VK_SUCCESS)
-		{
-			LOG_ERROR("Vulkan", "vkCreateDescriptorPool failed");
-			return false;
-		}
+		VK_CHECK(vkCreateDescriptorPool(m_device, &poolInfo, allocationCallbacks(), &m_imguiDescriptorPool));
 
 		const VkFormat colourFormat = m_swapchain->imageFormat();
 		const VkFormat depthFormat = m_swapchain->depthFormat();
@@ -814,6 +880,7 @@ namespace imp::gfx::vulkan
 		imguiPassDesc.colourTarget = &backBuffer();
 		imguiPassDesc.depthTarget = nullptr;
 		imguiPassDesc.clearColour = false;
+		imguiPassDesc.debugName = "ImGui";
 
 		vkCmd.beginRenderPass(imguiPassDesc);
 		ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), vkCmd.commandBuffer());
@@ -940,16 +1007,16 @@ namespace imp::gfx::vulkan
 			validationFeatures.enabledValidationFeatureCount = 1;
 			validationFeatures.pEnabledValidationFeatures = enabledFeatures;
 
-			debugCreateInfo.pNext= &validationFeatures;
+			debugCreateInfo.pNext = &validationFeatures;
 			createInfo.pNext = &debugCreateInfo;
 		}
 #endif // !NDEBUG
 
-		if (vkCreateInstance(&createInfo, allocationCallbacks(), &m_instance) != VK_SUCCESS)
-		{
-			LOG_ERROR("Vulkan", "vkCreateInstance failed");
-			return false;
-		}
+		VK_CHECK(vkCreateInstance(&createInfo, allocationCallbacks(), &m_instance));
+
+		if (!loadDebugUtilsFunctions(m_instance))
+			LOG_WARN("Vulkan", "vkCreateInstance succeeded but debug utils functions could not be loaded");
+
 		return true;
 	}
 
@@ -970,22 +1037,14 @@ namespace imp::gfx::vulkan
 
 		createInfo.pfnUserCallback = debugCallback;
 
-		if (createDebugUtilsMessengerEXT(m_instance, &createInfo, allocationCallbacks(), &m_debugMessenger) != VK_SUCCESS)
-		{
-			LOG_ERROR("Vulkan", "Failed to set up debug messenger");
-			return false;
-		}
+		VK_CHECK(createDebugUtilsMessengerEXT(m_instance, &createInfo, allocationCallbacks(), &m_debugMessenger));
 #endif
 		return true;
 	}
 
 	bool VulkanDevice::createSurface(fwk::Window* window)
 	{
-		if (glfwCreateWindowSurface(m_instance, window->getNativeHandle(), allocationCallbacks(), &m_surface) != VK_SUCCESS)
-		{
-			LOG_ERROR("Vulkan", "glfwCreateWindowSurface() failed");
-			return false;
-		}
+		VK_CHECK(glfwCreateWindowSurface(m_instance, window->getNativeHandle(), allocationCallbacks(), &m_surface));
 		return true;
 	}
 
@@ -1002,30 +1061,65 @@ namespace imp::gfx::vulkan
 		std::vector<VkPhysicalDevice> devices(count);
 		vkEnumeratePhysicalDevices(m_instance, &count, devices.data());
 
+		VkPhysicalDevice best = VK_NULL_HANDLE;
+		i32 bestScore = -1;
+		u32 bestMem = 0;
+
 		for (VkPhysicalDevice device : devices)
 		{
-			if (isDeviceSuitable(device))
+			if (!isDeviceSuitable(device))
+				continue;
+
+			VkPhysicalDeviceProperties props{};
+			vkGetPhysicalDeviceProperties(device, &props);
+
+			i32 score = 0;
+			switch (props.deviceType)
 			{
-				m_physicalDevice = device;
-				m_queueFamilies = findQueueFamilies(device);
+			case VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU: score += 10000; break;
+			case VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU: score += 1000; break;
+			case VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU: score += 100; break;
+			default: break;
+			}
 
-				VkPhysicalDeviceFeatures supportedFeatures{};
-				vkGetPhysicalDeviceFeatures(device, &supportedFeatures);
-				m_anisotropySupported = supportedFeatures.samplerAnisotropy == VK_TRUE;
+			VkPhysicalDeviceMemoryProperties memProps{};
+			vkGetPhysicalDeviceMemoryProperties(device, &memProps);
+			VkDeviceSize deviceLocalBytes = 0;
+			for (u32 h = 0; h < memProps.memoryHeapCount; ++h)
+				if (memProps.memoryHeaps[h].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT)
+					deviceLocalBytes = std::max(deviceLocalBytes, memProps.memoryHeaps[h].size);
+			score += static_cast<i32>(deviceLocalBytes / ( 256ull * 1024 * 1024 ));
 
-				VkPhysicalDeviceProperties props{};
-				vkGetPhysicalDeviceProperties(device, &props);
-				m_maxSamplerAnisotropy = props.limits.maxSamplerAnisotropy;
-
-				if (!m_anisotropySupported)
-					LOG_WARN("Vulkan", "Device does not support sampler anisotropy");
-
-				return true;
+			if (score > bestScore)
+			{
+				bestScore = score;
+				bestMem = static_cast<u32>( deviceLocalBytes / 1048576 );
+				best = device;
 			}
 		}
 
-		LOG_FATAL("Vulkan", "No suitable GPU was found");
-		return false;
+		if (best == VK_NULL_HANDLE)
+		{
+			LOG_FATAL("Vulkan", "No suitable GPU was found");
+			return false;
+		}
+
+		m_physicalDevice = best;
+		m_queueFamilies = findQueueFamilies(best);
+
+		VkPhysicalDeviceFeatures supportedFeatures{};
+		vkGetPhysicalDeviceFeatures(best, &supportedFeatures);
+		m_anisotropySupported = supportedFeatures.samplerAnisotropy == VK_TRUE;
+
+		VkPhysicalDeviceProperties props{};
+		vkGetPhysicalDeviceProperties(best, &props);
+		m_maxSamplerAnisotropy = props.limits.maxSamplerAnisotropy;
+
+		if (!m_anisotropySupported)
+			LOG_WARN("Vulkan", "Device does not support sampler anisotropy");
+
+		LOG_INFO("Vulkan", "Selected physical device: {} (score={}, memory={} MiB)", props.deviceName, bestScore, bestMem);
+		return true;
 	}
 
 	bool VulkanDevice::createLogicalDevice()
@@ -1067,11 +1161,7 @@ namespace imp::gfx::vulkan
 		createInfo.enabledExtensionCount = static_cast<u32>( kDeviceExtensions.size() );
 		createInfo.ppEnabledExtensionNames = kDeviceExtensions.data();
 
-		if (vkCreateDevice(m_physicalDevice, &createInfo, allocationCallbacks(), &m_device) != VK_SUCCESS)
-		{
-			LOG_ERROR("Vulkan", "vkCreateDevice() failed");
-			return false;
-		}
+		VK_CHECK(vkCreateDevice(m_physicalDevice, &createInfo, allocationCallbacks(), &m_device));
 
 		vkGetDeviceQueue(m_device, m_queueFamilies.graphics.value(), 0, &m_graphicsQueue);
 		vkGetDeviceQueue(m_device, m_queueFamilies.present.value(), 0, &m_presentQueue);
@@ -1136,7 +1226,7 @@ namespace imp::gfx::vulkan
 	bool VulkanDevice::createDescriptorAllocatorInternal()
 	{
 		m_descriptorAllocator = std::make_unique<VulkanDescriptorAllocator>();
-		if (!m_descriptorAllocator->create(m_device, 4096, allocationCallbacks()))
+		if (!m_descriptorAllocator->create(m_device, 512, allocationCallbacks()))
 		{
 			LOG_ERROR("Vulkan", "Failed to create descriptor allocator");
 			m_descriptorAllocator.reset();
@@ -1252,43 +1342,39 @@ namespace imp::gfx::vulkan
 		vkCmdPipelineBarrier2(cmd, &dep3);
 	}
 
-	void VulkanDevice::submitOneTimeCommands(const std::function<void(VkCommandBuffer)>& record)
+	bool VulkanDevice::submitOneTimeCommands(const std::function<void(VkCommandBuffer)>& record)
 	{
+		ScopedCommandBuffer cmdGuard{ m_device, m_commands->pool() };
+
 		VkCommandBufferAllocateInfo allocInfo{};
 		allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
 		allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 		allocInfo.commandPool = m_commands->pool();
 		allocInfo.commandBufferCount = 1;
 
-		VkCommandBuffer cmd = VK_NULL_HANDLE;
-		if (vkAllocateCommandBuffers(m_device, &allocInfo, &cmd) != VK_SUCCESS)
-		{
-			LOG_ERROR("Vulkan", "submitOneTimeCommands(): vkAllocateCommandBuffers failed");
-			return;
-		}
+		VK_CHECK(vkAllocateCommandBuffers(m_device, &allocInfo, &cmdGuard.cmd));
 
 		VkCommandBufferBeginInfo beginInfo{};
 		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 		beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-		vkBeginCommandBuffer(cmd, &beginInfo);
-		record(cmd);
-		vkEndCommandBuffer(cmd);
+		VK_CHECK(vkBeginCommandBuffer(cmdGuard.cmd, &beginInfo));
+		record(cmdGuard.cmd);
+		VK_CHECK(vkEndCommandBuffer(cmdGuard.cmd));
 
+		ScopedFence fenceGuard{ m_device, allocationCallbacks() };
 		VkFenceCreateInfo fenceInfo{};
 		fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-		VkFence fence = VK_NULL_HANDLE;
-		vkCreateFence(m_device, &fenceInfo, allocationCallbacks(), &fence);
+		VK_CHECK(vkCreateFence(m_device, &fenceInfo, allocationCallbacks(), &fenceGuard.fence));
 
 		VkSubmitInfo submitInfo{};
 		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 		submitInfo.commandBufferCount = 1;
-		submitInfo.pCommandBuffers = &cmd;
-		vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, fence);
+		submitInfo.pCommandBuffers = &cmdGuard.cmd;
+		VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, fenceGuard.fence));
 
-		vkWaitForFences(m_device, 1, &fence, VK_TRUE, UINT64_MAX);
+		vkWaitForFences(m_device, 1, &fenceGuard.fence, VK_TRUE, UINT64_MAX);
 
-		vkDestroyFence(m_device, fence, allocationCallbacks());
-		vkFreeCommandBuffers(m_device, m_commands->pool(), 1, &cmd);
+		return true;
 	}
 
 	bool VulkanDevice::readFileBytes(const std::string& path, std::vector<u8>& outBytes) const
@@ -1367,10 +1453,12 @@ namespace imp::gfx::vulkan
 		u32 glfwExtensionCount = 0;
 		const char** glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
 		std::vector<const char*> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
-#ifndef NDEBUG
-		if (wantValidation)
+
+		if (checkInstanceExtensionSupport(VK_EXT_DEBUG_UTILS_EXTENSION_NAME))
 			extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-#endif // !NDEBUG
+		else if (wantValidation)
+			LOG_WARN("Vulkan", "VK_EXT_debug_utils not supported");
+
 		return extensions;
 	}
 

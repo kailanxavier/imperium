@@ -67,7 +67,7 @@ namespace imp::gfx::vulkan
 		}
 
 		VmaAllocationInfo resultInfo{};
-		VkResult result = vmaCreateBuffer(m_allocator, &bufferInfo, &allocInfo,
+		const VkResult result = vmaCreateBuffer(m_allocator, &bufferInfo, &allocInfo,
 			&m_buffer, &m_allocation, &resultInfo);
 
 		if (result != VK_SUCCESS)
@@ -93,5 +93,14 @@ namespace imp::gfx::vulkan
 			m_mappedData = nullptr;
 		}
 		m_allocator = VK_NULL_HANDLE;
+	}
+
+	bool VulkanBuffer::update(const void* data, u64 size, u64 offset)
+	{
+		if (!data || offset + size > m_size)
+			return false;
+
+		std::memcpy(static_cast<std::byte*>( m_mappedData ) + offset, data, size);
+		return true;
 	}
 }

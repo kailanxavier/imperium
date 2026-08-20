@@ -1,7 +1,14 @@
 #version 450
+#include "include/shadow_sampling.glsl"
+
+#define SHADOW_DEBUG_MODE 0
+
 layout(location = 0) in vec3 inNormalWS;
 layout(location = 1) in vec3 inPositionWS;
 layout(location = 2) in vec2 inUV;
+layout(location = 3) in vec3 inTangentWS;
+layout(location = 4) in float inTangentSign;
+
 layout(location = 0) out vec4 outColour;
 
 const int MAX_LIGHTS = 16;
@@ -43,7 +50,38 @@ layout(binding = 6) uniform MaterialFactorsUBO
     float alphaMode;
 } material;
 
-layout(binding = 5) uniform sampler2D shadowMap;
+layout(binding = 5) uniform sampler2DArray shadowMap;
+layout(binding = 7) uniform CascadeUBO
+{
+    mat4 viewProj[4];
+    vec4 splitDepths;
+    vec4 blendParams;
+} cascades;
+
+int selectCascade(float viewSpaceDepth, out float blend, out int nextCascade)
+{
+    float nearPlane = cascades.blendParams.x;
+    float blendFraction = cascades.blendParams.y;
+
+    for (int i = 0; i < 4; ++i)
+    {
+        float far = cascades.splitDepths[i];
+        if (viewSpaceDepth < far || i == 3)
+        {
+            float near = (i == 0) ? nearPlane : cascades.splitDepths[i - 1];
+            float range = far - near;
+            float blendRange = range * blendFraction;
+            float distToFar = far - viewSpaceDepth;
+
+            blend = (i < 3 && blendRange > 0.0) ? clamp(1.0 - distToFar / blendRange, 0.0, 1.0) : 0.0;
+            nextCascade = min(i + 1, 3);
+            return i;
+        }
+    }
+    blend = 0.0;
+    nextCascade = 3;
+    return 3;
+}
 
 float distributionGGX(vec3 N, vec3 H, float roughness)
 {
@@ -76,127 +114,6 @@ vec3 fresnelSchlick(float cosTheta, vec3 F0)
     return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
 }
 
-vec3 getShadowCoords(vec3 worldPos)
-{
-    vec4 lightSpace = lightData.sunViewProj * vec4(worldPos, 1.0);
-
-    lightSpace.xyz /= lightSpace.w;
-
-    vec3 coords;
-
-    coords.x = lightSpace.x * 0.5 + 0.5;
-    coords.y = 0.5 - lightSpace.y * 0.5;
-    coords.z = lightSpace.z;
-
-    return coords;
-}
-
-float findBlocker(vec3 coords, float bias)
-{
-    float searchRadius = 4.0 / lightData.shadowMapSize;
-
-    float blockerSum = 0.0;
-    int blockers = 0;
-
-
-    for(int x = -3; x <= 3; x++)
-    {
-        for(int y = -3; y <= 3; y++)
-        {
-            vec2 offset =
-                vec2(x,y) * searchRadius;
-
-            float depth =
-                texture(
-                    shadowMap,
-                    coords.xy + offset
-                ).r;
-
-            if(depth < coords.z - bias)
-            {
-                blockerSum += depth;
-                blockers++;
-            }
-        }
-    }
-
-
-    if(blockers == 0)
-        return -1.0;
-
-    return blockerSum / float(blockers);
-}
-
-float calculatePenumbra(
-    float receiver,
-    float blocker)
-{
-    return
-        (receiver - blocker)
-        / blocker;
-}
-
-float filterPCF(vec3 coords, float radius, float bias)
-{
-    float shadow = 0.0;
-
-    int samples = 0;
-
-
-    for(int x=-3;x<=3;x++)
-    {
-        for(int y=-3;y<=3;y++)
-        {
-            vec2 offset =
-                vec2(x,y)
-                * radius
-                / lightData.shadowMapSize;
-
-            float depth =
-                texture(
-                    shadowMap,
-                    coords.xy + offset
-                ).r;
-
-            shadow += coords.z - bias > depth ? 0.0 : 1.0;
-            samples++;
-        }
-    }
-
-    return shadow / float(samples);
-}
-
-float shadowPCSS(vec3 coords, float bias)
-{
-    if (coords.z > 1.0 || coords.x < 0.0 || coords.x > 1.0 || coords.y < 0.0 || coords.y > 1.0)
-        return 1.0;
-
-    float blocker = findBlocker(coords, bias);
-
-    // fully lit
-    if(blocker < 0.0)
-        return 1.0;
-
-    float penumbra =
-        calculatePenumbra(
-            coords.z,
-            blocker
-        );
-
-    float filterRadius =
-        clamp(
-            penumbra * 40.0,
-            1.0,
-            20.0
-        );
-
-    return filterPCF(
-        coords,
-        filterRadius,
-        bias
-    );
-}
-
 void main()
 {
     vec4 albedoSample = texture(diffuseTexture, inUV);
@@ -212,11 +129,42 @@ void main()
     float occlusion = texture(occlusionTexture, inUV).r;
 
     vec3 N = normalize(inNormalWS);
+    vec3 T = normalize(inTangentWS);
+
+    vec3 B = normalize(cross(N, T)) * inTangentSign;
+    mat3 TBN = mat3(T, B, N);
+    vec3 tangentNormal = texture(normalTexture, inUV).xyz;
+    tangentNormal = tangentNormal * 2.0 - 1.0;
+    N = normalize(TBN * tangentNormal);
+
     vec3 V = normalize(lightData.cameraPositionWS.xyz - inPositionWS);
 
     vec3 F0 = mix(vec3(0.04), albedo, metallic);
 
     vec3 result = lightData.ambientColour.rgb * albedo * occlusion;
+    vec3 sunL = normalize(-lightData.sunDirection);
+    float sunBias = max(0.0025 * (1.0 - dot(N, sunL)), 0.00005);
+    float viewSpaceDepth = length(lightData.cameraPositionWS.xyz - inPositionWS);
+
+    int cascadeIndex, nextCascadeIndex;
+    float cascadeBlend;
+    cascadeIndex = selectCascade(viewSpaceDepth, cascadeBlend, nextCascadeIndex);
+
+    vec3 shadowCoordsA = getShadowCoords(cascades.viewProj[cascadeIndex], inPositionWS);
+    vec3 shadowCoordsB = (cascadeBlend > 0.0)
+        ? getShadowCoords(cascades.viewProj[nextCascadeIndex], inPositionWS)
+        : vec3(0.0);
+
+#if SHADOW_DEBUG_MODE == 1
+            float sunShadowFactor = 1.0;
+#elif SHADOW_DEBUG_MODE == 2
+            float sunShadowFactor = (shadowCoordsA.z > 1.0 || shadowCoordsA.x < 0.0 || shadowCoordsA.x > 1.0
+                || shadowCoordsA.y < 0.0 || shadowCoordsA.y > 1.0) ? 1.0
+                : (shadowCoordsA.z - sunBias > texture(shadowMap, vec3(shadowCoordsA.xy, float(cascadeIndex))).r ? 0.0 : 1.0);
+#else
+            float sunShadowFactor = computeShadowFactor(shadowMap, lightData.shadowMapSize,
+                cascadeIndex, shadowCoordsA, nextCascadeIndex, shadowCoordsB, cascadeBlend, sunBias);
+#endif
 
     for (uint i = 0u; i < lightData.lightCount; ++i)
     {
@@ -243,9 +191,7 @@ void main()
         vec3 kD = (vec3(1.0) - F) * (1.0 - metallic);
         vec3 diffuse = kD * albedo / PI;
 
-        float bias = max(0.0025 * (1.0 - dot(N, L)), 0.0005);
-        vec3 shadowCoords = getShadowCoords(inPositionWS);
-        float shadowFactor = isPoint ? 1.0 : shadowPCSS(shadowCoords, bias);
+        float shadowFactor = isPoint ? 1.0 : sunShadowFactor;
         result += (diffuse + specular) * radiance * NdotL * shadowFactor;
     }
 

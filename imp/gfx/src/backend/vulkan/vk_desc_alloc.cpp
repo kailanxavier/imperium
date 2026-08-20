@@ -1,6 +1,8 @@
 #if defined(IMP_GFX_VULKAN)
 
 #include "vk_desc_alloc.h"
+#include "vk_check.h"
+
 #include <core/log/log.h>
 
 namespace imp::gfx::vulkan
@@ -11,25 +13,19 @@ namespace imp::gfx::vulkan
 		m_device = device;
 		m_allocationCallbacks = allocationCallbacks;
 
-		VkDescriptorPoolSize poolSizes[] = {
-			{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, maxSetsPerFrame * 2 }, // 2 UBOs, light and material factors
-			{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, maxSetsPerFrame * 4 } // 4 samplers, base, metallic, normal, occlusion
-		};
+		std::vector<VkDescriptorPoolSize> poolSizes;
+		poolSizes.reserve(std::size(kDescriptorBindingTable));
+		for (const auto& binding : kDescriptorBindingTable)
+			poolSizes.push_back({ binding.type, binding.countPerSet * maxSetsPerFrame });
 
 		VkDescriptorPoolCreateInfo poolInfo{};
 		poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 		poolInfo.maxSets = maxSetsPerFrame;
-		poolInfo.poolSizeCount = 2;
-		poolInfo.pPoolSizes = poolSizes;
+		poolInfo.poolSizeCount = static_cast<u32>( poolSizes.size() );
+		poolInfo.pPoolSizes = poolSizes.data();
 
 		for (u32 i = 0; i < kMaxFramesInFlight; ++i)
-		{
-			if (vkCreateDescriptorPool(m_device, &poolInfo, m_allocationCallbacks, &m_pools[i]) != VK_SUCCESS)
-			{
-				LOG_ERROR("Vulkan", "vkCreateDescriptorPool failed");
-				return false;
-			}
-		}
+			VK_CHECK(vkCreateDescriptorPool(m_device, &poolInfo, m_allocationCallbacks, &m_pools[i]));
 
 		return true;
 	}

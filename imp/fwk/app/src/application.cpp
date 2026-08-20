@@ -121,7 +121,7 @@ namespace imp::app
 	{
 		if (!m_initialised)
 			return;
-		
+
 		ImGui_ImplGlfw_Shutdown();
 		m_device->shutdownImGui();
 		ImGui::DestroyContext();
@@ -129,9 +129,13 @@ namespace imp::app
 		if (m_app)
 			m_app->onShutdown(*m_ctx);
 
+		m_layers.clear();
 		m_jobs.shutdown();
 
-		imp::gfx::GizmoRenderer::instance().shutdown();
+		gfx::GizmoRenderer::instance().shutdown();
+
+		m_app.reset();
+		m_ctx.reset();
 
 		if (m_device)
 		{
@@ -140,10 +144,6 @@ namespace imp::app
 		}
 
 		m_window.destroy();
-
-		m_app.reset();
-		m_ctx.reset();
-
 		m_initialised = false;
 	}
 

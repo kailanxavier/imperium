@@ -1,5 +1,7 @@
 #if defined(IMP_GFX_VULKAN)
 #include "vk_sampler.h"
+#include "vk_check.h"
+
 #include <core/log/log.h>
 
 namespace imp::gfx::vulkan
@@ -49,12 +51,7 @@ namespace imp::gfx::vulkan
 		info.maxLod = desc.maxLod;
 		info.mipLodBias = 0.f;
 
-		if (vkCreateSampler(m_device, &info, m_allocationCallbacks, &m_sampler) != VK_SUCCESS)
-		{
-			LOG_ERROR("Vulkan", "vkCreateSampler failed");
-			return false;
-		}
-
+		VK_CHECK(vkCreateSampler(m_device, &info, m_allocationCallbacks, &m_sampler));
 		return true;
 	}
 

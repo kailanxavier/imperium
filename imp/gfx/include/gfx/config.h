@@ -2,7 +2,7 @@
 
 #include <core/types/int_types.h>
 
-namespace imp::gfx::vulkan
+namespace imp::gfx
 {
 	// Number of frames the CPU is allowed to have recorded
 	// and submitted but not yet known to have finished on the GPU
