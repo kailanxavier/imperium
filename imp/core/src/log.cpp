@@ -1,10 +1,10 @@
-#include "log.h"
+#include <core/log/log.h>
 
 // Sink interface implementations
 #include <iomanip>
 
-#include "console_sink.h"
-#include "file_sink.h"
+#include <core/log/console_sink.h>
+#include <core/log/file_sink.h>
 
 namespace imp::log
 {

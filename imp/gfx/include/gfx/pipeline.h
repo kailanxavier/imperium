@@ -87,15 +87,9 @@ namespace imp::gfx
 
         SampleCount sampleCount = SampleCount::One;
 
-        u32 pushConstantSize = 0;
-
         bool hasInstanceBinding = false;
-        bool hasUniformBuffer = false;
 
-        u32 textureCount = 0;
-        bool hasMaterialUniformBuffer = false;
-
-        bool hasCascadeUniformBuffer = false;
+        u32 pushConstantSize = 0;
     };
 
     class IPipeline
