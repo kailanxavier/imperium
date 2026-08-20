@@ -48,8 +48,6 @@ namespace imp::app
 		gfx::SampleCount sampleCount() const { return kMsaaSampleCount; }
 
 	private:
-		void drawNode(gfx::ICommandList& cmd, gfx::Model& model, const math::Mat4f& viewProj, u32 nodeIdx, const math::Mat4f& parentWorld);
-
 		void ensureInstanceBufferCapacity(AppContext& ctx, u32 instanceCount);
 		void ensureHdrTargetSize(AppContext& ctx);
 
@@ -115,5 +113,7 @@ namespace imp::app
 		std::vector<std::unique_ptr<gfx::IBuffer>> m_cascadeUBOs;
 		std::vector<std::unique_ptr<gfx::IBuffer>> m_lightUBOs;
 		std::vector<std::unique_ptr<gfx::IBuffer>> m_instanceBuffers;
+
+		bool m_enableFrustumCulling = true;
 	};
 }

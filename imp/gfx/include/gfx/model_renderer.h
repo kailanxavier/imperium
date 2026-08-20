@@ -1,6 +1,7 @@
 #pragma once
 #include <gfx/render_extraction.h>
 #include <core/math/math.h>
+#include <array>
 
 namespace imp::gfx
 {
@@ -10,12 +11,24 @@ namespace imp::gfx
 	class ISampler;
 	class ModelRegistry;
 
+	struct Plane
+	{
+		math::Vec3f normal;
+		float distance = 0.f;
+	};
+
 	struct CullVolume
 	{
 		math::Mat4f lightView;
 		math::Vec3f boxMin;
 		math::Vec3f boxMax;
+
+		std::array<Plane, 6> frustumPlanes{};
+		bool useFrustum = false;
 	};
+
+	std::array<Plane, 6> extractFrustumPlanes(const math::Mat4f& viewProj);
+	bool sphereIntersectsFrustum(const math::Vec3f& centre, float radius, const std::array<Plane, 6>& planes);
 
 	struct ModelRenderContext
 	{

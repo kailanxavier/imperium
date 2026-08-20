@@ -61,8 +61,18 @@ namespace imp::gfx
 						const math::Vec3f centreWS = math::transformPoint(entityWorld, prim.boundsCentreLocal);
 						const float worldRadius = prim.boundsRadiusLocal * entityScale;
 
-						const math::Vec3f centreLS = math::transformPoint(ctx.cullVolume->lightView, centreWS);
-						if (!sphereIntersectsBox(centreLS, worldRadius, ctx.cullVolume->boxMin, ctx.cullVolume->boxMax))
+						bool visible = false;
+						if (ctx.cullVolume->useFrustum)
+						{
+							visible = sphereIntersectsFrustum(centreWS, worldRadius, ctx.cullVolume->frustumPlanes);
+						}
+						else
+						{
+							const math::Vec3f centreLS = math::transformPoint(ctx.cullVolume->lightView, centreWS);
+							visible = sphereIntersectsBox(centreLS, worldRadius, ctx.cullVolume->boxMin, ctx.cullVolume->boxMax);
+						}
+
+						if (!visible)
 							continue;
 					}
 
@@ -109,6 +119,42 @@ namespace imp::gfx
 			for (u32 child : node.children)
 				drawNodeInstanced(ctx, model, child, nodeWorld, firstInstance, instanceCount, passKind, singleInstanceWorld);
 		}
+	}
+
+	std::array<Plane, 6> extractFrustumPlanes(const math::Mat4f& m)
+	{
+		auto row = [&](int r) { return math::Vec4f{ m(r, 0), m(r, 1), m(r, 2), m(r, 3) }; };
+		const math::Vec4f r0 = row(0);
+		const math::Vec4f r1 = row(1);
+		const math::Vec4f r2 = row(2);
+		const math::Vec4f r3 = row(3);
+		
+		std::array<math::Vec4f, 6> raw = {
+			r3 + r0,
+			r3 - r0,
+			r3 + r1,
+			r3 - r1,
+			r2,
+			r3 - r2,
+		};
+
+		std::array<Plane, 6> planes;
+		for (int i = 0; i < 6; ++i)
+		{
+			math::Vec3f n{ raw[i].x, raw[i].y, raw[i].z };
+			const float len = math::length(n);
+			planes[i].normal = ( len > 1e-8f ) ? ( n / len ) : n;
+			planes[i].distance = ( len > 1e-8f ) ? ( raw[i].w / len ) : raw[i].w;
+		}
+		return planes;
+	}
+
+	bool sphereIntersectsFrustum(const math::Vec3f& centre, float radius, const std::array<Plane, 6>& planes)
+	{
+		for (const Plane& p : planes)
+			if (math::dot(p.normal, centre) + p.distance < -radius)
+				return false;
+		return true;
 	}
 
 	void drawModelBatches(const ModelRenderContext& ctx, const RenderExtraction& extraction)
@@ -163,9 +209,13 @@ namespace imp::gfx
 			const gfx::Model* model = ctx.modelRegistry->tryGet(blend.model);
 			if (!model)
 				continue;
+
+			const math::Mat4f* instanceWorld = ( blend.instanceOffset < extraction.instanceData.size() )
+				? &extraction.instanceData[blend.instanceOffset] : nullptr;
+
 			for (u32 root : model->rootNodes)
 				drawNodeInstanced(ctx, *model, root, math::Mat4f::identity(),
-					blend.instanceOffset, 1, gfx::AlphaModePass::Blend);
+					blend.instanceOffset, 1, gfx::AlphaModePass::Blend, instanceWorld);
 		}
 	}
 }

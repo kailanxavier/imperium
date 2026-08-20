@@ -108,7 +108,7 @@ namespace imp::gfx::vulkan
 		}
 
 		VulkanRenderTarget* extentSource = colourTarget ? colourTarget : depthTarget;
-		VkExtent2D extent;
+		VkExtent2D extent{};
 		if (extentSource)
 		{
 			extent.width = extentSource->width();

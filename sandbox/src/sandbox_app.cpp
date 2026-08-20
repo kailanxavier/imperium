@@ -367,6 +367,8 @@ namespace imp::app
 		hdrPassDesc.debugName = "HDR";
 		cmd.beginRenderPass(hdrPassDesc);
 
+		gfx::CullVolume mainCullVolume{};
+
 		gfx::ModelRenderContext renderCtx{};
 		renderCtx.cmd = &cmd;
 		renderCtx.modelRegistry = &m_modelRegistry;
@@ -377,6 +379,12 @@ namespace imp::app
 		renderCtx.shadowArrayTexture = m_shadowArrayTexture;
 		renderCtx.cascadeBuffer = m_cascadeUBOs[currentFrame].get();
 		renderCtx.shadowSampler = m_shadowSampler.get();
+		if (m_enableFrustumCulling)
+		{
+			mainCullVolume.useFrustum = true;
+			mainCullVolume.frustumPlanes = gfx::extractFrustumPlanes(renderCtx.viewProj);
+			renderCtx.cullVolume = &mainCullVolume;
+		}
 
 		cmd.bindPipeline(*m_pipeline);
 		drawModelBatches(renderCtx, m_extraction);
