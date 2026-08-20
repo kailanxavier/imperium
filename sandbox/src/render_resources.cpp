@@ -111,7 +111,6 @@ namespace imp::app
 		skyPipelineDesc.colourFormat = m_hdrTarget->format();
 		skyPipelineDesc.depthFormat = m_hdrDepthTarget->format();
 		skyPipelineDesc.sampleCount = kMsaaSampleCount;
-		skyPipelineDesc.pushConstantSize = sizeof(gfx::SkyPushConstants);
 		skyPipelineDesc.hasInstanceBinding = false;
 		m_skyPipeline = ctx.gfx.createPipeline(skyPipelineDesc);
 
@@ -138,7 +137,6 @@ namespace imp::app
 		meshPipelineDesc.colourFormat = m_hdrTarget->format();
 		meshPipelineDesc.depthFormat = m_hdrDepthTarget->format();
 		meshPipelineDesc.sampleCount = kMsaaSampleCount;
-		meshPipelineDesc.pushConstantSize = sizeof(gfx::MeshPushConstants);
 		meshPipelineDesc.hasInstanceBinding = true;
 		m_pipeline = ctx.gfx.createPipeline(meshPipelineDesc);
 
@@ -197,7 +195,6 @@ namespace imp::app
 		shadowPipelineDesc.depthStencilState.depthCompareOp = gfx::CompareOp::Less;
 		shadowPipelineDesc.colourFormat = gfx::TextureFormat::Unknown;
 		shadowPipelineDesc.depthFormat = gfx::TextureFormat::Depth32Float;
-		shadowPipelineDesc.pushConstantSize = sizeof(gfx::MeshPushConstants);
 		shadowPipelineDesc.hasInstanceBinding = true;
 		m_shadowPipeline = ctx.gfx.createPipeline(shadowPipelineDesc);
 

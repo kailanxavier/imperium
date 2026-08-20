@@ -43,7 +43,7 @@ namespace imp::gfx::vulkan
 		[[nodiscard]] VkShaderModule handle() const { return m_module; }
 		[[nodiscard]] bool isValid() const { return m_module != VK_NULL_HANDLE; }
 		[[nodiscard]] const std::vector<ReflectedBinding>& reflectedBindings() const { return m_bindings; }
-
+		[[nodiscard]] u32 pushConstantSize() const { return m_pushConstantSize; }
 		[[nodiscard]] ShaderStage stage() const override { return m_stage; }
 
 	private:
@@ -56,5 +56,6 @@ namespace imp::gfx::vulkan
 
 		std::vector<u32> m_spirvWords;
 		std::vector<ReflectedBinding> m_bindings;
+		u32 m_pushConstantSize = 0;
 	};
 }

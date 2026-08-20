@@ -55,7 +55,6 @@ namespace imp::gfx
 		desc.colourFormat = colourFormat;
 		desc.depthFormat = depthFormat;
 		desc.sampleCount = sampleCount;
-		desc.pushConstantSize = sizeof(GizmoPushConstants);
 		desc.rasterizerState.topology = gfx::PrimitiveTopology::LineList;
 
 		m_pipeline = m_device->createPipeline(desc);

@@ -163,6 +163,23 @@ namespace imp::gfx::vulkan
 			}
 		}
 
+		u32 pushConstantCount = 0;
+		spvReflectEnumeratePushConstantBlocks(&module, &pushConstantCount, nullptr);
+		if (pushConstantCount > 0)
+		{
+			std::vector<SpvReflectBlockVariable*> pushConstants(pushConstantCount);
+			spvReflectEnumeratePushConstantBlocks(&module, &pushConstantCount, pushConstants.data());
+
+			if (pushConstantCount > 1)
+				LOG_WARN("Vulkan", "Shader declares {} push constant blocks, expected at most 1. Using the last one.", pushConstantCount);
+
+			m_pushConstantSize = pushConstants.back()->size;
+		}
+		else
+		{
+			m_pushConstantSize = 0;
+		}
+
 		spvReflectDestroyShaderModule(&module);
 		return true;
 	}

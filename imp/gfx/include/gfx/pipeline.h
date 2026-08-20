@@ -88,8 +88,6 @@ namespace imp::gfx
         SampleCount sampleCount = SampleCount::One;
 
         bool hasInstanceBinding = false;
-
-        u32 pushConstantSize = 0;
     };
 
     class IPipeline
