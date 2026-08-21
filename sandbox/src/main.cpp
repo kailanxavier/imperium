@@ -26,7 +26,7 @@ int main()
 	desc.window.width = 1280;
 	desc.window.height = 720;
 	desc.enableValidation = true;
-	desc.vsync = false;
+	desc.vsync = true;
 
 	const auto shadersPath = ( platform::executableDir() / "assets").string();
 	desc.vfsMounts.push_back(app::VfsMountDesc{ "assets/", shadersPath, 0, true, true });

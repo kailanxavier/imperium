@@ -719,7 +719,6 @@ namespace imp::gfx::vulkan
 		info.colourAttachmentFormat = toVkFormat(desc.colourFormat);
 		info.depthAttachmentFormat = toVkFormat(desc.depthFormat);
 		info.sampleCount = toVkSampleCount(desc.sampleCount);
-		info.pushConstantSize = desc.pushConstantSize;
 		info.instanceBinding.binding = 1;
 		info.instanceBinding.stride = desc.instanceLayout.stride;
 		info.instanceBinding.inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;

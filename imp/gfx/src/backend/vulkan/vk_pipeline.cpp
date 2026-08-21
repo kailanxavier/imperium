@@ -100,10 +100,19 @@ namespace imp::gfx::vulkan
 		static_assert( sizeof(imp::math::Mat4f) == 64,
 			"Mat4f layout changed the push-constant assumption in VulkanCommandList::pushConstants need re-checking" );
 
+		const u32 vertexPushConstantSize = info.vertexShader->pushConstantSize();
+		const u32 fragmentPushConstantSize = info.fragmentShader->pushConstantSize();
+
+		const u32 pushConstantSize = std::max(vertexPushConstantSize, fragmentPushConstantSize);
+
 		VkPushConstantRange pushConstantRange{};
-		pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+		pushConstantRange.stageFlags = 0;
 		pushConstantRange.offset = 0;
-		pushConstantRange.size = info.pushConstantSize;
+		pushConstantRange.size = pushConstantSize;
+		if (vertexPushConstantSize > 0)
+			pushConstantRange.stageFlags |= VK_SHADER_STAGE_VERTEX_BIT;
+		if (fragmentPushConstantSize > 0)
+			pushConstantRange.stageFlags |= VK_SHADER_STAGE_FRAGMENT_BIT;
 
 		m_bindingLayout.clear();
 		auto mergeStage = [&](const std::vector<ReflectedBinding>& bindings, VkShaderStageFlagBits stageFlag, const char* stageName) -> bool
@@ -158,7 +167,7 @@ namespace imp::gfx::vulkan
 
 		VkPipelineLayoutCreateInfo layoutInfo{};
 		layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-		if (info.pushConstantSize > 0)
+		if (pushConstantSize > 0)
 		{
 			layoutInfo.pushConstantRangeCount = 1;
 			layoutInfo.pPushConstantRanges = &pushConstantRange;

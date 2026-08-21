@@ -1,6 +1,9 @@
 add_executable(sandbox 
 	src/main.cpp
 	src/sandbox_app.cpp
+	src/render_resources.cpp
+	src/sandbox_scene.cpp
+	src/scene_renderer.cpp
 )
 
 target_include_directories(sandbox
