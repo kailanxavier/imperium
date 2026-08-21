@@ -38,9 +38,9 @@ namespace imp::app
         ImGui::SliderFloat("Padding Z", &m_shadowConfig.zPadding, 0.f, 100.f);
         ImGui::End();
 
-        m_sunDirection.x =  std::cos(elevation) * std::sin(azimuth);
-        m_sunDirection.y =  std::sin(elevation);
-        m_sunDirection.z =  std::cos(elevation) * std::cos(azimuth);
+        m_sunDirection.x = std::cos(elevation) * std::sin(azimuth);
+        m_sunDirection.y = std::sin(elevation);
+        m_sunDirection.z = std::cos(elevation) * std::cos(azimuth);
 
         m_pointLightT.position = pos;
         m_pointLightT.rotation = rot;

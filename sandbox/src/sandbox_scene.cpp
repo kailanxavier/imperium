@@ -25,11 +25,11 @@ namespace imp::app
 
 		const ecs::EntityId sunEntity = ctx.ecs.createEntity();
 		ecs::Transform sunTransform;
-		sunTransform.rotation = math::Quaternionf::fromAxisAngle(math::Vec3f::unitX(), math::toRadians(50.f))
-			* math::Quaternionf::fromAxisAngle(math::Vec3f::unitY(), math::toRadians(30.f));
+		sunTransform.rotation = math::Quaternionf::fromAxisAngle(math::Vec3f::unitX(), math::toRadians(80.6f))
+			* math::Quaternionf::fromAxisAngle(math::Vec3f::unitY(), math::toRadians(21.1f));
 		m_sunDirection = math::normalise(math::rotate(sunTransform.rotation, math::Vec3f::forward()));
 		ctx.ecs.transforms.create(sunEntity, sunTransform);
-		ctx.ecs.lights.create(sunEntity, ecs::LightType::Directional, math::Vec3f{ 1.f, 1.f, 1.f }, 10.f);
+		ctx.ecs.lights.create(sunEntity, ecs::LightType::Directional, math::Vec3f{ 1.f, 0.82f, 0.55f }, 50.f);
 		m_sunEntity = sunEntity;
 		m_instances.push_back(sunEntity);
 
