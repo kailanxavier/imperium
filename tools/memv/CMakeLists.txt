@@ -11,7 +11,7 @@ target_include_directories(imp_memv
 )
 
 target_link_libraries(imp_memv
-    PRIVATE imp_protocol imp_fwk imp_gfx imp_core imgui glfw
+    PRIVATE imp_protocol imp_fwk imp_gfx imp_app imp_core imgui glfw
 )
 
 if (WIN32)

@@ -167,15 +167,14 @@ namespace imp::app
 		m_layers.updateAll(deltaSeconds);
 
 		gfx::ICommandList* cmd = m_device->beginFrame();
-		ImGui::Render(); // we need to pair with a NewFrame(), even if we're not submitting anything
 		if (cmd)
 		{
 			m_app->onRender(*m_ctx, *cmd);
-			//m_layers.renderAll(*cmd);
-
-			ImGui::Render();
+		}
+		ImGui::Render(); // we need to pair with a NewFrame(), even if we're not submitting anything
+		if (cmd)
+		{
 			m_device->renderImGui(*cmd);
-
 			m_device->endFrame();
 		}
 	}
