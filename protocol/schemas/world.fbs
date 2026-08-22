@@ -1,0 +1,50 @@
+namespace imp.protocol.world;
+
+struct Vec3 { x: float; y: float; z: float; }
+struct Quat { x: float; y: float; z: float; w: float; }
+
+table TransformComponent
+{
+    local_position: Vec3;
+    local_rotation: Quat;
+    local_scale: Vec3;
+}
+
+table RenderableComponent
+{
+    has_model: bool;
+    model_index: uint32;
+    model_generation: uint32;
+    visible: bool;
+}
+
+enum LightKind : uint8 { Directional = 0, Point }
+
+table LightComponent
+{
+    kind: LightKind;
+    colour: Vec3;
+    intensity: float;
+}
+
+table EntitySnapshot
+{
+    id_index: uint32;
+    id_generation: uint32;
+
+    parent_index: uint32;
+    parent_generation: uint32;
+
+    name: string;
+
+    transform: TransformComponent;
+    renderable: RenderableComponent;
+    light: LightComponent;
+}
+
+table WorldSnapshot
+{
+    entities: [EntitySnapshot];
+}
+
+root_type WorldSnapshot;

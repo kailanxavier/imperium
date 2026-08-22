@@ -7,11 +7,13 @@ add_executable(imp_editor
 	src/engine_connection.cpp
 	src/hierarchy_panel.cpp
 	src/inspector_panel.cpp
+    src/world_model.cpp
 
 	include/editor/main_window.h
     include/editor/engine_connection.h
     include/editor/hierarchy_panel.h
     include/editor/inspector_panel.h
+    include/editor/world_model.h
 )
 
 IMP_SET_RUNTIME_DIR(imp_editor tools/editor)

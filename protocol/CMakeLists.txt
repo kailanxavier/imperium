@@ -15,19 +15,35 @@ else()
     FetchContent_MakeAvailable(flatbuffers)
 endif()
 
-find_program(FLATC_EXECUTABLE flatc)
+set(SCHEMA_DIR "${CMAKE_CURRENT_SOURCE_DIR}/schemas/")
+set(GENERATED_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated/")
 
-set(SCHEMA_FILE "${CMAKE_CURRENT_SOURCE_DIR}/schemas/memory.fbs")
-set(GENERATED_HEADER "${CMAKE_CURRENT_BINARY_DIR}/generated/memory_generated.h")
-
-add_custom_command(
-        OUTPUT ${GENERATED_HEADER}
-        COMMAND flatc -c -o "${CMAKE_CURRENT_BINARY_DIR}/generated/" ${SCHEMA_FILE}
-        DEPENDS ${SCHEMA_FILE}
-        COMMENT "Compiling FlatBuffers schema: memory.fbs"
+file(GLOB SCHEMA_FILES CONFIGURE_DEPENDS
+    "${SCHEMA_DIR}/*.fbs"
 )
 
-add_custom_target(imp_protocol_schemas DEPENDS ${GENERATED_HEADER})
+set(GENERATED_HEADERS)
+
+foreach(SCHEMA_FILE ${SCHEMA_FILES})
+    get_filename_component(SCHEMA_NAME "${SCHEMA_FILE}" NAME_WE)
+
+    set(GENERATED_HEADER
+        "${GENERATED_DIR}/${SCHEMA_NAME}_generated.h"
+    )
+
+    add_custom_command(
+        OUTPUT ${GENERATED_HEADER}
+        COMMAND "${CMAKE_COMMAND}" -E make_directory "${GENERATED_DIR}"
+        COMMAND $<TARGET_FILE:flatc> -c -o "${GENERATED_DIR}" "${SCHEMA_FILE}"
+        DEPENDS ${SCHEMA_FILE}
+        COMMENT "Compiling FlatBuffers schema: ${SCHEMA_NAME}.fbs"
+        VERBATIM
+    )
+
+    list(APPEND GENERATED_HEADERS "${GENERATED_HEADER}")
+endforeach()
+
+add_custom_target(imp_protocol_schemas DEPENDS ${GENERATED_HEADERS})
 
 add_library(imp_protocol STATIC
         src/serialisation.cpp
@@ -36,6 +52,8 @@ add_library(imp_protocol STATIC
         src/frame.cpp
         src/control.cpp
         src/tool_server.cpp
+        src/entity_command_serialisation.cpp
+        src/world_serialisation.cpp
 )
 
 add_dependencies(imp_protocol imp_protocol_schemas)
@@ -43,8 +61,9 @@ add_dependencies(imp_protocol imp_protocol_schemas)
 target_include_directories(imp_protocol
         PUBLIC
             ${CMAKE_CURRENT_SOURCE_DIR}/include
-            ${CMAKE_CURRENT_BINARY_DIR}/generated
-        PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
+            ${GENERATED_DIR}
+        PRIVATE 
+            ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
 target_link_libraries(imp_protocol PUBLIC flatbuffers imp_core)

@@ -2,8 +2,9 @@
 
 #include <QWidget>
 
-class QTreeWidget;
-class QTreeWidgetItem;
+class QTreeView;
+class QAbstractItemModel;
+class QModelIndex;
 
 namespace imp::editor
 {
@@ -14,14 +15,13 @@ namespace imp::editor
 	public:
 		explicit HierarchyPanel(QWidget* parent = nullptr);
 
-		void clear();
-		void setPlaceholderEntities(const QStringList& name);
+		void setModel(QAbstractItemModel* model);
 
 	signals:
 		void selectionCleared();
-		void entitySelected(int row);
+		void entitySelected(const QModelIndex& index);
 
 	private:
-		QTreeWidget* m_tree = nullptr;
+		QTreeView* m_tree = nullptr;
 	};
 }

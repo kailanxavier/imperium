@@ -1,7 +1,5 @@
 #pragma once
-
 #include <QMainWindow>
-
 #include <editor/engine_connection.h>
 
 class QLineEdit;
@@ -9,11 +7,13 @@ class QSpinBox;
 class QPushButton;
 class QLabel;
 class QPlainTextEdit;
+class QModelIndex;
 
 namespace imp::editor
 {
 	class HierarchyPanel;
 	class InspectorPanel;
+	class WorldModel;
 
 	class MainWindow final : public QMainWindow
 	{
@@ -26,8 +26,9 @@ namespace imp::editor
 		void onConnectClicked();
 		void onConnectionStateChanged(ConnectionState state);
 		void onFrameReceived(imp::protocol::MessageType type, std::vector<u8> payload);
-		void onEntitySelected(int row);
+		void onEntitySelected(const QModelIndex& index);
 		void onSelectionCleared();
+		void onCommandRequested(imp::protocol::EntityCommandPayload cmd);
 
 	private:
 		void buildUi();
@@ -36,6 +37,7 @@ namespace imp::editor
 		void updateConnectionUi();
 
 		EngineConnection* m_connection = nullptr;
+		WorldModel* m_worldModel = nullptr;
 		HierarchyPanel* m_hierarchy = nullptr;
 		InspectorPanel* m_inspector = nullptr;
 
@@ -45,7 +47,7 @@ namespace imp::editor
 		QLabel* m_statusLabel = nullptr;
 		QPlainTextEdit* m_logView = nullptr;
 
-		static constexpr int kWidth = 1280;
-		static constexpr int kHeight = 720;
+		static constexpr int kWidth = 1600;
+		static constexpr int kHeight = 900;
 	};
 }

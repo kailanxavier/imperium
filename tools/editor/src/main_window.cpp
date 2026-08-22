@@ -2,8 +2,11 @@
 
 #include <editor/hierarchy_panel.h>
 #include <editor/inspector_panel.h>
+#include <editor/world_model.h>
 
 #include <protocol/message_type.h>
+#include <protocol/world_snapshot.h>
+#include <protocol/entity_command.h>
 
 #include <QDockWidget>
 #include <QHBoxLayout>
@@ -18,191 +21,200 @@
 
 namespace imp::editor
 {
-    namespace
-    {
-        const char* connectionStateLabel(ConnectionState state)
-        {
-            switch (state)
-            {
-            case ConnectionState::Disconnected:
-                return "Disconnected";
-            case ConnectionState::Connecting:
-                return "Connecting...";
-            case ConnectionState::Connected:
-                return "Connected";
-            case ConnectionState::Errored:
-                return "Error";
-            }
-            return "Unknown";
-        }
+	namespace
+	{
+		const char* connectionStateLabel(ConnectionState state)
+		{
+			switch (state)
+			{
+			case ConnectionState::Disconnected: return "Disconnected";
+			case ConnectionState::Connecting: return "Connecting...";
+			case ConnectionState::Connected: return "Connected";
+			case ConnectionState::Errored: return "Error";
+			}
+			return "Unknown";
+		}
 
-        const char* messageTypeLabel(protocol::MessageType type)
-        {
-            switch (type)
-            {
-            case protocol::MessageType::Control:
-                return "Control";
-            case protocol::MessageType::MemoryTelemetry:
-                return "MemoryTelemetry";
-            case protocol::MessageType::ProfilerFrame:
-                return "ProfilerFrame";
-            case protocol::MessageType::ConsoleCommand:
-                return "ConsoleCommand";
-            case protocol::MessageType::ConsoleResponse:
-                return "ConsoleResponse";
-            }
-            return "Unknown";
-        }
-    }
+		const char* messageTypeLabel(protocol::MessageType type)
+		{
+			switch (type)
+			{
+			case protocol::MessageType::Control: return "Control";
+			case protocol::MessageType::MemoryTelemetry: return "MemoryTelemetry";
+			case protocol::MessageType::ProfilerFrame: return "ProfilerFrame";
+			case protocol::MessageType::ConsoleCommand: return "ConsoleCommand";
+			case protocol::MessageType::ConsoleResponse: return "ConsoleResponse";
+			case protocol::MessageType::WorldSnapshot: return "WorldSnapshot";
+			case protocol::MessageType::EntityCommand: return "EntityCommand";
+			case protocol::MessageType::EntityCommandResult: return "EntityCommandResult";
+			}
+			return "Unknown";
+		}
+	}
 
-    MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
-    {
-        setWindowTitle("impEditor");
+	MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
+	{
+		setWindowTitle("impEditor");
 
-        m_connection = new EngineConnection(this);
+		m_connection = new EngineConnection(this);
 
-        connect(m_connection, &EngineConnection::stateChanged, this, &MainWindow::onConnectionStateChanged);
-        connect(m_connection, &EngineConnection::frameReceived, this, &MainWindow::onFrameReceived);
+		connect(m_connection, &EngineConnection::stateChanged, this, &MainWindow::onConnectionStateChanged);
+		connect(m_connection, &EngineConnection::frameReceived, this, &MainWindow::onFrameReceived);
 
-        buildUi();
-        updateConnectionUi();
-    }
+		m_worldModel = new WorldModel(this);
 
-    void MainWindow::buildUi()
-    {
-        auto* central = new QWidget(this);
-        auto* rootLayout = new QVBoxLayout(central);
+		buildUi();
+		updateConnectionUi();
+	}
 
-        rootLayout->addWidget(buildConnectionBar());
+	void MainWindow::buildUi()
+	{
+		auto* central = new QWidget(this);
+		auto* rootLayout = new QVBoxLayout(central);
 
-        // hierarchy and inspector
-        auto* splitter = new QSplitter(Qt::Horizontal, this);
+		rootLayout->addWidget(buildConnectionBar());
 
-        m_hierarchy = new HierarchyPanel(this);
+		// hierarchy and inspector
+		auto* splitter = new QSplitter(Qt::Horizontal, this);
 
-        connect(m_hierarchy, &HierarchyPanel::entitySelected, this, &MainWindow::onEntitySelected);
-        connect(m_hierarchy, &HierarchyPanel::selectionCleared, this, &MainWindow::onSelectionCleared);
+		m_hierarchy = new HierarchyPanel(this);
+		m_hierarchy->setModel(m_worldModel);
+		connect(m_hierarchy, &HierarchyPanel::entitySelected, this, &MainWindow::onEntitySelected);
+		connect(m_hierarchy, &HierarchyPanel::selectionCleared, this, &MainWindow::onSelectionCleared);
+		splitter->addWidget(m_hierarchy);
 
-        splitter->addWidget(m_hierarchy);
+		m_inspector = new InspectorPanel(this);
+		connect(m_inspector, &InspectorPanel::commandRequested, this, &MainWindow::onCommandRequested);
+		splitter->addWidget(m_inspector);
 
-        m_inspector = new InspectorPanel(this);
-        splitter->addWidget(m_inspector);
+		splitter->setStretchFactor(0, 1);
+		splitter->setStretchFactor(1, 2);
 
-        splitter->setStretchFactor(0, 1);
-        splitter->setStretchFactor(1, 2);
+		rootLayout->addWidget(splitter, 1);
 
-        rootLayout->addWidget(splitter, 1);
+		setCentralWidget(central);
+		buildLogDock();
+		resize(kWidth, kHeight);
+	}
 
-        setCentralWidget(central);
-        buildLogDock();
-        resize(kWidth, kHeight);
-    }
+	QWidget* MainWindow::buildConnectionBar()
+	{
+		auto* connectionBar = new QWidget(this);
+		auto* connectionLayout = new QHBoxLayout(connectionBar);
+		connectionLayout->setContentsMargins(4, 4, 4, 4);
 
-    QWidget* MainWindow::buildConnectionBar()
-    {
-        auto* connectionBar = new QWidget(this);
-        auto* connectionLayout = new QHBoxLayout(connectionBar);
+		connectionLayout->addWidget(new QLabel("Host:", this));
+		m_hostEdit = new QLineEdit("127.0.0.1", this);
+		m_hostEdit->setFixedWidth(140);
+		connectionLayout->addWidget(m_hostEdit);
 
-        connectionLayout->setContentsMargins(1, 1, 1, 1);
+		connectionLayout->addWidget(new QLabel("Port:", this));
+		m_portSpin = new QSpinBox(this);
+		m_portSpin->setRange(1, 65535);
+		m_portSpin->setValue(47810);
+		connectionLayout->addWidget(m_portSpin);
 
-        connectionLayout->addWidget(new QLabel("Host:", this));
+		m_connectButton = new QPushButton("Connect", this);
+		connect(m_connectButton, &QPushButton::clicked, this, &MainWindow::onConnectClicked);
+		connectionLayout->addWidget(m_connectButton);
 
-        m_hostEdit = new QLineEdit("127.0.0.1", this);
-        m_hostEdit->setFixedWidth(140);
-        connectionLayout->addWidget(m_hostEdit);
+		m_statusLabel = new QLabel(this);
+		connectionLayout->addWidget(m_statusLabel);
+		connectionLayout->addStretch();
 
-        connectionLayout->addWidget(new QLabel("Port:", this));
+		return connectionBar;
+	}
 
-        m_portSpin = new QSpinBox(this);
-        m_portSpin->setRange(1, 65535);
-        m_portSpin->setValue(47810);
-        connectionLayout->addWidget(m_portSpin);
+	void MainWindow::buildLogDock()
+	{
+		auto* dock = new QDockWidget("Frame Log", this);
+		m_logView = new QPlainTextEdit(dock);
+		m_logView->setReadOnly(true);
+		m_logView->setMaximumBlockCount(1000);
+		dock->setWidget(m_logView);
+		addDockWidget(Qt::BottomDockWidgetArea, dock);
+	}
 
-        m_connectButton = new QPushButton("Connect", this);
+	void MainWindow::onConnectClicked()
+	{
+		const auto state = m_connection->state();
 
-        connect(m_connectButton, &QPushButton::clicked, this, &MainWindow::onConnectClicked);
+		const bool busy =
+			state == ConnectionState::Connected ||
+			state == ConnectionState::Connecting;
 
-        connectionLayout->addWidget(m_connectButton);
+		busy ? m_connection->disconnectFromEngine()
+			: m_connection->connectToEngine(m_hostEdit->text(),
+				static_cast<quint16>( m_portSpin->value() ));
+	}
 
-        m_statusLabel = new QLabel(this);
-        connectionLayout->addWidget(m_statusLabel);
+	void MainWindow::onConnectionStateChanged(ConnectionState /*state*/)
+	{
+		updateConnectionUi();
+	}
 
-        connectionLayout->addStretch();
+	void MainWindow::updateConnectionUi()
+	{
+		const auto state = m_connection->state();
 
-        return connectionBar;
-    }
+		m_statusLabel->setText(connectionStateLabel(state));
 
-    void MainWindow::buildLogDock()
-    {
-        auto* dock = new QDockWidget("Frame Log", this);
+		const bool busy = state == ConnectionState::Connected || state == ConnectionState::Connecting;
+		m_connectButton->setText(busy ? "Disconnect" : "Connect");
 
-        m_logView = new QPlainTextEdit(dock);
-        m_logView->setReadOnly(true);
-        m_logView->setMaximumBlockCount(1000);
+		m_hostEdit->setEnabled(!busy);
+		m_portSpin->setEnabled(!busy);
 
-        dock->setWidget(m_logView);
+		if (state == ConnectionState::Errored && !m_connection->lastError().isEmpty())
+			m_logView->appendPlainText("[ERROR] " + m_connection->lastError());
 
-        addDockWidget(Qt::BottomDockWidgetArea, dock);
-    }
+		if (state != ConnectionState::Connected)
+		{
+			m_worldModel->clear();
+			m_inspector->showEmptyState();
+		}
+	}
 
-    void MainWindow::onConnectClicked()
-    {
-        const auto state = m_connection->state();
+	void MainWindow::onFrameReceived(protocol::MessageType type, std::vector<u8> payload)
+	{
+		m_logView->appendPlainText(QString("[FRAME] %1 (%2 bytes)")
+			.arg(messageTypeLabel(type))
+			.arg(payload.size()));
 
-        const bool busy =
-            state == ConnectionState::Connected ||
-            state == ConnectionState::Connecting;
+		if (type == protocol::MessageType::WorldSnapshot)
+		{
+			if (auto entities = protocol::deserialiseWorldSnapshot(payload))
+				m_worldModel->setSnapshot(std::move(*entities));
+			else
+				m_logView->appendPlainText("[WARNING] Failed to parse WorldSnapshot frame.");
+		}
+		else if (type == protocol::MessageType::EntityCommandResult)
+		{
+			if (auto result = protocol::deserialiseEntityCommandResult(payload); result && !result->success)
+			{
+				m_logView->appendPlainText(QString("[COMMAND FAILED] Entity (%1, %2): %3")
+					.arg(result->targetIndex)
+					.arg(result->targetGeneration)
+					.arg(QString::fromStdString(result->error)));
+			}
+		}
+	}
 
-        busy ? m_connection->disconnectFromEngine() 
-            : m_connection->connectToEngine(m_hostEdit->text(), 
-                static_cast<quint16>( m_portSpin->value() ));
-    }
+	void MainWindow::onEntitySelected(const QModelIndex& index)
+	{
+		if (const auto* entity = m_worldModel->entityAt(index))
+			m_inspector->showEntity(*entity);
+		else
+			m_inspector->showEmptyState();
+	}
 
-    void MainWindow::onConnectionStateChanged(ConnectionState /*state*/)
-    {
-        updateConnectionUi();
-    }
+	void MainWindow::onSelectionCleared()
+	{
+		m_inspector->showEmptyState();
+	}
 
-    void MainWindow::updateConnectionUi()
-    {
-        const auto state = m_connection->state();
-
-        m_statusLabel->setText(connectionStateLabel(state));
-
-        const bool busy =
-            state == ConnectionState::Connected ||
-            state == ConnectionState::Connecting;
-
-        m_connectButton->setText(busy ? "Disconnect" : "Connect");
-
-        m_hostEdit->setEnabled(!busy);
-        m_portSpin->setEnabled(!busy);
-
-        if (state == ConnectionState::Errored && !m_connection->lastError().isEmpty())
-            m_logView->appendPlainText("[ERROR] " + m_connection->lastError());
-
-        if (state != ConnectionState::Connected)
-        {
-            m_hierarchy->clear();
-            m_inspector->showEmptyState();
-        }
-    }
-
-    void MainWindow::onFrameReceived(protocol::MessageType type, std::vector<u8> payload)
-    {
-        m_logView->appendPlainText(
-            QString("[FRAME] %1 (%2 bytes)")
-            .arg(messageTypeLabel(type))
-            .arg(payload.size()));
-    }
-
-    void MainWindow::onEntitySelected(int row)
-    {
-        m_inspector->showPlaceholderFor(QString("Entity %1").arg(row));
-    }
-
-    void MainWindow::onSelectionCleared()
-    {
-        m_inspector->showEmptyState();
-    }
+	void MainWindow::onCommandRequested(protocol::EntityCommandPayload cmd)
+	{
+		m_connection->sendCommand(cmd);
+	}
 }

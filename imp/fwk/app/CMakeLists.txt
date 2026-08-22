@@ -3,6 +3,7 @@ add_library(imp_app STATIC
 	src/telemetry_layer.cpp
 	src/light_control_layer.cpp
 	src/gizmo_layer.cpp
+	src/editor_bridge_layer.cpp
 )
 
 target_include_directories(imp_app

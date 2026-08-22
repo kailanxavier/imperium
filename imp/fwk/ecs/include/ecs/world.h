@@ -5,6 +5,7 @@
 #include <ecs/renderable_storage.h>
 #include <ecs/light_storage.h>
 #include <ecs/collider_storage.h>
+#include <ecs/name_storage.h>
 
 namespace imp::ecs
 {
@@ -16,6 +17,7 @@ namespace imp::ecs
 		RenderableStorage renderables;
 		LightStorage lights;
 		ColliderStorage colliders;
+		NameStorage names;
 
 		EntityId createEntity() { return registry.create(); }
 
@@ -29,6 +31,8 @@ namespace imp::ecs
 				lights.destroy(entity);
 			if (colliders.contains(entity))
 				colliders.destroy(entity);
+			if (names.contains(entity))
+				names.destroy(entity);
 
 			registry.destroy(entity);
 		}

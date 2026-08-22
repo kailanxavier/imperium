@@ -421,7 +421,6 @@ FodyWeavers.xsd
 *.msp
 
 # Exclude some CMake and IDE specific that shouldn't be on git.
-# as well as some other things that keep getting in the way and being annoying
 /CMakeFiles
 CMakeCache.txt
 /.cmake

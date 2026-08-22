@@ -1,42 +1,39 @@
 #include <editor/hierarchy_panel.h>
 
 #include <QAbstractItemView>
-#include <QTreeWidget>
+#include <QHeaderView>
+#include <QItemSelectionModel>
+#include <QTreeView>
 #include <QVBoxLayout>
 
 namespace imp::editor
 {
 	HierarchyPanel::HierarchyPanel(QWidget* parent) : QWidget(parent) 
 	{
-		m_tree = new QTreeWidget(this);
-		m_tree->setHeaderLabel("Entity");
+		m_tree = new QTreeView(this);
+		m_tree->header()->setStretchLastSection(true);
 		m_tree->setSelectionMode(QAbstractItemView::SingleSelection);
+		m_tree->setSelectionBehavior(QAbstractItemView::SelectRows);
 
 		auto* layout = new QVBoxLayout(this);
 		layout->setContentsMargins(0, 0, 0, 0);
 		layout->addWidget(m_tree);
-
-		connect(m_tree, &QTreeWidget::itemSelectionChanged, this,
-			[this] {
-				const auto selected = m_tree->selectedItems();
-
-				if (selected.isEmpty())
-					emit selectionCleared();
-				else
-					emit entitySelected(m_tree->indexOfTopLevelItem(selected.first()));
-			});
 	}
 
-	void HierarchyPanel::clear()
-	{
-		m_tree->clear();
-	}
+    void HierarchyPanel::setModel(QAbstractItemModel* model)
+    {
+        m_tree->setModel(model);
 
-	void HierarchyPanel::setPlaceholderEntities(const QStringList& names)
-	{
-		m_tree->clear();
-
-		for (const auto& name : names)
-			m_tree->addTopLevelItem(new QTreeWidgetItem(QStringList{ name }));
-	}
+        if (auto* selection = m_tree->selectionModel())
+        {
+            connect(selection, &QItemSelectionModel::currentRowChanged, this,
+                [this](const QModelIndex& current, const QModelIndex& /*previous*/)
+                {
+                    if (current.isValid())
+                        emit entitySelected(current);
+                    else
+                        emit selectionCleared();
+                });
+        }
+    }
 }

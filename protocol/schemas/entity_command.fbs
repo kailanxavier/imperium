@@ -1,0 +1,42 @@
+include "world.fbs";
+
+namespace imp.protocol.world;
+
+enum EntityCommandOp : uint8
+{
+    SetLocalTransform = 0,
+    SetName,
+    SetRenderableVisible,
+    SetLightColour,
+    SetLightIntensity,
+    Reparent,
+    Destroy,
+}
+
+table EntityCommand
+{
+    op: EntityCommandOp;
+    target_index: uint32;
+    target_generation: uint32;
+
+    vec3_a: Vec3;
+    quat_a: Quat;
+    vec3_b: Vec3;
+    float_a: float;
+    bool_a: bool;
+    string_a: string;
+
+    ref_index: uint32;
+    ref_generation: uint32;
+}
+
+table EntityCommandResult
+{
+    op: EntityCommandOp;
+    target_index: uint32;
+    target_generation: uint32;
+    success: bool;
+    error: string;
+}
+
+root_type EntityCommand;

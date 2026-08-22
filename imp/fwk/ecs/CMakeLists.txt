@@ -4,6 +4,7 @@ add_library(imp_ecs STATIC
 	src/renderable_storage.cpp
 	src/light_storage.cpp
 	src/collider_storage.cpp
+	src/name_storage.cpp
 )
 
 target_include_directories(imp_ecs

@@ -42,6 +42,12 @@ namespace imp::editor
 
 		m_socket.setNonBlocking(true);
 		setState(ConnectionState::Connected);
+
+		sendControl(ControlOp::Subscribe,
+			static_cast<MessageMask>(
+				static_cast<u32>( MessageMask::WorldSnapshot ) |
+				static_cast<u32>( MessageMask::EntityCommandResult )
+				));
 	}
 
 	void EngineConnection::disconnectFromEngine()
@@ -64,6 +70,11 @@ namespace imp::editor
 
 		if (!m_socket.send(encodeFrame(type, payload)))
 			setState(ConnectionState::Errored, "Failed to send frame.");
+	}
+
+	void EngineConnection::sendCommand(const EntityCommandPayload& cmd)
+	{
+		sendFrame(MessageType::EntityCommand, serialiseEntityCommand(cmd));
 	}
 
 	void EngineConnection::tickReconnect()

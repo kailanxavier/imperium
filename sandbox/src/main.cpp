@@ -2,6 +2,7 @@
 #include <app/telemetry_layer.h>
 #include <app/light_control_layer.h>
 #include <app/gizmo_layer.h>
+#include <app/editor_bridge_layer.h>
 
 #include <sandbox/sandbox_app.h>
 
@@ -44,6 +45,7 @@ int main()
 			application.device().apiName(), application.window().width(), application.window().height());
 
 		auto* sb = dynamic_cast<app::SandboxApp*>(application.app().get());
+		application.layers().pushOverlay(std::make_unique<app::EditorBridgeLayer>(application.world()));
 		application.layers().pushOverlay(std::make_unique<app::TelemetryLayer>(application.gfxAllocator()));
 		application.layers().pushOverlay(std::make_unique<app::LightControlLayer>(sb->sunDirection(), sb->pointPos(), sb->cascadeConfig()));
 
