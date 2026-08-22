@@ -1,6 +1,7 @@
 #pragma once
 
 #include <gfx/device.h>
+#include <gfx/deferred_destroy_queue.h>
 
 #include <vulkan/vulkan.h>
 #include <vk_mem_alloc.h>
@@ -101,6 +102,8 @@ namespace imp::gfx::vulkan
 
 		bool ensureStagingBuffer(VkDeviceSize minSize);
 
+		void deferredDestroy(std::function<void()> deleter);
+
 		VkInstance m_instance = VK_NULL_HANDLE;
 		VkDebugUtilsMessengerEXT m_debugMessenger = VK_NULL_HANDLE;
 		VkSurfaceKHR m_surface = VK_NULL_HANDLE;
@@ -136,5 +139,7 @@ namespace imp::gfx::vulkan
 		float m_maxSamplerAnisotropy = 1.f;
 
 		const fs::VirtualFileSystem* m_vfs = nullptr;
+
+		gfx::DeferredDestroyQueue m_destroyQueue;
 	};
 }

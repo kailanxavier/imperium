@@ -244,6 +244,7 @@ namespace imp::gfx::vulkan
 			m_hasHostAllocationCallbacks = true;
 		}
 
+		m_destroyQueue.init(kMaxFramesInFlight);
 		if (!createInstance(desc)) { shutdown(); return false; }
 		if (m_validationEnabled && !setupDebugMessenger()) { shutdown(); return false; }
 		if (!createSurface(desc.window)) { shutdown(); return false; }
@@ -277,7 +278,10 @@ namespace imp::gfx::vulkan
 	void VulkanDevice::shutdown()
 	{
 		if (m_device)
+		{
 			waitIdle();
+			m_destroyQueue.flushAll();
+		}
 
 		// All of these must go before the device
 		m_commandList.reset();
@@ -904,10 +908,11 @@ namespace imp::gfx::vulkan
 		if (!m_swapchain->beginFrame()) return nullptr;
 
 		u32 frame = m_swapchain->currentFrameIndex();
+
+		m_destroyQueue.flushFrame(frame);
+
 		VkCommandBuffer cmd = m_commands->beginRecording(frame);
-
 		m_descriptorAllocator->resetFrame(frame);
-
 		m_commandList->reset(m_device, cmd, m_descriptorAllocator.get(), frame);
 		m_frameActive = true;
 
@@ -1484,6 +1489,11 @@ namespace imp::gfx::vulkan
 
 		m_stagingBuffer = std::move(newStaging); // old one destroyed here, grows rarely, not per-frame
 		return true;
+	}
+
+	void VulkanDevice::deferredDestroy(std::function<void()> deleter)
+	{
+		m_destroyQueue.retire(std::move(deleter));
 	}
 }
 

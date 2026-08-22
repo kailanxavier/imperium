@@ -7,6 +7,7 @@
 #include <core/types/int_types.h>
 #include <memory>
 #include <vector>
+#include <functional>
 
 namespace imp::fwk { class Window; }
 namespace imp::memory { class IAllocator; }
@@ -64,6 +65,8 @@ namespace imp::gfx
 
         [[nodiscard]] virtual GraphicsApi api() const = 0;
         [[nodiscard]] virtual const char* apiName() const = 0;
+
+        virtual void deferredDestroy(std::function<void()> deleter) = 0;
     };
 
     std::unique_ptr<IDevice> createDevice(GraphicsApi api);

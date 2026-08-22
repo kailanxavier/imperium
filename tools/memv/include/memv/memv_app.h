@@ -8,6 +8,15 @@
 #include <string>
 #include <vector>
 
+#include <app/iapp.h>
+
+struct UIState
+{
+    char hostBuf[128] = "127.0.0.1";
+    int port = 47810;
+    int selectedAllocator = -1; // index into app.allocators()
+};
+
 namespace imp::tools::memv
 {
     std::string formatBytes(u64 bytes);
@@ -42,9 +51,14 @@ namespace imp::tools::memv
         Errored,
     };
 
-    class MemoryViewerApp
+    class MemoryViewerApp : public app::IApp
     {
     public:
+        bool onInit(app::AppContext& ctx);
+        void onUpdate(app::AppContext& ctx, float deltaSeconds);
+        void onRender(app::AppContext& ctx, gfx::ICommandList& cmd);
+        void onShutdown(app::AppContext& ctx);
+
         void connect(const std::string& host, u16 port);
         void disconnect();
 
@@ -84,5 +98,12 @@ namespace imp::tools::memv
 
         std::chrono::steady_clock::time_point m_lastHistorySample{};
         std::chrono::milliseconds m_historySampleInterval{100};
+
+        UIState m_ui;
+
+    private:
+        void drawUI();
+        void drawConnectionBar();
+        void drawAllocatorTable();
     };
 }
