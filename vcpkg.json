@@ -2,6 +2,10 @@
   "name": "imperium",
   "version": "0.1.0",
   "dependencies": [
-    "libjpeg-turbo"
+    "libjpeg-turbo",
+    {
+      "name": "qtbase",
+      "features": [ "widgets" ]
+    }
   ]
 }

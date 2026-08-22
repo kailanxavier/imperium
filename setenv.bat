@@ -14,6 +14,8 @@ call :setvar IMP_ENGINE_ROOT "%ROOT%\imp"
 call :setvar IMP_TOOLS "%ROOT%\tools"
 call :setvar IMP_BUILD_DEB "%ROOT%\build\windows-debug\engine"
 call :setvar IMP_BUILD_REL "%ROOT%\build\windows-release\engine"
+call :setvar IMP_EDITOR_D "%IMP_BUILD_DEB%\bin\tools\editor\imp_editor_d.exe"
+call :setvar IMP_EDITOR "%IMP_BUILD_REL%\bin\tools\editor\imp_editor.exe"
 call :setvar IMP_PROJ "%ROOT%\sandbox"
 
 echo.
