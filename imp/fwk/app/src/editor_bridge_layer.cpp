@@ -198,8 +198,38 @@ namespace imp::app
 				}
 				case protocol::EntityCommandOp::Reparent:
 				{
-					result.success = false;
-					result.error = "Reparenting isn't supported yet.";
+					if (!m_world.transforms.contains(target))
+					{
+						result.success = false;
+						result.error = "Target has no Transform component.";
+						break;
+					}
+
+					const bool unparenting = ( cmd.refIndex == 0xFFFFFFFFu );
+					const ecs::EntityId newParent = unparenting 
+						? ecs::EntityId{}
+						: ecs::EntityId{ cmd.refIndex, cmd.refGeneration };
+
+					if (!unparenting && !m_world.registry.isAlive(newParent))
+					{
+						result.success = false;
+						result.error = "New parent is not alive.";
+						break;
+					}
+
+					if (!unparenting && !m_world.transforms.contains(newParent))
+					{
+						result.success = false;
+						result.error = "New parent has no Transform component.";
+						break;
+					}
+
+					if (!m_world.transforms.reparent(target, newParent))
+					{
+						result.success = false;
+						result.error = "Reparent rejected. Are you trying to create a cycle or parent it to itself?";
+					}
+
 					break;
 				}
 				case protocol::EntityCommandOp::Destroy:

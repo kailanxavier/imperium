@@ -3,6 +3,8 @@
 #include <protocol/world_snapshot.h>
 #include <vector>
 
+class QMimeData;
+
 namespace imp::editor
 {
 	class WorldModel final : public QAbstractItemModel
@@ -15,6 +17,8 @@ namespace imp::editor
 		void setSnapshot(std::vector<protocol::EntitySnapshotPayload> entities);
 		void clear();
 
+		[[nodiscard]] static quint64 entityKey(quint32 index, quint32 generation);
+
 		[[nodiscard]] const protocol::EntitySnapshotPayload* entityAt(const QModelIndex& index) const;
 
 		QModelIndex index(int row, int column, const QModelIndex& parent = {}) const override;
@@ -23,6 +27,21 @@ namespace imp::editor
 		int columnCount(const QModelIndex& parent = {}) const override;
 		QVariant data(const QModelIndex& index, int role) const override;
 		QVariant headerData(int section, Qt::Orientation orientation, int role) const override;
+
+		Qt::ItemFlags flags(const QModelIndex& index) const override;
+		QStringList mimeTypes() const override;
+		Qt::DropActions supportedDropActions() const override;
+		QMimeData* mimeData(const QModelIndexList& indexes) const override;
+		bool canDropMimeData(const QMimeData* data, Qt::DropAction action,
+			int row, int column, const QModelIndex& parent) const override;
+		bool dropMimeData(const QMimeData* data, Qt::DropAction action,
+			int row, int column, const QModelIndex& parent) override;
+
+		bool removeRows(int rows, int count, const QModelIndex& parent = {}) override;
+
+	signals:
+		void reparentRequested(quint32 childIndex, quint32 childGeneration,
+			bool hasNewParent, quint32 newParentIndex, quint32 newParentGeneration);
 
 	private:
 		struct Node

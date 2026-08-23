@@ -8,12 +8,14 @@ add_executable(imp_editor
 	src/hierarchy_panel.cpp
 	src/inspector_panel.cpp
     src/world_model.cpp
+    src/entity_tree_view.cpp
 
 	include/editor/main_window.h
     include/editor/engine_connection.h
     include/editor/hierarchy_panel.h
     include/editor/inspector_panel.h
     include/editor/world_model.h
+    include/editor/entity_tree_view.h
 )
 
 IMP_SET_RUNTIME_DIR(imp_editor tools/editor)

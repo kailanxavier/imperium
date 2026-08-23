@@ -1,6 +1,7 @@
 #pragma once
 #include <QMainWindow>
 #include <editor/engine_connection.h>
+#include <protocol/world_snapshot.h>
 
 class QLineEdit;
 class QSpinBox;
@@ -29,6 +30,9 @@ namespace imp::editor
 		void onEntitySelected(const QModelIndex& index);
 		void onSelectionCleared();
 		void onCommandRequested(imp::protocol::EntityCommandPayload cmd);
+		void onReparentRequested(quint32 childIndex, quint32 childGeneration, 
+			bool hasNewParent, quint32 newParentIndex, quint32 newParentGeneration);
+		void onDragStateChanged(bool active);
 
 	private:
 		void buildUi();
@@ -46,6 +50,9 @@ namespace imp::editor
 		QPushButton* m_connectButton = nullptr;
 		QLabel* m_statusLabel = nullptr;
 		QPlainTextEdit* m_logView = nullptr;
+
+		bool m_dragActive = false;
+		std::optional<std::vector<protocol::EntitySnapshotPayload>> m_pendingSnapshot;
 
 		static constexpr int kWidth = 1600;
 		static constexpr int kHeight = 900;

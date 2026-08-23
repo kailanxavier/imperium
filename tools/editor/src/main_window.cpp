@@ -62,6 +62,7 @@ namespace imp::editor
 		connect(m_connection, &EngineConnection::frameReceived, this, &MainWindow::onFrameReceived);
 
 		m_worldModel = new WorldModel(this);
+		connect(m_worldModel, &WorldModel::reparentRequested, this, &MainWindow::onReparentRequested);
 
 		buildUi();
 		updateConnectionUi();
@@ -81,6 +82,7 @@ namespace imp::editor
 		m_hierarchy->setModel(m_worldModel);
 		connect(m_hierarchy, &HierarchyPanel::entitySelected, this, &MainWindow::onEntitySelected);
 		connect(m_hierarchy, &HierarchyPanel::selectionCleared, this, &MainWindow::onSelectionCleared);
+		connect(m_hierarchy, &HierarchyPanel::dragStateChanged, this, &MainWindow::onDragStateChanged);
 		splitter->addWidget(m_hierarchy);
 
 		m_inspector = new InspectorPanel(this);
@@ -184,7 +186,12 @@ namespace imp::editor
 		if (type == protocol::MessageType::WorldSnapshot)
 		{
 			if (auto entities = protocol::deserialiseWorldSnapshot(payload))
-				m_worldModel->setSnapshot(std::move(*entities));
+			{
+				if (m_dragActive)
+					m_pendingSnapshot = std::move(*entities);
+				else
+					m_hierarchy->applySnapshot(std::move(*entities));
+			}
 			else
 				m_logView->appendPlainText("[WARNING] Failed to parse WorldSnapshot frame.");
 		}
@@ -216,5 +223,32 @@ namespace imp::editor
 	void MainWindow::onCommandRequested(protocol::EntityCommandPayload cmd)
 	{
 		m_connection->sendCommand(cmd);
+	}
+
+	void MainWindow::onReparentRequested(quint32 childIndex, quint32 childGeneration, bool hasNewParent, quint32 newParentIndex, quint32 newParentGeneration)
+	{
+		protocol::EntityCommandPayload cmd;
+		cmd.op = protocol::EntityCommandOp::Reparent;
+		cmd.targetIndex = childIndex;
+		cmd.targetGeneration = childGeneration;
+
+		if (hasNewParent)
+		{
+			cmd.refIndex = newParentIndex;
+			cmd.refGeneration = newParentGeneration;
+		}
+
+		m_connection->sendCommand(cmd);
+	}
+
+	void MainWindow::onDragStateChanged(bool active)
+	{
+		m_dragActive = active;
+
+		if (!active && m_pendingSnapshot)
+		{
+			m_hierarchy->applySnapshot(std::move(*m_pendingSnapshot));
+			m_pendingSnapshot.reset();
+		}
 	}
 }

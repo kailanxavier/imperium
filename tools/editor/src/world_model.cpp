@@ -1,16 +1,24 @@
 #include <editor/world_model.h>
+
+#include <QDataStream>
 #include <QHash>
+#include <QMimeData>
+
+#include <QIODevice>
+
 #include <algorithm>
 
 namespace imp::editor
 {
 	namespace
 	{
-		quint64 entityKey(quint32 index, quint32 generation)
-		{
-			return ( static_cast<quint64>( index ) << 32 ) | generation;
-		}
+        const char* kEntityMimeType = "application/x-imperium-entity-id";
 	}
+
+    quint64 WorldModel::entityKey(quint32 index, quint32 generation)
+    {
+        return ( static_cast<quint64>( index ) << 32 ) | generation;
+    }
 
 	WorldModel::WorldModel(QObject* parent) : QAbstractItemModel(parent)
 	{ }
@@ -161,5 +169,77 @@ namespace imp::editor
             return nullptr;
 
         return &m_nodes[nodeIdx].entity;
+    }
+
+    Qt::ItemFlags WorldModel::flags(const QModelIndex& index) const
+    {
+        const Qt::ItemFlags base = QAbstractItemModel::flags(index);
+
+        if (!index.isValid())
+            return base | Qt::ItemIsDropEnabled;
+
+        return base | Qt::ItemIsDragEnabled | Qt::ItemIsDropEnabled;
+    }
+
+    QStringList WorldModel::mimeTypes() const
+    {
+        return { QString::fromLatin1(kEntityMimeType) };
+    }
+
+    Qt::DropActions WorldModel::supportedDropActions() const
+    {
+        return Qt::MoveAction;
+    }
+
+    QMimeData* WorldModel::mimeData(const QModelIndexList& indexes) const
+    {
+        if (indexes.isEmpty())
+            return nullptr;
+
+        const auto* entity = entityAt(indexes.first());
+        if (!entity)
+            return nullptr;
+
+        QByteArray encoded;
+        QDataStream stream(&encoded, QIODevice::WriteOnly);
+        stream << entity->index << entity->generation;
+
+        auto* mime = new QMimeData();
+        mime->setData(QString::fromLatin1(kEntityMimeType), encoded);
+        return mime;
+    }
+
+    bool WorldModel::canDropMimeData(const QMimeData* data, Qt::DropAction action, int /*row*/, int /*column*/, const QModelIndex& /*parent*/) const
+    {
+        return action == Qt::MoveAction && data && data->hasFormat(QString::fromLatin1(kEntityMimeType));
+    }
+
+    bool WorldModel::dropMimeData(const QMimeData* data, Qt::DropAction action, int row, int column, const QModelIndex& parent)
+    {
+        if (!canDropMimeData(data, action, row, column, parent))
+            return false;
+
+        const QByteArray encoded = data->data(QString::fromLatin1(kEntityMimeType));
+        QDataStream stream(encoded);
+        quint32 childIndex = 0;
+        quint32 childGeneration = 0;
+        stream >> childIndex >> childGeneration;
+
+        if (stream.status() != QDataStream::Ok)
+            return false;
+
+        const auto* parentEntity = entityAt(parent);
+        const bool hasNewParent = parentEntity != nullptr;
+
+        emit reparentRequested(childIndex, childGeneration, hasNewParent,
+            hasNewParent ? parentEntity->index : 0,
+            hasNewParent ? parentEntity->generation : 0);
+
+        return true;
+    }
+
+    bool WorldModel::removeRows(int rows, int count, const QModelIndex& parent)
+    {
+        return false;
     }
 }
