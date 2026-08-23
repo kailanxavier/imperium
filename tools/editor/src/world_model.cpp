@@ -219,6 +219,19 @@ namespace imp::editor
         if (!canDropMimeData(data, action, row, column, parent))
             return false;
 
+        return handleDrop(data, parent);
+    }
+
+    bool WorldModel::removeRows(int rows, int count, const QModelIndex& parent)
+    {
+        return false;
+    }
+
+    bool WorldModel::handleDrop(const QMimeData* data, const QModelIndex& target)
+    {
+        if (!data || !data->hasFormat(QString::fromLatin1(kEntityMimeType)))
+            return false;
+
         const QByteArray encoded = data->data(QString::fromLatin1(kEntityMimeType));
         QDataStream stream(encoded);
         quint32 childIndex = 0;
@@ -228,7 +241,7 @@ namespace imp::editor
         if (stream.status() != QDataStream::Ok)
             return false;
 
-        const auto* parentEntity = entityAt(parent);
+        const auto* parentEntity = entityAt(target);
         const bool hasNewParent = parentEntity != nullptr;
 
         emit reparentRequested(childIndex, childGeneration, hasNewParent,
@@ -236,10 +249,5 @@ namespace imp::editor
             hasNewParent ? parentEntity->generation : 0);
 
         return true;
-    }
-
-    bool WorldModel::removeRows(int rows, int count, const QModelIndex& parent)
-    {
-        return false;
     }
 }

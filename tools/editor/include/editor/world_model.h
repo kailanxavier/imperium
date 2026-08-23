@@ -39,6 +39,8 @@ namespace imp::editor
 
 		bool removeRows(int rows, int count, const QModelIndex& parent = {}) override;
 
+		bool handleDrop(const QMimeData* data, const QModelIndex& target);
+
 	signals:
 		void reparentRequested(quint32 childIndex, quint32 childGeneration,
 			bool hasNewParent, quint32 newParentIndex, quint32 newParentGeneration);

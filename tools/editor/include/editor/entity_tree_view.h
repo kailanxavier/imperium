@@ -15,5 +15,6 @@ namespace imp::editor
 
 	protected:
 		void startDrag(Qt::DropActions supportedActions) override;
+		void dropEvent(QDropEvent* event) override;
 	};
 }
