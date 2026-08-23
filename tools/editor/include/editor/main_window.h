@@ -33,7 +33,6 @@ namespace imp::editor
 		void onReparentRequested(quint32 childIndex, quint32 childGeneration, 
 			bool hasNewParent, quint32 newParentIndex, quint32 newParentGeneration);
 		void onDragStateChanged(bool active);
-		void onSceneBrowseClicked();
 		void onSceneSaveClicked();
 		void onSceneLoadClicked();
 
@@ -55,7 +54,6 @@ namespace imp::editor
 		QPlainTextEdit* m_logView = nullptr;
 
 		QLineEdit* m_scenePathEdit = nullptr;
-		QPushButton* m_sceneBrowseButton = nullptr;
 		QPushButton* m_sceneSaveButton = nullptr;
 		QPushButton* m_sceneLoadButton = nullptr;
 

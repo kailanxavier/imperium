@@ -5,14 +5,20 @@
 #include <protocol/entity_command.h>
 #include <protocol/scene_command.h>
 
-#include <scene/scene.h>
-
 namespace imp::app
 {
 	EditorBridgeLayer::EditorBridgeLayer(
-		ecs::World& world, u16 toolServerPort, std::chrono::milliseconds publishInterval)
+		ecs::World& world,
+		fs::VirtualFileSystem& vfs,
+		fwk::Scene::ModelPathResolver modelPathResolver,
+		fwk::Scene::ModelLoader modelLoader,
+		u16 toolServerPort,
+		std::chrono::milliseconds publishInterval)
 		: ILayer("EditorBridge")
 		, m_world(world)
+		, m_vfs(vfs)
+		, m_modelPathResolver(std::move(modelPathResolver))
+		, m_modelLoader(std::move(modelLoader))
 		, m_toolServerPort(toolServerPort)
 		, m_publishInterval(publishInterval)
 		, m_lastPublish(std::chrono::steady_clock::now())
@@ -67,6 +73,7 @@ namespace imp::app
 
 			if (m_world.names.contains(id))
 				p.name = m_world.names.name(id);
+
 			{
 				protocol::TransformComponentPayload tp;
 				const auto local = m_world.transforms.localTransform(id);
@@ -221,7 +228,7 @@ namespace imp::app
 				}
 
 				const bool unparenting = ( cmd.refIndex == 0xFFFFFFFFu );
-				const ecs::EntityId newParent = unparenting 
+				const ecs::EntityId newParent = unparenting
 					? ecs::EntityId{}
 				: ecs::EntityId{ cmd.refIndex, cmd.refGeneration };
 
@@ -283,16 +290,16 @@ namespace imp::app
 		}
 		else if (cmd.op == protocol::SceneCommandOp::Save)
 		{
-			const auto scene = fwk::Scene::fromWorld(m_world);
-			result.success = scene.saveToFile(cmd.path);
+			const auto scene = fwk::Scene::fromWorld(m_world, m_modelPathResolver);
+			result.success = scene.saveToFile(m_vfs, cmd.path);
 			if (!result.success)
 				result.error = "Failed to write scene file.";
 		}
 		else if (cmd.op == protocol::SceneCommandOp::Load)
 		{
-			if (auto scene = fwk::Scene::loadFromFile(cmd.path))
+			if (auto scene = fwk::Scene::loadFromFile(m_vfs, cmd.path))
 			{
-				scene->applyToWorld(m_world);
+				scene->applyToWorld(m_world, m_modelLoader);
 				result.success = true;
 			}
 			else

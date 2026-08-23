@@ -55,6 +55,7 @@ namespace imp::app
 		[[nodiscard]] memory::HeapAllocator& gfxAllocator() noexcept { return m_gfxAllocator; }
 		[[nodiscard]] fwk::Window& window() noexcept { return m_window; }
 		[[nodiscard]] gfx::IDevice& device() const noexcept { return *m_device; }
+		[[nodiscard]] fs::VirtualFileSystem& vfs() noexcept { return m_vfs; }
 		[[nodiscard]] std::unique_ptr<IApp>& app() noexcept { return m_app; }
 
 	private:

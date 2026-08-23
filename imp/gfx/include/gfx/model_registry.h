@@ -27,6 +27,7 @@ namespace imp::gfx
 		[[nodiscard]] bool isValid(ModelHandle handle) const;
 		[[nodiscard]] Model* tryGet(ModelHandle handle);
 		[[nodiscard]] const Model* tryGet(ModelHandle handle) const;
+		[[nodiscard]] const std::string* pathOf(ModelHandle handle) const;
 
 		void unload(ModelHandle handle);
 		void clear();

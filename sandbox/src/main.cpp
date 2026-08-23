@@ -29,8 +29,11 @@ int main()
 	desc.enableValidation = true;
 	desc.vsync = true;
 
-	const auto shadersPath = ( platform::executableDir() / "assets").string();
+	const auto shadersPath = ( platform::executableDir() / "assets" ).string();
 	desc.vfsMounts.push_back(app::VfsMountDesc{ "assets/", shadersPath, 0, true, true });
+
+	const auto scenesPath = ( platform::executableDir() / "scenes" ).string();
+	desc.vfsMounts.push_back(app::VfsMountDesc{ "scenes/", scenesPath, 0, true, true });
 
 	{
 		app::Application application;
@@ -44,14 +47,30 @@ int main()
 		LOG_INFO("Sandbox", "Running with {} device, window ({}, {})",
 			application.device().apiName(), application.window().width(), application.window().height());
 
-		auto* sb = dynamic_cast<app::SandboxApp*>(application.app().get());
-		application.layers().pushOverlay(std::make_unique<app::EditorBridgeLayer>(application.world()));
+		auto* sb = dynamic_cast<app::SandboxApp*>( application.app().get() );
+
+		auto modelPathResolver = [sb](ecs::ModelHandle handle) -> std::string
+			{
+				if (const auto* path = sb->modelRegistry().pathOf(handle))
+					return *path;
+				return {};
+			};
+
+		auto modelLoader = [sb, &application](const std::string& path) -> ecs::ModelHandle
+			{
+				return sb->modelRegistry().load(application.device(), path,
+					application.jobs(), &application.vfs());
+			};
+
+		application.layers().pushOverlay(std::make_unique<app::EditorBridgeLayer>(
+			application.world(), application.vfs(), modelPathResolver, modelLoader));
+
 		application.layers().pushOverlay(std::make_unique<app::TelemetryLayer>(application.gfxAllocator()));
 		application.layers().pushOverlay(std::make_unique<app::LightControlLayer>(sb->sunDirection(), sb->pointPos(), sb->cascadeConfig()));
 
 		application.layers().pushOverlay(
 			std::make_unique<app::GizmoLayer>(application.device(), application.world(), sb->camera(),
-			application.window().input(), sb->hdrColourFormat(), sb->hdrDepthFormat(), sb->sampleCount()
+				application.window().input(), sb->hdrColourFormat(), sb->hdrDepthFormat(), sb->sampleCount()
 			));
 
 		application.run();

@@ -130,10 +130,6 @@ namespace imp::editor
 		m_scenePathEdit->setMinimumWidth(220);
 		connectionLayout->addWidget(m_scenePathEdit);
 
-		m_sceneBrowseButton = new QPushButton("Browse", this);
-		connect(m_sceneBrowseButton, &QPushButton::clicked, this, &MainWindow::onSceneBrowseClicked);
-		connectionLayout->addWidget(m_sceneBrowseButton);
-
 		m_sceneSaveButton = new QPushButton("Save Scene", this);
 		connect(m_sceneSaveButton, &QPushButton::clicked, this, &MainWindow::onSceneSaveClicked);
 		connectionLayout->addWidget(m_sceneSaveButton);
@@ -290,20 +286,8 @@ namespace imp::editor
 		}
 	}
 
-	void MainWindow::onSceneBrowseClicked()
-	{
-		const QString path = QFileDialog::getSaveFileName(this,
-			"Choose scene file", m_scenePathEdit->text(), "Scene files (*.scene)");
-
-		if (!path.isEmpty())
-			m_scenePathEdit->setText(path);
-	}
-
 	void MainWindow::onSceneSaveClicked()
 	{
-		if (m_scenePathEdit->text().isEmpty())
-			return;
-
 		protocol::SceneCommandPayload cmd;
 		cmd.op = protocol::SceneCommandOp::Save;
 		cmd.path = m_scenePathEdit->text().toStdString();
@@ -313,9 +297,6 @@ namespace imp::editor
 
 	void MainWindow::onSceneLoadClicked()
 	{
-		if (m_scenePathEdit->text().isEmpty())
-			return;
-
 		protocol::SceneCommandPayload cmd;
 		cmd.op = protocol::SceneCommandOp::Load;
 		cmd.path = m_scenePathEdit->text().toStdString();

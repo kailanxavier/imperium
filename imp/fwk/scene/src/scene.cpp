@@ -47,7 +47,7 @@ namespace imp::fwk
 		}
 	}
 
-	Scene Scene::fromWorld(const ecs::World& world)
+	Scene Scene::fromWorld(const ecs::World& world, const ModelPathResolver& resolveModelPath)
 	{
 		Scene scene;
 
@@ -63,7 +63,6 @@ namespace imp::fwk
 		{
 			const auto id = owners[i];
 			SceneEntity e;
-
 			e.id = static_cast<int>(i);
 
 			for (const auto parent = world.transforms.parentOf(id); parent.isValid();)
@@ -80,6 +79,15 @@ namespace imp::fwk
 			e.localRotation = local.rotation;
 			e.localScale = local.scale;
 
+			if (world.renderables.contains(id) && resolveModelPath)
+			{
+				if (std::string path = resolveModelPath(world.renderables.model(id)); !path.empty())
+				{
+					e.renderableModelPath = std::move(path);
+					e.renderableVisible = world.renderables.visible(id);
+				}
+			}
+
 			if (world.lights.contains(id))
 			{
 				e.lightKind = world.lights.type(id);
@@ -93,7 +101,7 @@ namespace imp::fwk
 		return scene;
 	}
 
-	void Scene::applyToWorld(ecs::World& world) const
+	void Scene::applyToWorld(ecs::World& world, const ModelLoader& loadModel) const
 	{
 		const std::vector<ecs::EntityId> existing = world.transforms.m_owner;
 		for (const auto& id : existing)
@@ -114,6 +122,12 @@ namespace imp::fwk
 
 			if (!e.name.empty())
 				world.names.create(id, e.name);
+
+			if (e.renderableModelPath && loadModel)
+			{
+				if (const auto handle = loadModel(*e.renderableModelPath); handle.isValid())
+					world.renderables.create(id, handle, e.renderableVisible);
+			}
 
 			if (e.lightKind)
 				world.lights.create(id, *e.lightKind, e.lightColour, e.lightIntensity);
@@ -157,6 +171,14 @@ namespace imp::fwk
 				{ "rotation", quatToJson(e.localRotation) },
 				{ "scale", vec3ToJson(e.localScale) },
 			};
+
+			if (e.renderableModelPath)
+			{
+				ej["renderable"] = {
+					{ "model", *e.renderableModelPath },
+					{ "visible", e.renderableVisible },
+				};
+			}
 
 			if (e.lightKind)
 			{
@@ -216,6 +238,16 @@ namespace imp::fwk
 				e.localScale = math::Vec3f::one();
 			}
 
+			if (ej.contains("renderable"))
+			{
+				const auto& rj = ej["renderable"];
+				if (rj.contains("model") && rj["model"].is_string())
+				{
+					e.renderableModelPath = rj["model"].get<std::string>();
+					e.renderableVisible = rj.value("visible", true);
+				}
+			}
+
 			if (ej.contains("light"))
 			{
 				const auto& lj = ej["light"];
@@ -255,5 +287,19 @@ namespace imp::fwk
 		std::ostringstream buffer;
 		buffer << file.rdbuf();
 		return fromJson(buffer.str());
+	}
+
+	bool Scene::saveToFile(const fs::VirtualFileSystem& vfs, const std::string& virtualPath) const
+	{
+		return vfs.writeEntireFileText(virtualPath, toJson());
+	}
+
+	std::optional<Scene> Scene::loadFromFile(const fs::VirtualFileSystem& vfs, const std::string& virtualPath)
+	{
+		std::string text;
+		if (!vfs.readEntireFileText(virtualPath, text))
+			return std::nullopt;
+
+		return fromJson(text);
 	}
 }

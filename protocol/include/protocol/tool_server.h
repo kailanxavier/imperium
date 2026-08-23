@@ -26,7 +26,7 @@ namespace imp::protocol
 
         void publish(MessageType type, std::span<const u8> payload);
 
-        struct InboundCommand { MessageType type; std::vector<u8> payload; };
+        struct InboundCommand { MessageType type = MessageType::Control; std::vector<u8> payload; };
         [[nodiscard]] bool pollCommand(InboundCommand& out);
 
         static constexpr size_t kTelemetryDepth = 4;
