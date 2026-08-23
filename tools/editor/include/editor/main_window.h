@@ -33,6 +33,9 @@ namespace imp::editor
 		void onReparentRequested(quint32 childIndex, quint32 childGeneration, 
 			bool hasNewParent, quint32 newParentIndex, quint32 newParentGeneration);
 		void onDragStateChanged(bool active);
+		void onSceneBrowseClicked();
+		void onSceneSaveClicked();
+		void onSceneLoadClicked();
 
 	private:
 		void buildUi();
@@ -51,8 +54,15 @@ namespace imp::editor
 		QLabel* m_statusLabel = nullptr;
 		QPlainTextEdit* m_logView = nullptr;
 
+		QLineEdit* m_scenePathEdit = nullptr;
+		QPushButton* m_sceneBrowseButton = nullptr;
+		QPushButton* m_sceneSaveButton = nullptr;
+		QPushButton* m_sceneLoadButton = nullptr;
+
 		bool m_dragActive = false;
 		std::optional<std::vector<protocol::EntitySnapshotPayload>> m_pendingSnapshot;
+
+		static constexpr bool kDebugFrameReceived = false;
 
 		static constexpr int kWidth = 1600;
 		static constexpr int kHeight = 900;

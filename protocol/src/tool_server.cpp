@@ -156,12 +156,11 @@ namespace imp::protocol
                             }
                         }
                     }
-                    else if (frame->type == MessageType::ConsoleCommand || frame->type == MessageType::EntityCommand)
+                    else if (frame->type == MessageType::ConsoleCommand ||
+                            frame->type == MessageType::EntityCommand ||
+                            frame->type == MessageType::SceneCommand)
                     {
-                        m_inboundCommands.tryPush({
-                            frame->type, 
-                            std::move(frame->payload)
-                            });
+                        m_inboundCommands.tryPush({ frame->type, std::move(frame->payload) });
                     }
                 }
 

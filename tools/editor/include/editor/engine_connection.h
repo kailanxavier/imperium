@@ -7,6 +7,7 @@
 #include <protocol/control.h>
 #include <protocol/entity_command.h>
 #include <protocol/frame.h>
+#include <protocol/scene_command.h>
 #include <protocol/tcp_socket.h>
 
 #include <chrono>
@@ -36,7 +37,8 @@ namespace imp::editor
 
 		void sendControl(protocol::ControlOp op, protocol::MessageMask mask);
 		void sendFrame(protocol::MessageType type, std::span<const u8> payload);
-		void sendCommand(const protocol::EntityCommandPayload& cmd);
+		void sendEntityCommand(const protocol::EntityCommandPayload& cmd);
+		void sendSceneCommand(const protocol::SceneCommandPayload& cmd);
 
 		[[nodiscard]] ConnectionState state() const { return m_state; }
 		[[nodiscard]] const QString& lastError() const { return m_lastError; }

@@ -5,6 +5,8 @@
 #include <ecs/world.h>
 #include <chrono>
 
+#include <span>
+
 namespace imp::app
 {
 	class EditorBridgeLayer final : public fwk::ILayer
@@ -21,6 +23,8 @@ namespace imp::app
 	private:
 		void publishSnapshot();
 		void drainCommands();
+		void handleEntityCommand(std::span<const u8> payload);
+		void handleSceneCommand(std::span<const u8> payload);
 
 		ecs::World& m_world;
 		u16 m_toolServerPort;

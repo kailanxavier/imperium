@@ -7,4 +7,4 @@ target_include_directories(imp_scene
 	PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-target_link_libraries(imp_scene PRIVATE imp_core)
+target_link_libraries(imp_scene PUBLIC imp_core imp_ecs PRIVATE nlohmann_json::nlohmann_json)

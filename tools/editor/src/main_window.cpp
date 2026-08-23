@@ -18,6 +18,7 @@
 #include <QSplitter>
 #include <QVBoxLayout>
 #include <QWidget>
+#include <QFileDialog>
 
 namespace imp::editor
 {
@@ -47,6 +48,8 @@ namespace imp::editor
 			case protocol::MessageType::WorldSnapshot: return "WorldSnapshot";
 			case protocol::MessageType::EntityCommand: return "EntityCommand";
 			case protocol::MessageType::EntityCommandResult: return "EntityCommandResult";
+			case protocol::MessageType::SceneCommand: return "SceneCommand";
+			case protocol::MessageType::SceneCommandResult: return "SceneCommandResult";
 			}
 			return "Unknown";
 		}
@@ -120,6 +123,25 @@ namespace imp::editor
 		connect(m_connectButton, &QPushButton::clicked, this, &MainWindow::onConnectClicked);
 		connectionLayout->addWidget(m_connectButton);
 
+		connectionLayout->addWidget(new QLabel("Scene:", this));
+
+		m_scenePathEdit = new QLineEdit(this);
+		m_scenePathEdit->setPlaceholderText("scenes/sponza.scene");
+		m_scenePathEdit->setMinimumWidth(220);
+		connectionLayout->addWidget(m_scenePathEdit);
+
+		m_sceneBrowseButton = new QPushButton("Browse", this);
+		connect(m_sceneBrowseButton, &QPushButton::clicked, this, &MainWindow::onSceneBrowseClicked);
+		connectionLayout->addWidget(m_sceneBrowseButton);
+
+		m_sceneSaveButton = new QPushButton("Save Scene", this);
+		connect(m_sceneSaveButton, &QPushButton::clicked, this, &MainWindow::onSceneSaveClicked);
+		connectionLayout->addWidget(m_sceneSaveButton);
+
+		m_sceneLoadButton = new QPushButton("Load Scene", this);
+		connect(m_sceneLoadButton, &QPushButton::clicked, this, &MainWindow::onSceneLoadClicked);
+		connectionLayout->addWidget(m_sceneLoadButton);
+
 		m_statusLabel = new QLabel(this);
 		connectionLayout->addWidget(m_statusLabel);
 		connectionLayout->addStretch();
@@ -179,10 +201,13 @@ namespace imp::editor
 
 	void MainWindow::onFrameReceived(protocol::MessageType type, std::vector<u8> payload)
 	{
-		m_logView->appendPlainText(QString("[FRAME] %1 (%2 bytes)")
-			.arg(messageTypeLabel(type))
-			.arg(payload.size()));
-
+		if (kDebugFrameReceived)
+		{
+			m_logView->appendPlainText(QString("[FRAME] %1 (%2 bytes)")
+				.arg(messageTypeLabel(type))
+				.arg(payload.size()));
+		}
+		
 		if (type == protocol::MessageType::WorldSnapshot)
 		{
 			if (auto entities = protocol::deserialiseWorldSnapshot(payload))
@@ -205,6 +230,19 @@ namespace imp::editor
 					.arg(QString::fromStdString(result->error)));
 			}
 		}
+		else if (type == protocol::MessageType::SceneCommandResult)
+		{
+			if (auto result = protocol::deserialiseSceneCommandResult(payload))
+			{
+				const QString verb = result->op == protocol::SceneCommandOp::Save ? "Save" : "Load";
+				if (result->success)
+					m_logView->appendPlainText(QString("[SCENE] %1 succeeded: %2")
+						.arg(verb).arg(QString::fromStdString(result->path)));
+				else
+					m_logView->appendPlainText(QString("[SCENE %1 FAILED] %2: %3")
+						.arg(verb).arg(QString::fromStdString(result->path)).arg(QString::fromStdString(result->error)));
+			}
+		}
 	}
 
 	void MainWindow::onEntitySelected(const QModelIndex& index)
@@ -222,7 +260,7 @@ namespace imp::editor
 
 	void MainWindow::onCommandRequested(protocol::EntityCommandPayload cmd)
 	{
-		m_connection->sendCommand(cmd);
+		m_connection->sendEntityCommand(cmd);
 	}
 
 	void MainWindow::onReparentRequested(quint32 childIndex, quint32 childGeneration, bool hasNewParent, quint32 newParentIndex, quint32 newParentGeneration)
@@ -238,7 +276,7 @@ namespace imp::editor
 			cmd.refGeneration = newParentGeneration;
 		}
 
-		m_connection->sendCommand(cmd);
+		m_connection->sendEntityCommand(cmd);
 	}
 
 	void MainWindow::onDragStateChanged(bool active)
@@ -250,5 +288,38 @@ namespace imp::editor
 			m_hierarchy->applySnapshot(std::move(*m_pendingSnapshot));
 			m_pendingSnapshot.reset();
 		}
+	}
+
+	void MainWindow::onSceneBrowseClicked()
+	{
+		const QString path = QFileDialog::getSaveFileName(this,
+			"Choose scene file", m_scenePathEdit->text(), "Scene files (*.scene)");
+
+		if (!path.isEmpty())
+			m_scenePathEdit->setText(path);
+	}
+
+	void MainWindow::onSceneSaveClicked()
+	{
+		if (m_scenePathEdit->text().isEmpty())
+			return;
+
+		protocol::SceneCommandPayload cmd;
+		cmd.op = protocol::SceneCommandOp::Save;
+		cmd.path = m_scenePathEdit->text().toStdString();
+
+		m_connection->sendSceneCommand(cmd);
+	}
+
+	void MainWindow::onSceneLoadClicked()
+	{
+		if (m_scenePathEdit->text().isEmpty())
+			return;
+
+		protocol::SceneCommandPayload cmd;
+		cmd.op = protocol::SceneCommandOp::Load;
+		cmd.path = m_scenePathEdit->text().toStdString();
+
+		m_connection->sendSceneCommand(cmd);
 	}
 }

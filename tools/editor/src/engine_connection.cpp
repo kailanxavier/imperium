@@ -46,7 +46,8 @@ namespace imp::editor
 		sendControl(ControlOp::Subscribe,
 			static_cast<MessageMask>(
 				static_cast<u32>( MessageMask::WorldSnapshot ) |
-				static_cast<u32>( MessageMask::EntityCommandResult )
+				static_cast<u32>( MessageMask::EntityCommandResult ) |
+				static_cast<u32>( MessageMask::SceneCommandResult )
 				));
 	}
 
@@ -72,9 +73,14 @@ namespace imp::editor
 			setState(ConnectionState::Errored, "Failed to send frame.");
 	}
 
-	void EngineConnection::sendCommand(const EntityCommandPayload& cmd)
+	void EngineConnection::sendEntityCommand(const EntityCommandPayload& cmd)
 	{
 		sendFrame(MessageType::EntityCommand, serialiseEntityCommand(cmd));
+	}
+
+	void EngineConnection::sendSceneCommand(const protocol::SceneCommandPayload& cmd)
+	{
+		sendFrame(MessageType::SceneCommand, serialiseSceneCommand(cmd));
 	}
 
 	void EngineConnection::tickReconnect()

@@ -13,6 +13,8 @@ namespace imp::protocol
         WorldSnapshot,
         EntityCommand,
         EntityCommandResult,
+        SceneCommand,
+        SceneCommandResult,
     };
 
     enum class MessageMask : u32
@@ -25,6 +27,8 @@ namespace imp::protocol
         WorldSnapshot = 1u << 4,
         EntityCommand = 1u << 5,
         EntityCommandResult = 1u << 6,
+        SceneCommand = 1u << 7,
+        SceneCommandResult = 1u << 8,
     };
 
     [[nodiscard]] constexpr MessageMask maskFor(MessageType type)

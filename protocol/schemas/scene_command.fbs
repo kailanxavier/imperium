@@ -1,0 +1,23 @@
+namespace imp.protocol.scene;
+
+enum SceneCommandOp : uint8
+{
+    Save = 0,
+    Load,
+}
+
+table SceneCommand
+{
+    op: SceneCommandOp;
+    path: string;
+}
+
+table SceneCommandResult
+{
+    op: SceneCommandOp;
+    path: string;
+    success: bool;
+    error: string;
+}
+
+root_type SceneCommand;
