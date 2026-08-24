@@ -2,6 +2,7 @@ add_library(imp_script STATIC
 	src/script.cpp
 	src/vm.cpp
 	src/binding.cpp
+	src/system.cpp
 )
 
 target_include_directories(imp_script
