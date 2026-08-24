@@ -31,6 +31,7 @@ namespace imp::app
 		const ecs::Transform& pointPos() const { return m_scene.pointLightTransform(); }
 
 		const fwk::Camera& camera() const { return m_camera; }
+		gfx::ModelRegistry& modelRegistry() { return m_scene.modelRegistry(); }
 		gfx::TextureFormat hdrColourFormat() const { return m_resources.hdrColourFormat(); }
 		gfx::TextureFormat hdrDepthFormat() const { return m_resources.hdrDepthFormat(); }
 		gfx::SampleCount sampleCount() const { return RenderResources::kMsaaSampleCount; }

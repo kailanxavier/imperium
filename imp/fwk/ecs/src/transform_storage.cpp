@@ -334,6 +334,52 @@ namespace imp::ecs
 		m_updateOrderDirty = false;
 	}
 
+	bool TransformStorage::reparent(EntityId entity, EntityId newParent)
+	{
+		const u32 idx = denseIndexOf(entity);
+		if (idx == kInvalidDense)
+			return false;
+
+		u32 newParentDense = denseIndexOf(newParent);
+
+		if (newParentDense == kInvalidDense)
+			return false;
+		if (newParentDense == idx)
+			return false;
+		if (isAncestorOfDense(idx, newParentDense))
+			return false;
+
+		if (m_parentDense[idx] == newParentDense)
+			return true;
+
+		const u32 oldParentDense = m_parentDense[idx];
+		if (oldParentDense != kInvalidDense)
+		{
+			auto& siblings = m_children[oldParentDense];
+			auto it = std::find(siblings.begin(), siblings.end(), idx);
+			if (it != siblings.end())
+			{
+				*it = siblings.back();
+				siblings.pop_back();
+			}
+		}
+
+		u16 newDepth = 0;
+		if (newParentDense != kInvalidDense)
+		{
+			newDepth = static_cast<u16>( m_depth[newParentDense] + 1 );
+			m_children[newParentDense].push_back(idx);
+		}
+
+		m_parentDense[idx] = newParentDense;
+		applyDepth(idx, newDepth);
+
+		m_dirty[idx] = 1;
+		m_updateOrderDirty = true;
+
+		return true;
+	}
+
 	std::optional<Transform> TransformStorage::tryGet(EntityId entity) const
 	{
 		const u32 idx = denseIndexOf(entity);
@@ -345,5 +391,24 @@ namespace imp::ecs
 			m_localRot[idx],
 			m_localScale[idx]
 		};
+	}
+
+	void TransformStorage::applyDepth(u32 dense, u16 newDepth)
+	{
+		m_depth[dense] = newDepth;
+		for (u32 child : m_children[dense])
+			applyDepth(child, static_cast<u16>( newDepth + 1 ));
+	}
+
+	bool TransformStorage::isAncestorOfDense(u32 ancestorDense, u32 dense) const
+	{
+		u32 current = m_parentDense[dense];
+		while (current != kInvalidDense)
+		{
+			if (current == ancestorDense)
+				return true;
+			current = m_parentDense[current];
+		}
+		return false;
 	}
 }

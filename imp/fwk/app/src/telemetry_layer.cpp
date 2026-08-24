@@ -18,12 +18,12 @@ namespace imp::app
 
 	void TelemetryLayer::onAttach()
 	{
-		protocol::ToolServer::instance().start(m_toolServerPort);
+		//protocol::ToolServer::instance().start(m_toolServerPort);
 	}
 
 	void TelemetryLayer::onDetach()
 	{
-		protocol::ToolServer::instance().stop();
+		//protocol::ToolServer::instance().stop();
 	}
 
 	void TelemetryLayer::onUpdate(float /*deltaSeconds*/)

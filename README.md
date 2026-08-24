@@ -10,11 +10,10 @@ Maybe one day I will even be able to make a game using this framework, who knows
 No build instructions for now because there isn't much to build.
 
 **Current dependency list:**
-- [GLFW](https://www.glfw.org/)
-- [Vulkan](https://www.vulkan.org/) &/| DX12
-- [fmt](https://fmt.dev/)
-- [googletest](https://github.com/google/googletest)  
-- [flatbuffers](https://flatbuffers.dev/)
+	Everything should install automatically as all dependencies are:
+		1 - Git submodules
+		2 - Managed by vcpkg
+		3 - Fetched automatically via FetchContent
 <br>
 <br>
 <img src="https://media3.giphy.com/media/v1.Y2lkPTc5MGI3NjExcXc3MDhiMmtib3FxcGJ3aTVvNTd3MXZ6Ymc2YnptcTRqMW0wbW1vbCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/BZy4US4yNLoAr0bdAP/giphy.gif" />

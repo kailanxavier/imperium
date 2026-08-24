@@ -10,6 +10,11 @@ namespace imp::protocol
         ProfilerFrame,
         ConsoleCommand,
         ConsoleResponse,
+        WorldSnapshot,
+        EntityCommand,
+        EntityCommandResult,
+        SceneCommand,
+        SceneCommandResult,
     };
 
     enum class MessageMask : u32
@@ -19,6 +24,11 @@ namespace imp::protocol
         ProfilerFrame = 1u << 1,
         ConsoleCommand = 1u << 2,
         ConsoleResponse = 1u << 3,
+        WorldSnapshot = 1u << 4,
+        EntityCommand = 1u << 5,
+        EntityCommandResult = 1u << 6,
+        SceneCommand = 1u << 7,
+        SceneCommandResult = 1u << 8,
     };
 
     [[nodiscard]] constexpr MessageMask maskFor(MessageType type)

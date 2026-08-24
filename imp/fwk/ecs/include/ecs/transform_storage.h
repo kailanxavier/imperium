@@ -47,6 +47,7 @@ namespace imp::ecs
 			const std::function<void(size_t levelIndex, u32 startRange, u32 endRange)>& onLevelComplete = {});
 
 		void rebuildUpdateOrder();
+		bool reparent(EntityId entity, EntityId newParent = {});
 
 		std::vector<EntityId> m_owner;
 		std::vector<Vec3f> m_localPos;
@@ -71,6 +72,9 @@ namespace imp::ecs
 		void destroySingle(EntityId entity);
 
 		void swapRemoveDense(u32 idx);
+
+		void applyDepth(u32 dense, u16 newDepth);
+		[[nodiscard]] bool isAncestorOfDense(u32 ancestorDense, u32 dense) const;
 
 		std::vector<u32> m_sparse;
 

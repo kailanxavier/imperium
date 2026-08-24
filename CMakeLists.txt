@@ -130,6 +130,33 @@ function(imp_set_runtime_dir TARGET SUBDIR)
 
 endfunction()
 
+if (EXISTS "${CMAKE_SOURCE_DIR}/vendor/json/CMakeLists.txt")
+    set(JSON_BuildTests OFF CACHE BOOL "" FORCE)
+    set(JSON_Install OFF CACHE BOOL "" FORCE)
+ 
+    add_subdirectory(
+        "${CMAKE_SOURCE_DIR}/vendor/json"
+        "${CMAKE_BINARY_DIR}/vendor/json"
+        EXCLUDE_FROM_ALL
+    )
+else()
+    message(STATUS "vendor/json not found - fetching via FetchContent")
+ 
+    include(FetchContent)
+ 
+    FetchContent_Declare(
+        json
+        GIT_REPOSITORY https://github.com/nlohmann/json.git
+        GIT_TAG v3.11.3
+    )
+ 
+    set(JSON_BuildTests OFF CACHE BOOL "" FORCE)
+    set(JSON_Install OFF CACHE BOOL "" FORCE)
+ 
+    FetchContent_MakeAvailable(json)
+endif()
+
+
 add_subdirectory(protocol)
 add_subdirectory(imp)
 add_subdirectory(tools)

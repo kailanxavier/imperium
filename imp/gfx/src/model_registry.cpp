@@ -65,6 +65,11 @@ namespace imp::gfx
 		return isValid(handle) ? &m_slots[handle.index].model : nullptr;
 	}
 
+	const std::string* ModelRegistry::pathOf(ModelHandle handle) const
+	{
+		return isValid(handle) ? &m_slots[handle.index].path : nullptr;
+	}
+
 	const Model* ModelRegistry::tryGet(ModelHandle handle) const
 	{
 		return isValid(handle) ? &m_slots[handle.index].model : nullptr;
