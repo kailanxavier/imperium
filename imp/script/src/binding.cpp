@@ -30,7 +30,7 @@ namespace imp::script
 			},
 			"SetRenderableVisible", [](ScriptEntityHandle& h, bool visible)
 			{
-				if (!h.isAlive() || !h.world->transforms.contains(h.id))
+				if (!h.isAlive() || !h.world->renderables.contains(h.id))
 					return;
 
 				h.world->renderables.setVisible(h.id, visible);

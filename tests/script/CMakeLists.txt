@@ -1,10 +1,16 @@
 add_executable(imp_script_tests
 	vm_tests.cpp
+	system_tests.cpp
+	binding_tests.cpp
 )
 
 target_link_libraries(imp_script_tests
 	PRIVATE
 		imp_script
+		imp_ecs
+		imp_core
+		sol2::sol2
+		lua_lib
 		GTest::gtest_main
 		imperium_compile_options
 )

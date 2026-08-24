@@ -110,7 +110,7 @@ namespace imp::script
 			return;
 
 		sol::table self = it->second;
-		callHook(self, "onDestroy", ScriptEntityHandle{ entity, m_world });
+		callHook(self, "OnDestroy", ScriptEntityHandle{ entity, m_world });
 
 		m_selfTables.erase(it);
 	}
