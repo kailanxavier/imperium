@@ -3,6 +3,7 @@
 #include <core/types/int_types.h>
 #include <vector>
 #include <cstddef>
+#include <functional>
 
 namespace imp::ecs 
 {
@@ -47,5 +48,17 @@ namespace imp::ecs
 		std::vector<u32> m_generations;
 		std::vector<u32> m_freeList;
 		size_t m_aliveCount = 0;
+	};
+}
+
+namespace std
+{
+	template<>
+	struct hash<imp::ecs::EntityId>
+	{
+		size_t operator()(const imp::ecs::EntityId& id) const noexcept
+		{
+			return ( static_cast<size_t>( id.index ) << 32 ) ^ static_cast<size_t>( id.generation );
+		}
 	};
 }
