@@ -2,6 +2,7 @@ add_executable(imp_script_tests
 	vm_tests.cpp
 	system_tests.cpp
 	binding_tests.cpp
+	file_watcher_tests.cpp
 )
 
 target_link_libraries(imp_script_tests
