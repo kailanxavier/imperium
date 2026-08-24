@@ -156,6 +156,66 @@ else()
     FetchContent_MakeAvailable(json)
 endif()
 
+if (EXISTS "${CMAKE_SOURCE_DIR}/vendor/lua/lua.h")
+    set(LUA_SOURCE_DIR "${CMAKE_SOURCE_DIR}/vendor/lua")
+else()
+    message(STATUS "vendor/lua not found - fetching via FetchContent")
+
+    include(FetchContent)
+
+    FetchContent_Declare(
+        lua_src
+        GIT_REPOSITORY https://github.com/lua/lua.git
+        GIT_TAG v5.4.7
+    )
+
+    FetchContent_Populate(lua_src)
+    set(LUA_SOURCE_DIR "${lua_src_SOURCE_DIR}")
+endif()
+
+file(GLOB LUA_SOURCES "${LUA_SOURCE_DIR}/*.c")
+
+list(REMOVE_ITEM LUA_SOURCES
+    "${LUA_SOURCE_DIR}/lua.c"
+    "${LUA_SOURCE_DIR}/luac.c"
+    "${LUA_SOURCE_DIR}/onelua.c"
+    "${LUA_SOURCE_DIR}/ltests.c"
+)
+
+add_library(lua_lib STATIC ${LUA_SOURCES})
+target_include_directories(lua_lib
+    PUBLIC "${LUA_SOURCE_DIR}"
+)
+
+if (UNIX)
+    target_compile_definitions(lua_lib PRIVATE LUA_USE_POSIX)
+endif()
+
+if (EXISTS "${CMAKE_SOURCE_DIR}/vendor/sol2/CMakeLists.txt")
+    set(SOL2_TESTS OFF CACHE BOOL "" FORCE)
+    set(SOL2_EXAMPLES OFF CACHE BOOL "" FORCE)
+
+    add_subdirectory(
+        "${CMAKE_SOURCE_DIR}/vendor/sol2"
+        "${CMAKE_BINARY_DIR}/vendor/sol2"
+        EXCLUDE_FROM_ALL
+    )
+else()
+    message(STATUS "vendor/sol2 not found - fetching via FetchContent")
+
+    include(FetchContent)
+
+    FetchContent_Declare(
+        sol2
+        GIT_REPOSITORY https://github.com/ThePhD/sol2.git
+        GIT_TAG v3.3.0
+    )
+
+    set(SOL2_TESTS OFF CACHE BOOL "" FORCE)
+    set(SOL2_EXAMPLES OFF CACHE BOOL "" FORCE)
+
+    FetchContent_MakeAvailable(sol2)
+endif()
 
 add_subdirectory(protocol)
 add_subdirectory(imp)
