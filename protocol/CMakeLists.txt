@@ -56,6 +56,7 @@ add_library(imp_protocol STATIC
         src/world_serialisation.cpp
         src/scene_command_serialisation.cpp
         src/script_status_serialisation.cpp
+        src/asset_command_serialisation.cpp
 )
 
 add_dependencies(imp_protocol imp_protocol_schemas)

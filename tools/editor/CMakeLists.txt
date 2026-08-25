@@ -9,6 +9,8 @@ add_executable(imp_editor
 	src/inspector_panel.cpp
     src/world_model.cpp
     src/entity_tree_view.cpp
+	src/asset_model.cpp
+	src/asset_browser_panel.cpp
 
 	include/editor/main_window.h
     include/editor/engine_connection.h
@@ -16,6 +18,8 @@ add_executable(imp_editor
     include/editor/inspector_panel.h
     include/editor/world_model.h
     include/editor/entity_tree_view.h
+	include/editor/asset_model.h
+	include/editor/asset_browser_panel.h
 )
 
 IMP_SET_RUNTIME_DIR(imp_editor tools/editor)

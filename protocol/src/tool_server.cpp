@@ -109,7 +109,7 @@ namespace imp::protocol
         while (m_running.load(std::memory_order_relaxed))
         {
             if (TCPSocket incoming = listener.accept(); incoming.isValid())
-                connections.push_back(Connection{std::move(incoming), FrameReader{}, MessageMask::None});
+                connections.push_back(Connection{ std::move(incoming), FrameReader{}, MessageMask::None });
 
             // read + process inbound frames
             for (auto it = connections.begin(); it != connections.end(); )
@@ -158,7 +158,8 @@ namespace imp::protocol
                     }
                     else if (frame->type == MessageType::ConsoleCommand ||
                             frame->type == MessageType::EntityCommand ||
-                            frame->type == MessageType::SceneCommand)
+                            frame->type == MessageType::SceneCommand ||
+                            frame->type == MessageType::AssetCommand)
                     {
                         m_inboundCommands.tryPush({ frame->type, std::move(frame->payload) });
                     }

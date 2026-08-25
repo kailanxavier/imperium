@@ -47,7 +47,9 @@ namespace imp::editor
 			static_cast<MessageMask>(
 				static_cast<u32>( MessageMask::WorldSnapshot ) |
 				static_cast<u32>( MessageMask::EntityCommandResult ) |
-				static_cast<u32>( MessageMask::SceneCommandResult )
+				static_cast<u32>( MessageMask::SceneCommandResult ) |
+				static_cast<u32>( MessageMask::AssetCommandResult ) |
+				static_cast<u32>( MessageMask::ScriptStatus )
 				));
 	}
 
@@ -81,6 +83,11 @@ namespace imp::editor
 	void EngineConnection::sendSceneCommand(const protocol::SceneCommandPayload& cmd)
 	{
 		sendFrame(MessageType::SceneCommand, serialiseSceneCommand(cmd));
+	}
+
+	void EngineConnection::sendAssetCommand(const protocol::AssetCommandPayload& cmd)
+	{
+		sendFrame(MessageType::AssetCommand, serialiseAssetCommand(cmd));
 	}
 
 	void EngineConnection::tickReconnect()

@@ -92,7 +92,7 @@ TEST_F(ScriptSystemTest, OnDestroyFiresWithCorrectHookName)
 
 	system.onEntityDestroyed(e);
 
-	EXPECT_FLOAT_EQ(world.transforms.localTransform(e).position.x, 3.0f);
+	EXPECT_FLOAT_EQ(world.transforms.localTransform(e).position.x, 3.f);
 	EXPECT_EQ(system.liveInstanceCount(), 0u);
 }
 

@@ -16,6 +16,8 @@ namespace imp::protocol
         SceneCommand,
         SceneCommandResult,
         ScriptStatus,
+        AssetCommand,
+        AssetCommandResult,
     };
 
     enum class MessageMask : u32
@@ -31,6 +33,8 @@ namespace imp::protocol
         SceneCommand = 1u << 7,
         SceneCommandResult = 1u << 8,
         ScriptStatus = 1u << 9,
+        AssetCommand = 1u << 10,
+        AssetCommandResult = 1u << 11,
     };
 
     [[nodiscard]] constexpr MessageMask maskFor(MessageType type)

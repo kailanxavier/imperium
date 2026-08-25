@@ -1,5 +1,6 @@
 #pragma once
 #include <QMainWindow>
+#include <QString>
 #include <editor/engine_connection.h>
 #include <protocol/world_snapshot.h>
 
@@ -15,6 +16,8 @@ namespace imp::editor
 	class HierarchyPanel;
 	class InspectorPanel;
 	class WorldModel;
+	class AssetModel;
+	class AssetBrowserPanel;
 
 	class MainWindow final : public QMainWindow
 	{
@@ -35,17 +38,22 @@ namespace imp::editor
 		void onDragStateChanged(bool active);
 		void onSceneSaveClicked();
 		void onSceneLoadClicked();
+		void onAssetListRequested(QString prefix, bool recursive);
+		void onSceneEntryActivated(QString virtualPath);
 
 	private:
 		void buildUi();
 		QWidget* buildConnectionBar();
 		void buildLogDock();
+		void buildAssetBrowserDock();
 		void updateConnectionUi();
 
 		EngineConnection* m_connection = nullptr;
 		WorldModel* m_worldModel = nullptr;
 		HierarchyPanel* m_hierarchy = nullptr;
 		InspectorPanel* m_inspector = nullptr;
+		AssetModel* m_assetModel = nullptr;
+		AssetBrowserPanel* m_assetBrowser = nullptr;
 
 		QLineEdit* m_hostEdit = nullptr;
 		QSpinBox* m_portSpin = nullptr;

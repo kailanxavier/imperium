@@ -22,15 +22,17 @@ namespace imp::app
 			std::chrono::milliseconds publishInterval = std::chrono::milliseconds(200));
 
 		void onAttach() override;
+		void onUpdate(float deltaSeconds) override;
 		void onDetach() override;
 
-		void onUpdate(float deltaSeconds) override;
 
 	private:
 		void publishSnapshot();
 		void drainCommands();
+
 		void handleEntityCommand(std::span<const u8> payload);
 		void handleSceneCommand(std::span<const u8> payload);
+		void handleAssetCommand(std::span<const u8> payload);
 
 		ecs::World& m_world;
 		fs::VirtualFileSystem& m_vfs;

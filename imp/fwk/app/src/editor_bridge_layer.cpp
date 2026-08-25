@@ -4,6 +4,9 @@
 #include <protocol/world_snapshot.h>
 #include <protocol/entity_command.h>
 #include <protocol/scene_command.h>
+#include <protocol/asset_command.h>
+
+#include <filesystem>
 
 namespace imp::app
 {
@@ -30,11 +33,6 @@ namespace imp::app
 		protocol::ToolServer::instance().start(m_toolServerPort);
 	}
 
-	void EditorBridgeLayer::onDetach()
-	{
-		protocol::ToolServer::instance().stop();
-	}
-
 	void EditorBridgeLayer::onUpdate(float /*deltaSeconds*/)
 	{
 		drainCommands();
@@ -45,6 +43,11 @@ namespace imp::app
 
 		publishSnapshot();
 		m_lastPublish = now;
+	}
+
+	void EditorBridgeLayer::onDetach()
+	{
+		protocol::ToolServer::instance().stop();
 	}
 
 	void EditorBridgeLayer::publishSnapshot()
@@ -131,6 +134,10 @@ namespace imp::app
 			else if (raw.type == protocol::MessageType::SceneCommand)
 			{
 				handleSceneCommand(raw.payload);
+			}
+			else if (raw.type == protocol::MessageType::AssetCommand)
+			{
+				handleAssetCommand(raw.payload);
 			}
 		}
 	}
@@ -343,6 +350,91 @@ namespace imp::app
 		{
 			const auto bytes = protocol::serialiseSceneCommandResult(result);
 			server.publish(protocol::MessageType::SceneCommandResult, bytes);
+		}
+	}
+
+	void EditorBridgeLayer::handleAssetCommand(std::span<const u8> payload)
+	{
+		auto& server = protocol::ToolServer::instance();
+
+		const auto decoded = protocol::deserialiseAssetCommand(payload);
+		if (!decoded)
+			return;
+
+		const auto& cmd = *decoded;
+
+		protocol::AssetCommandResultPayload result;
+		result.op = cmd.op;
+		result.path = cmd.path;
+
+		if (cmd.op != protocol::AssetCommandOp::List && cmd.path.empty())
+		{
+			result.success = false;
+			result.error = "Empty path";
+		}
+		else switch (cmd.op)
+		{
+		case protocol::AssetCommandOp::List:
+		{
+			const auto virtualFiles = m_vfs.listFiles(cmd.path, cmd.recursive);
+			result.entries.reserve(virtualFiles.size());
+
+			for (const auto& virtualFile : virtualFiles)
+			{
+				protocol::AssetEntryPayload entry;
+				entry.virtualPath = virtualFile;
+				entry.isDirectory = false;
+
+				const auto physical = m_vfs.resolvePhysicalPath(virtualFile, false);
+				if (!physical.empty())
+				{
+					std::error_code ec;
+					const auto size = std::filesystem::file_size(physical, ec);
+					if (!ec) entry.sizeBytes = size;
+				}
+
+				result.entries.push_back(std::move(entry));
+			}
+
+			result.success = true;
+			break;
+		}
+		case protocol::AssetCommandOp::Read:
+		{
+			fs::Bytes data;
+			if (m_vfs.readEntireFile(cmd.path, data))
+			{
+				result.content = std::move(data);
+				result.success = true;
+			}
+			else
+			{
+				result.success = false;
+				result.error = "Failed to read file";
+			}
+			break;
+		}
+		case protocol::AssetCommandOp::Write:
+		{
+			const fs::Bytes data(cmd.content.begin(), cmd.content.end());
+			result.success = m_vfs.writeEntireFile(cmd.path, data);
+			if (!result.success)
+				result.error = "Failed to write file.";
+			break;
+		}
+		case protocol::AssetCommandOp::Delete:
+		{
+			result.success = m_vfs.Delete(cmd.path);
+			if (!result.success)
+				result.error = "Failed to delete file.";
+			break;
+		}
+		}
+
+		if (server.hasSubscribers(protocol::MessageType::AssetCommandResult))
+		{
+			const auto bytes = protocol::serialiseAssetCommandResult(result);
+			server.publish(protocol::MessageType::AssetCommandResult, bytes);
 		}
 	}
 }
