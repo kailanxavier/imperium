@@ -1,0 +1,11 @@
+namespace imp.protocol.script;
+
+table ScriptStatus
+{
+	path: string;
+	success: bool;
+	error: string;
+	reloaded_at_ms: uint64;
+}
+
+root_type ScriptStatus;

@@ -13,5 +13,5 @@ target_include_directories(imp_script
 
 target_link_libraries(imp_script 
 	PUBLIC imp_core imp_ecs
-	PRIVATE sol2::sol2 lua_lib
+	PRIVATE sol2::sol2 lua_lib imp_protocol
 )

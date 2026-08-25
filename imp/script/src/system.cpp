@@ -4,7 +4,10 @@
 #include <core/fs/vfs.h>
 #include <core/log/log.h>
 #include <ecs/world.h>
+#include <protocol/script_status.h>
+#include <protocol/tool_server.h>
 
+#include <chrono>
 #include <utility>
 #include <vector>
 
@@ -117,10 +120,28 @@ namespace imp::script
 
 	void ScriptSystem::reloadScript(const std::string& virtualPath)
 	{
+		auto& toolServer = protocol::ToolServer::instance();
+		const auto report = [&](bool success, const std::string& error)
+			{
+				if (!toolServer.hasSubscribers(protocol::MessageType::ScriptStatus))
+					return;
+
+				protocol::ScriptStatusPayload status;
+				status.path = virtualPath;
+				status.success = success;
+				status.error = error;
+				status.reloadedAtMs = static_cast<u64>( std::chrono::duration_cast<std::chrono::milliseconds>(
+					std::chrono::system_clock::now().time_since_epoch() ).count() );
+
+				toolServer.publish(protocol::MessageType::ScriptStatus, protocol::serialiseScriptStatus(status));
+			};
+
 		std::string source;
 		if (!m_vfs.readEntireFileText(virtualPath, source))
 		{
+			const std::string error = "Could not read file";
 			LOG_ERROR("Script", "Hot reload of '{}' failed: could not read file", virtualPath.c_str());
+			report(false, error);
 			return;
 		}
 
@@ -129,12 +150,16 @@ namespace imp::script
 		{
 			const sol::error err = result;
 			LOG_ERROR("Script", "Hot reload of '{}' failed: {}", virtualPath.c_str(), err.what());
-			return; // we don't update the script, just run the latest working version
+			report(false, err.what()); // we don't update the script, just run the latest working version
+
+			return;
 		}
 
 		if (result.get_type() != sol::type::table)
 		{
+			const std::string error = "Script must return a table of hooks";
 			LOG_ERROR("Script", "Hot reload of '{}' failed: script must return a table of hooks", virtualPath.c_str());
+			report(false, error);
 			return;
 		}
 
@@ -144,6 +169,7 @@ namespace imp::script
 		if (it == m_loadedScripts.end())
 		{
 			m_loadedScripts.emplace(virtualPath, freshModule);
+			report(true, {});
 			return;
 		}
 
@@ -158,5 +184,7 @@ namespace imp::script
 
 		for (const auto& [key, value] : freshModule)
 			liveModule[key] = value;
+
+		report(true, {});
 	}
 }

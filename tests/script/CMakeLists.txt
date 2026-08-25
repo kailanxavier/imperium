@@ -3,6 +3,7 @@ add_executable(imp_script_tests
 	system_tests.cpp
 	binding_tests.cpp
 	file_watcher_tests.cpp
+	script_status_tests.cpp
 )
 
 target_link_libraries(imp_script_tests
@@ -10,6 +11,7 @@ target_link_libraries(imp_script_tests
 		imp_script
 		imp_ecs
 		imp_core
+		imp_protocol
 		sol2::sol2
 		lua_lib
 		GTest::gtest_main
