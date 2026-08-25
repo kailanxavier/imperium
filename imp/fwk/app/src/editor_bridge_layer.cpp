@@ -102,6 +102,14 @@ namespace imp::app
 				p.light = lp;
 			}
 
+			if (m_world.scripts.contains(id))
+			{
+				protocol::ScriptComponentPayload scriptPayload;
+				scriptPayload.path = m_world.scripts.scriptPath(id);
+				scriptPayload.wantsTick = m_world.scripts.wantsTick(id);
+				p.script = scriptPayload;
+			}
+
 			entities.push_back(std::move(p));
 		}
 
@@ -257,6 +265,28 @@ namespace imp::app
 			case protocol::EntityCommandOp::Destroy:
 			{
 				m_world.destroyEntity(target);
+				break;
+			}
+			case protocol::EntityCommandOp::AttachScript:
+			{
+				if (cmd.stringA.empty())
+				{
+					if (m_world.scripts.contains(target))
+						m_world.destroyEntity(target);
+				}
+				else
+				{
+					if (m_world.scripts.contains(target))
+					{
+						m_world.scripts.setScriptPath(target, cmd.stringA);
+						m_world.scripts.setWantsTick(target, cmd.boolA);
+					}
+					else
+					{
+						m_world.scripts.create(target, cmd.stringA, cmd.boolA);
+					}
+				}
+				
 				break;
 			}
 			}

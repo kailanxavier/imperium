@@ -10,6 +10,7 @@ class QLineEdit;
 class QCheckBox;
 class QGroupBox;
 class QDoubleSpinBox;
+class QPushButton;
 
 namespace imp::editor
 {
@@ -67,5 +68,15 @@ namespace imp::editor
 		QDoubleSpinBox* m_lightG = nullptr;
 		QDoubleSpinBox* m_lightB = nullptr;
 		QDoubleSpinBox* m_lightIntensity = nullptr;
+	private:
+		QGroupBox* buildScriptSection();
+		void emitAttachScriptCommand();
+		void emitRemoveScriptCommand();
+
+		QGroupBox* m_scriptGroup = nullptr;
+		QLineEdit* m_scriptPathEdit = nullptr;
+		QCheckBox* m_wantsTickCheck = nullptr;
+		QPushButton* m_attachScriptButton = nullptr;
+		QPushButton* m_removeScriptButton = nullptr;
 	};
 }

@@ -9,23 +9,35 @@ namespace imp::script
 {
 	namespace
 	{
-		std::filesystem::path resolveMountPhysicalRoot(fs::VirtualFileSystem& vfs, const std::string& normalisedPrefix)
-		{
-			for (const fs::MountPoint& mount : vfs.mounts())
-			{
-				if (mount.virtualPrefix == normalisedPrefix)
-					return std::filesystem::path(mount.physicalPath);
-			}
-
-			return {};
-		}
-
 		std::string normalisePrefix(const std::string& prefix)
 		{
 			std::string normalised = fs::VirtualFileSystem::normalisePath(prefix);
 			if (!normalised.empty() && normalised.back() != '/')
 				normalised += '/';
 			return normalised;
+		}
+
+		std::filesystem::path resolveMountPhysicalRoot(fs::VirtualFileSystem& vfs, const std::string& normalisedPrefix)
+		{
+			std::filesystem::path bestMatch;
+			size_t longestMatch = 0;
+
+			for (const auto& mount : vfs.mounts())
+			{
+				std::string mountPrefix = normalisePrefix(mount.virtualPrefix);
+
+				if (normalisedPrefix.starts_with(mountPrefix))
+				{
+					if (mountPrefix.length() > longestMatch)
+					{
+						longestMatch = mountPrefix.length();
+						std::string remainder = normalisedPrefix.substr(mountPrefix.length());
+						bestMatch = std::filesystem::path(mount.physicalPath) / remainder;
+					}
+				}
+			}
+
+			return bestMatch;
 		}
 	}
 

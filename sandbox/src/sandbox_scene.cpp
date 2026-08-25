@@ -51,6 +51,7 @@ namespace imp::app
 		t.position = math::Vec3f{ 5.f, 0.f, 5.f };
 		ctx.ecs.transforms.create(entity, t);
 		ctx.ecs.renderables.create(entity, m_environmentHandle);
+		ctx.ecs.scripts.create(entity, "assets/scripts/sponza.lua", true);
 		ctx.ecs.colliders.createAABB(entity, math::Vec3f{ -1.f, -1.f, -1.f }, math::Vec3f{ 1.f, 1.f, 1.f });
 		m_instances.push_back(entity);
 

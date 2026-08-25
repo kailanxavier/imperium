@@ -95,6 +95,12 @@ namespace imp::fwk
 				e.lightIntensity = world.lights.intensity(id);
 			}
 
+			if (world.scripts.contains(id))
+			{
+				e.scriptPath = world.scripts.scriptPath(id);
+				e.scriptWantsTick = world.scripts.wantsTick(id);
+			}
+
 			scene.entities.push_back(std::move(e));
 		}
 		
@@ -131,6 +137,9 @@ namespace imp::fwk
 
 			if (e.lightKind)
 				world.lights.create(id, *e.lightKind, e.lightColour, e.lightIntensity);
+
+			if (e.scriptPath)
+				world.scripts.create(id, *e.scriptPath, e.scriptWantsTick);
 
 			localToId.emplace(e.id, id);
 		}
@@ -186,6 +195,14 @@ namespace imp::fwk
 					{ "kind", lightKindToString(*e.lightKind) },
 					{ "colour", vec3ToJson(e.lightColour) },
 					{ "intensity", e.lightIntensity },
+				};
+			}
+
+			if (e.scriptPath)
+			{
+				ej["script"] = {
+					{ "path", *e.scriptPath },
+					{ "wantsTick", e.scriptWantsTick },
 				};
 			}
 
@@ -256,6 +273,16 @@ namespace imp::fwk
 					? vec3FromJson(lj["colour"], math::Vec3f::one())
 					: math::Vec3f::one();
 				e.lightIntensity = lj.value("intensity", 0.f);
+			}
+
+			if (ej.contains("script"))
+			{
+				const auto& sj = ej["script"];
+				if (sj.contains("path") && sj["path"].is_string())
+				{
+					e.scriptPath = sj["path"].get<std::string>();
+					e.scriptWantsTick = sj.value("wantsTick", false);
+				}
 			}
 
 			if (e.id < 0)

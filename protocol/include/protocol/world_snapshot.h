@@ -31,6 +31,12 @@ namespace imp::protocol
 		float intensity = 0.f;
 	};
 
+	struct ScriptComponentPayload
+	{
+		std::string path;
+		bool wantsTick = false;
+	};
+
 	struct EntitySnapshotPayload
 	{
 		u32 index = 0;
@@ -44,6 +50,7 @@ namespace imp::protocol
 		std::optional<TransformComponentPayload> transform;
 		std::optional<RenderableComponentPayload> renderable;
 		std::optional<LightComponentPayload> light;
+		std::optional<ScriptComponentPayload> script;
 	};
 
 	std::vector<u8> serialiseWorldSnapshot(const std::vector<EntitySnapshotPayload>& entities);

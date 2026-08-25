@@ -1,6 +1,9 @@
 #include "script/system.h"
 #include "script/binding.h"
 
+#include <sol/sol.hpp>
+#include <unordered_map>
+
 #include <core/fs/vfs.h>
 #include <core/log/log.h>
 #include <ecs/world.h>
@@ -32,72 +35,90 @@ namespace imp::script
 		}
 	}
 
-	ScriptSystem::ScriptSystem(fs::VirtualFileSystem& vfs) : m_vfs(vfs)
+	struct ScriptSystem::Impl
 	{
-		m_lua.open_libraries(
-			sol::lib::base,
-			sol::lib::string,
-			sol::lib::math,
-			sol::lib::table
-		);
+		fs::VirtualFileSystem& vfs;
+		ecs::World* world = nullptr;
+		sol::state lua;
+		std::unordered_map<ecs::EntityId, sol::table> selfTables;
+		std::unordered_map<std::string, sol::table> loadedScripts;
 
-		registerEntityBindings(m_lua);
-	}
-
-	sol::table ScriptSystem::loadModule(const std::string& virtualPath)
-	{
-		if (const auto it = m_loadedScripts.find(virtualPath); it != m_loadedScripts.end())
-			return it->second;
-
-		std::string source;
-		if (!m_vfs.readEntireFileText(virtualPath, source))
+		explicit Impl(fs::VirtualFileSystem& v) : vfs(v)
 		{
-			LOG_ERROR("Script", "Could not read script '{}'", virtualPath.c_str());
-			return m_lua.create_table();
+			lua.open_libraries(
+				sol::lib::base,
+				sol::lib::string,
+				sol::lib::math,
+				sol::lib::table
+			);
+
+			registerEntityBindings(lua);
 		}
 
-		const sol::protected_function_result result = m_lua.script(source, sol::script_pass_on_error);
-		if (!result.valid())
+		[[nodiscard]] sol::table loadModule(const std::string& virtualPath)
 		{
-			const sol::error err = result;
-			LOG_ERROR("Script", "Failed to compile '{}': {}", virtualPath.c_str(), err.what());
-			return m_lua.create_table();
+			if (const auto it = loadedScripts.find(virtualPath); it != loadedScripts.end())
+				return it->second;
+
+			std::string source;
+			if (!vfs.readEntireFileText(virtualPath, source))
+			{
+				LOG_ERROR("Script", "Could not read script '{}'", virtualPath.c_str());
+				return lua.create_table();
+			}
+
+			const sol::protected_function_result result = lua.script(source, sol::script_pass_on_error);
+			if (!result.valid())
+			{
+				const sol::error err = result;
+				LOG_ERROR("Script", "Failed to compile '{}': {}", virtualPath.c_str(), err.what());
+				return lua.create_table();
+			}
+
+			if (result.get_type() != sol::type::table)
+			{
+				LOG_ERROR("Script", "'{}' must return a table of hooks", virtualPath.c_str());
+				return lua.create_table();
+			}
+
+			const sol::table module = result;
+			loadedScripts.emplace(virtualPath, module);
+			return module;
 		}
 
-		if (result.get_type() != sol::type::table)
+		void ensureInstance(ecs::World& w, ecs::EntityId entity)
 		{
-			LOG_ERROR("Script", "'{}' must return a table of hooks", virtualPath.c_str());
-			return m_lua.create_table();
+			if (selfTables.contains(entity))
+				return;
+
+			const sol::table module = loadModule(w.scripts.scriptPath(entity));
+			sol::table self = lua.create_table();
+			sol::table metatable = lua.create_table();
+			metatable[sol::meta_function::index] = module;
+			self[sol::metatable_key] = metatable;
+
+			callHook(self, "OnInit", ScriptEntityHandle{ entity, &w });
+
+			selfTables.emplace(entity, std::move(self));
 		}
+	};
 
-		const sol::table module = result;
-		m_loadedScripts.emplace(virtualPath, module);
-		return module;
-	}
+	ScriptSystem::ScriptSystem(fs::VirtualFileSystem& vfs) : m_impl(std::make_unique<Impl>(vfs)) {}
 
-	void ScriptSystem::ensureInstance(ecs::World& world, ecs::EntityId entity)
-	{
-		if (m_selfTables.contains(entity))
-			return;
+	ScriptSystem::~ScriptSystem() = default;
+	ScriptSystem::ScriptSystem(ScriptSystem&&) noexcept = default;
+	ScriptSystem& ScriptSystem::operator=(ScriptSystem&&) noexcept = default;
 
-		const sol::table module = loadModule(world.scripts.scriptPath(entity));
-		sol::table self = m_lua.create_table();
-		sol::table metatable = m_lua.create_table();
-		metatable[sol::meta_function::index] = module;
-		self[sol::metatable_key] = metatable;
-
-		callHook(self, "OnInit", ScriptEntityHandle{ entity, &world });
-
-		m_selfTables.emplace(entity, std::move(self));
-	}
+	size_t ScriptSystem::loadedScriptCount() const noexcept { return m_impl->loadedScripts.size(); }
+	size_t ScriptSystem::liveInstanceCount() const noexcept { return m_impl->selfTables.size(); }
 
 	void ScriptSystem::update(ecs::World& world, float deltaSeconds)
 	{
-		m_world = &world;
+		m_impl->world = &world;
 		for (const ecs::EntityId entity : world.scripts.owners())
-			ensureInstance(world, entity);
+			m_impl->ensureInstance(world, entity);
 
-		for (auto& [entity, self] : m_selfTables)
+		for (auto& [entity, self] : m_impl->selfTables)
 		{
 			if (!world.scripts.contains(entity) || !world.scripts.wantsTick(entity))
 				continue;
@@ -108,14 +129,14 @@ namespace imp::script
 
 	void ScriptSystem::onEntityDestroyed(ecs::EntityId entity)
 	{
-		const auto it = m_selfTables.find(entity);
-		if (it == m_selfTables.end())
+		const auto it = m_impl->selfTables.find(entity);
+		if (it == m_impl->selfTables.end())
 			return;
 
 		sol::table self = it->second;
-		callHook(self, "OnDestroy", ScriptEntityHandle{ entity, m_world });
+		callHook(self, "OnDestroy", ScriptEntityHandle{ entity, m_impl->world });
 
-		m_selfTables.erase(it);
+		m_impl->selfTables.erase(it);
 	}
 
 	void ScriptSystem::reloadScript(const std::string& virtualPath)
@@ -137,7 +158,7 @@ namespace imp::script
 			};
 
 		std::string source;
-		if (!m_vfs.readEntireFileText(virtualPath, source))
+		if (!m_impl->vfs.readEntireFileText(virtualPath, source))
 		{
 			const std::string error = "Could not read file";
 			LOG_ERROR("Script", "Hot reload of '{}' failed: could not read file", virtualPath.c_str());
@@ -145,7 +166,7 @@ namespace imp::script
 			return;
 		}
 
-		const sol::protected_function_result result = m_lua.script(source, sol::script_pass_on_error);
+		const sol::protected_function_result result = m_impl->lua.script(source, sol::script_pass_on_error);
 		if (!result.valid())
 		{
 			const sol::error err = result;
@@ -165,10 +186,10 @@ namespace imp::script
 
 		const sol::table freshModule = result;
 
-		const auto it = m_loadedScripts.find(virtualPath);
-		if (it == m_loadedScripts.end())
+		const auto it = m_impl->loadedScripts.find(virtualPath);
+		if (it == m_impl->loadedScripts.end())
 		{
-			m_loadedScripts.emplace(virtualPath, freshModule);
+			m_impl->loadedScripts.emplace(virtualPath, freshModule);
 			report(true, {});
 			return;
 		}

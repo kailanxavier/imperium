@@ -9,6 +9,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QVBoxLayout>
+#include <QPushButton>
 
 #include <core/math/math.h>
 
@@ -46,6 +47,7 @@ namespace imp::editor
         layout->addWidget(buildTransformSection());
         layout->addWidget(buildRenderableSection());
         layout->addWidget(buildLightSection());
+        layout->addWidget(buildScriptSection());
         layout->addStretch();
 
         showEmptyState();
@@ -145,6 +147,7 @@ namespace imp::editor
         m_transformGroup->setVisible(false);
         m_renderableGroup->setVisible(false);
         m_lightGroup->setVisible(false);
+        m_scriptGroup->setVisible(false);
     }
 
     void InspectorPanel::showEntity(const protocol::EntitySnapshotPayload& entity)
@@ -210,6 +213,27 @@ namespace imp::editor
         else
         {
             m_lightGroup->setVisible(false);
+        }
+        if (entity.script)
+        {
+            m_scriptGroup->setVisible(true);
+            const auto& s = *entity.script;
+
+            if (!m_scriptPathEdit->hasFocus())
+                m_scriptPathEdit->setText(QString::fromStdString(s.path));
+
+            m_wantsTickCheck->setChecked(s.wantsTick);
+            m_attachScriptButton->setText("Update Script");
+        }
+        else
+        {
+            m_scriptGroup->setVisible(true);
+
+            if (!m_scriptPathEdit->hasFocus())
+                m_scriptPathEdit->clear();
+
+            m_wantsTickCheck->setChecked(false);
+            m_attachScriptButton->setText("Add Script");
         }
 
         m_applyingSnapshot = false;
@@ -301,5 +325,53 @@ namespace imp::editor
         cmd.stringA = m_nameEdit->text().toStdString();
 
         emit commandRequested(cmd);
+    }
+
+    void InspectorPanel::emitAttachScriptCommand()
+    {
+        if (m_applyingSnapshot || !m_hasSelection) return;
+
+        protocol::EntityCommandPayload cmd;
+        cmd.op = protocol::EntityCommandOp::AttachScript;
+        cmd.targetIndex = m_current.index;
+        cmd.targetGeneration = m_current.generation;
+        cmd.stringA = m_scriptPathEdit->text().toStdString();
+        cmd.boolA = m_wantsTickCheck->isChecked();
+
+        emit commandRequested(cmd);
+    }
+
+    void InspectorPanel::emitRemoveScriptCommand()
+    {
+        // TODO: Implement removing script component
+    }
+
+    QGroupBox* InspectorPanel::buildScriptSection()
+    {
+        m_scriptGroup = new QGroupBox("Script", this);
+        auto* layout = new QVBoxLayout(m_scriptGroup);
+
+        auto* form = new QFormLayout();
+        m_scriptPathEdit = new QLineEdit(this);
+        m_scriptPathEdit->setPlaceholderText("assets/scripts/script.lua");
+        form->addRow("Path", m_scriptPathEdit);
+
+        m_wantsTickCheck = new QCheckBox("Wants Tick", this);
+        form->addRow(m_wantsTickCheck);
+
+        layout->addLayout(form);
+
+        auto* buttonLayout = new QHBoxLayout();
+        m_attachScriptButton = new QPushButton("Add Script", this);
+        m_removeScriptButton = new QPushButton("Remove", this);
+
+        buttonLayout->addWidget(m_attachScriptButton);
+        buttonLayout->addWidget(m_removeScriptButton);
+        layout->addLayout(buttonLayout);
+
+        connect(m_attachScriptButton, &QPushButton::clicked, this, &InspectorPanel::emitAttachScriptCommand);
+        connect(m_removeScriptButton, &QPushButton::clicked, this, &InspectorPanel::emitRemoveScriptCommand);
+
+        return m_scriptGroup;
     }
 }

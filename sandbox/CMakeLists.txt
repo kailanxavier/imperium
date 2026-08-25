@@ -11,7 +11,7 @@ target_include_directories(sandbox
 	PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-target_link_libraries(sandbox PUBLIC imp_app PRIVATE imp_fwk imp_cam imp_input imp_gfx imp_protocol)
+target_link_libraries(sandbox PUBLIC imp_app PRIVATE imp_script imp_fwk imp_cam imp_input imp_gfx imp_protocol)
 
 imp_set_runtime_dir(sandbox sandbox)
 

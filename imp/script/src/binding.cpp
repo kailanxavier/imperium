@@ -28,11 +28,29 @@ namespace imp::script
 				local.position = math::Vec3f{ x, y, z };
 				h.world->transforms.setLocalTransform(h.id, local);
 			},
+			"GetRotation", [](ScriptEntityHandle& h) -> sol::optional<math::Quaternionf>
+			{
+				if (!h.isAlive() || !h.world->transforms.contains(h.id))
+					return sol::nullopt;
+				return h.world->transforms.localTransform(h.id).rotation;
+			},
+			"SetRotation", [](ScriptEntityHandle& h, float x, float y, float z)
+			{
+				if (!h.isAlive() || !h.world->transforms.contains(h.id))
+					return;
+
+				ecs::Transform local = h.world->transforms.localTransform(h.id);
+				local.rotation = math::Quaternionf::fromEuler(
+					math::toRadians(x), 
+					math::toRadians(y),
+					math::toRadians(z)
+				);
+				h.world->transforms.setLocalTransform(h.id, local);
+			},
 			"SetRenderableVisible", [](ScriptEntityHandle& h, bool visible)
 			{
 				if (!h.isAlive() || !h.world->renderables.contains(h.id))
 					return;
-
 				h.world->renderables.setVisible(h.id, visible);
 			}
 		);
@@ -41,7 +59,25 @@ namespace imp::script
 			sol::constructors<math::Vec3f(), math::Vec3f(float, float, float)>(),
 			"x", &math::Vec3f::x,
 			"y", &math::Vec3f::y,
-			"z", &math::Vec3f::z
+			"z", &math::Vec3f::z,
+
+			sol::meta_function::to_string, [](const math::Vec3f& v)
+			{
+				return std::format("vec3f({}, {}, {})", v.x, v.y, v.z);
+			}
+		);
+
+		lua.new_usertype<math::Quaternionf>("quatf",
+			sol::constructors<math::Quaternionf(), math::Quaternionf(float, float, float, float)>(),
+			"x", &math::Quaternionf::x,
+			"y", &math::Quaternionf::y,
+			"z", &math::Quaternionf::z,
+			"w", &math::Quaternionf::w,
+
+			sol::meta_function::to_string, [](const math::Quaternionf& q)
+			{
+				return std::format("quatf({}, {}, {}, {})", q.x, q.y, q.z, q.w);
+			}
 		);
 	}
 }
