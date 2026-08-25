@@ -272,7 +272,7 @@ namespace imp::app
 				if (cmd.stringA.empty())
 				{
 					if (m_world.scripts.contains(target))
-						m_world.destroyEntity(target);
+						m_world.scripts.destroy(target);
 				}
 				else
 				{

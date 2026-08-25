@@ -42,24 +42,32 @@ elseif(APPLE)
     )
 endif()
 
-add_custom_command(TARGET imp_editor POST_BUILD
+if(WIN32)
+	add_custom_command(TARGET imp_editor POST_BUILD
 
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "$<TARGET_FILE:Qt6::Core>"
-        "$<TARGET_FILE_DIR:imp_editor>"
+			COMMAND ${CMAKE_COMMAND} -E copy_if_different
+			"$<TARGET_FILE:Qt6::Core>"
+			"$<TARGET_FILE_DIR:imp_editor>"
 
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "$<TARGET_FILE:Qt6::Gui>"
-        "$<TARGET_FILE_DIR:imp_editor>"
+			COMMAND ${CMAKE_COMMAND} -E copy_if_different
+			"$<TARGET_FILE:Qt6::Gui>"
+			"$<TARGET_FILE_DIR:imp_editor>"
 
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "$<TARGET_FILE:Qt6::Widgets>"
-        "$<TARGET_FILE_DIR:imp_editor>"
+			COMMAND ${CMAKE_COMMAND} -E copy_if_different
+			"$<TARGET_FILE:Qt6::Widgets>"
+			"$<TARGET_FILE_DIR:imp_editor>"
 
-    COMMAND ${CMAKE_COMMAND} -E make_directory
-        "$<TARGET_FILE_DIR:imp_editor>/platforms"
+			COMMAND ${CMAKE_COMMAND} -E make_directory
+			"$<TARGET_FILE_DIR:imp_editor>/platforms"
 
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/Qt6/plugins/platforms/qwindows.dll"
-        "$<TARGET_FILE_DIR:imp_editor>/platforms"
-)
+			COMMAND ${CMAKE_COMMAND} -E copy_if_different
+			"${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/Qt6/plugins/platforms/qwindows.dll"
+			"$<TARGET_FILE_DIR:imp_editor>/platforms"
+	)
+elseif(APPLE)
+	add_custom_command(TARGET imp_editor POST_BUILD
+			COMMAND macdeployqt
+			"$<TARGET_BUNDLE_DIR:imp_editor>"
+	)
+endif()
+

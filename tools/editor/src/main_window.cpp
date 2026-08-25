@@ -50,6 +50,7 @@ namespace imp::editor
 			case protocol::MessageType::EntityCommandResult: return "EntityCommandResult";
 			case protocol::MessageType::SceneCommand: return "SceneCommand";
 			case protocol::MessageType::SceneCommandResult: return "SceneCommandResult";
+			case protocol::MessageType::ScriptStatus: return "ScriptStatus";
 			}
 			return "Unknown";
 		}
