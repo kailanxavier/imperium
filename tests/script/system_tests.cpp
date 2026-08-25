@@ -65,8 +65,8 @@ TEST_F(ScriptSystemTest, OnUpdateOnlyFiresForEntitiesThatOptIntoTicking)
 	ScriptSystem system(vfs);
 	system.update(world, 0.016f);
 
-	EXPECT_FLOAT_EQ(world.transforms.localTransform(ticking).position.x, 2.0f);
-	EXPECT_FLOAT_EQ(world.transforms.localTransform(idle).position.x, 1.0f);
+	EXPECT_FLOAT_EQ(world.transforms.localTransform(ticking).position.x, 2.f);
+	EXPECT_FLOAT_EQ(world.transforms.localTransform(idle).position.x, 1.f);
 }
 
 TEST_F(ScriptSystemTest, OnUpdateContinuesFiringEveryFrameForTickingEntities)
@@ -79,7 +79,7 @@ TEST_F(ScriptSystemTest, OnUpdateContinuesFiringEveryFrameForTickingEntities)
 	world.transforms.setLocalTransform(e, Transform{}); // reset the marker
 	system.update(world, 0.016f);
 
-	EXPECT_FLOAT_EQ(world.transforms.localTransform(e).position.x, 2.0f);
+	EXPECT_FLOAT_EQ(world.transforms.localTransform(e).position.x, 2.f);
 }
 
 TEST_F(ScriptSystemTest, OnDestroyFiresWithCorrectHookName)
@@ -109,4 +109,83 @@ TEST_F(ScriptSystemTest, ScriptWithNoOnUpdateIsSafeToTick)
 
 	ScriptSystem system(vfs);
 	EXPECT_NO_FATAL_FAILURE(system.update(world, 0.016f));
+}
+
+TEST_F(ScriptSystemTest, UpdateCleansUpAnInstanceWhoseScriptComponentWasRemovedWithoutNotification)
+{
+	const std::string path = writeScript("marker.lua", kMarkerScript);
+	const EntityId e = spawn(path, /*wantsTick=*/false);
+
+	ScriptSystem system(vfs);
+	system.update(world, 0.016f);
+	ASSERT_EQ(system.liveInstanceCount(), 1u);
+
+	world.scripts.destroy(e);
+	system.update(world, 0.016f);
+
+	EXPECT_FLOAT_EQ(world.transforms.localTransform(e).position.x, 3.f);
+	EXPECT_EQ(system.liveInstanceCount(), 0u);
+}
+
+TEST_F(ScriptSystemTest, UpdateCleansUpAnInstanceWhoseEntityWasFullyDestroyedWithoutNotification)
+{
+	const std::string path = writeScript("marker.lua", kMarkerScript);
+	const EntityId e = spawn(path, /*wantsTick=*/false);
+
+	ScriptSystem system(vfs);
+	system.update(world, 0.016f);
+	ASSERT_EQ(system.liveInstanceCount(), 1u);
+
+	world.destroyEntity(e);
+	EXPECT_NO_FATAL_FAILURE(system.update(world, 0.016f));
+	EXPECT_EQ(system.liveInstanceCount(), 0u);
+}
+
+TEST_F(ScriptSystemTest, UpdateRebindsAnInstanceWhoseScriptPathChanged)
+{
+	const std::string pathA = writeScript("a.lua", 
+	R"lua(
+		local M = {}
+		function M.OnInit(self, entity) entity:SetPosition(1, 0, 0) end
+		return M
+	)lua");
+	const std::string pathB = writeScript("b.lua", 
+	R"lua(
+		local M = {}
+		function M.OnInit(self, entity) entity:SetPosition(9, 9, 9) end
+		return M
+	)lua");
+
+	const EntityId e = spawn(pathA, /*wantsTick=*/false);
+
+	ScriptSystem system(vfs);
+	system.update(world, 0.016f);
+	ASSERT_FLOAT_EQ(world.transforms.localTransform(e).position.x, 1.f);
+	ASSERT_EQ(system.liveInstanceCount(), 1u);
+
+	world.scripts.setScriptPath(e, pathB);
+	system.update(world, 0.016f);
+
+	const auto pos = world.transforms.localTransform(e).position;
+	EXPECT_FLOAT_EQ(pos.x, 9.f);
+	EXPECT_FLOAT_EQ(pos.y, 9.f);
+	EXPECT_FLOAT_EQ(pos.z, 9.f);
+	EXPECT_EQ(system.liveInstanceCount(), 1u); // rebound in place, not accumulated
+}
+
+TEST_F(ScriptSystemTest, ExplicitOnEntityDestroyedStillWorksAndIsIdempotentWithReconciliation)
+{
+	const std::string path = writeScript("marker.lua", kMarkerScript);
+	const EntityId e = spawn(path, /*wantsTick=*/false);
+
+	ScriptSystem system(vfs);
+	system.update(world, 0.016f);
+
+	system.onEntityDestroyed(e);
+	EXPECT_FLOAT_EQ(world.transforms.localTransform(e).position.x, 3.f);
+	EXPECT_EQ(system.liveInstanceCount(), 0u);
+
+	world.scripts.destroy(e);
+	EXPECT_NO_FATAL_FAILURE(system.update(world, 0.016f));
+	EXPECT_EQ(system.liveInstanceCount(), 0u);
 }
