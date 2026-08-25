@@ -34,6 +34,13 @@ function Entity:GetRotation() end
 --- @param z number Rotation around the Z axis, in degrees.
 function Entity:SetRotation(x, y, z) end
 
+--- Sets the entity's local transform rotation directly from a
+--- quaternion. Symmetric with GetRotation(), so
+--- `entity:SetRotation(entity:GetRotation())` round trips.
+--- 
+--- @param rotation quatf
+function Entity:SetRotation(rotation) end
+
 --- Controls whether the entity's renderable component is marked
 --- as visible.
 ---
@@ -107,3 +114,25 @@ function Script.OnDestroy(self, entity) end
 ---@alias OnInit fun(self: Script, entity: Entity)
 ---@alias OnUpdate fun(self: Script, entity: Entity, dt: number)
 ---@alias OnDestroy fun(self: Script, entity: Entity)
+
+---@class Log
+
+--- Logs an informational message.
+--- 
+--- @param message string The message to log.
+function Log.Info(message) end
+
+--- Logs a warning message.
+--- 
+--- @param message string The message to log.
+function Log.Warning(message) end
+
+--- Logs an error message.
+--- 
+--- @param message string The message to log.
+function Log.Error(message) end
+
+--- Logs a fatal message.
+--- 
+--- @param message string The message to log.
+function Log.Fatal(message) end

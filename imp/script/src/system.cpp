@@ -37,10 +37,16 @@ namespace imp::script
 
 	struct ScriptSystem::Impl
 	{
+		struct LiveInstance
+		{
+			sol::table self;
+			std::string scriptPath;
+		};
+
 		fs::VirtualFileSystem& vfs;
 		ecs::World* world = nullptr;
 		sol::state lua;
-		std::unordered_map<ecs::EntityId, sol::table> selfTables;
+		std::unordered_map<ecs::EntityId, LiveInstance> instances;
 		std::unordered_map<std::string, sol::table> loadedScripts;
 
 		explicit Impl(fs::VirtualFileSystem& v) : vfs(v)
@@ -53,6 +59,7 @@ namespace imp::script
 			);
 
 			registerEntityBindings(lua);
+			registerLogBindings(lua);
 		}
 
 		[[nodiscard]] sol::table loadModule(const std::string& virtualPath)
@@ -88,10 +95,11 @@ namespace imp::script
 
 		void ensureInstance(ecs::World& w, ecs::EntityId entity)
 		{
-			if (selfTables.contains(entity))
+			if (instances.contains(entity))
 				return;
 
-			const sol::table module = loadModule(w.scripts.scriptPath(entity));
+			const std::string scriptPath = w.scripts.scriptPath(entity);
+			const sol::table module = loadModule(scriptPath);
 			sol::table self = lua.create_table();
 			sol::table metatable = lua.create_table();
 			metatable[sol::meta_function::index] = module;
@@ -99,7 +107,32 @@ namespace imp::script
 
 			callHook(self, "OnInit", ScriptEntityHandle{ entity, &w });
 
-			selfTables.emplace(entity, std::move(self));
+			instances.emplace(entity, LiveInstance{ std::move(self), scriptPath });
+		}
+
+		void destroyInstance(ecs::EntityId entity)
+		{
+			const auto it = instances.find(entity);
+			if (it == instances.end())
+				return;
+
+			sol::table self = it->second.self;
+			callHook(self, "OnDestroy", ScriptEntityHandle{ entity, world });
+
+			instances.erase(it);
+		}
+
+		void reconcileAgainstEcs(ecs::World& w)
+		{
+			std::vector<ecs::EntityId> stale;
+			for (const auto& [entity, instance] : instances)
+			{
+				if (!w.scripts.contains(entity) || w.scripts.scriptPath(entity) != instance.scriptPath)
+					stale.push_back(entity);
+			}
+
+			for (const ecs::EntityId entity : stale)
+				destroyInstance(entity);
 		}
 	};
 
@@ -110,33 +143,27 @@ namespace imp::script
 	ScriptSystem& ScriptSystem::operator=(ScriptSystem&&) noexcept = default;
 
 	size_t ScriptSystem::loadedScriptCount() const noexcept { return m_impl->loadedScripts.size(); }
-	size_t ScriptSystem::liveInstanceCount() const noexcept { return m_impl->selfTables.size(); }
+	size_t ScriptSystem::liveInstanceCount() const noexcept { return m_impl->instances.size(); }
 
 	void ScriptSystem::update(ecs::World& world, float deltaSeconds)
 	{
 		m_impl->world = &world;
+		m_impl->reconcileAgainstEcs(world);
+
 		for (const ecs::EntityId entity : world.scripts.owners())
 			m_impl->ensureInstance(world, entity);
 
-		for (auto& [entity, self] : m_impl->selfTables)
+		for (auto& [entity, instance] : m_impl->instances)
 		{
 			if (!world.scripts.contains(entity) || !world.scripts.wantsTick(entity))
 				continue;
-
-			callHook(self, "OnUpdate", ScriptEntityHandle{ entity, &world }, deltaSeconds);
+			callHook(instance.self, "OnUpdate", ScriptEntityHandle{ entity, &world }, deltaSeconds);
 		}
 	}
 
 	void ScriptSystem::onEntityDestroyed(ecs::EntityId entity)
 	{
-		const auto it = m_impl->selfTables.find(entity);
-		if (it == m_impl->selfTables.end())
-			return;
-
-		sol::table self = it->second;
-		callHook(self, "OnDestroy", ScriptEntityHandle{ entity, m_impl->world });
-
-		m_impl->selfTables.erase(it);
+		m_impl->destroyInstance(entity);
 	}
 
 	void ScriptSystem::reloadScript(const std::string& virtualPath)

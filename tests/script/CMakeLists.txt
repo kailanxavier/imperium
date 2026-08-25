@@ -4,6 +4,7 @@ add_executable(imp_script_tests
 	binding_tests.cpp
 	file_watcher_tests.cpp
 	script_status_tests.cpp
+	world_snapshot_tests.cpp
 )
 
 target_link_libraries(imp_script_tests

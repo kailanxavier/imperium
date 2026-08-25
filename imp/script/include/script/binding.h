@@ -15,4 +15,5 @@ namespace imp::script
 	};
 
 	void registerEntityBindings(sol::state& lua);
+	void registerLogBindings(sol::state& lua);
 }

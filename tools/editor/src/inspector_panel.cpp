@@ -136,6 +136,35 @@ namespace imp::editor
         return m_lightGroup;
     }
 
+    QGroupBox* InspectorPanel::buildScriptSection()
+    {
+        m_scriptGroup = new QGroupBox("Script", this);
+        auto* layout = new QVBoxLayout(m_scriptGroup);
+
+        auto* form = new QFormLayout();
+        m_scriptPathEdit = new QLineEdit(this);
+        m_scriptPathEdit->setPlaceholderText("assets/scripts/script.lua");
+        form->addRow("Path", m_scriptPathEdit);
+
+        m_wantsTickCheck = new QCheckBox("Wants Tick", this);
+        form->addRow(m_wantsTickCheck);
+
+        layout->addLayout(form);
+
+        auto* buttonLayout = new QHBoxLayout();
+        m_attachScriptButton = new QPushButton("Add Script", this);
+        m_removeScriptButton = new QPushButton("Remove", this);
+
+        buttonLayout->addWidget(m_attachScriptButton);
+        buttonLayout->addWidget(m_removeScriptButton);
+        layout->addLayout(buttonLayout);
+
+        connect(m_attachScriptButton, &QPushButton::clicked, this, &InspectorPanel::emitAttachScriptCommand);
+        connect(m_removeScriptButton, &QPushButton::clicked, this, &InspectorPanel::emitRemoveScriptCommand);
+
+        return m_scriptGroup;
+    }
+
     void InspectorPanel::showEmptyState()
     {
         m_hasSelection = false;
@@ -343,35 +372,15 @@ namespace imp::editor
 
     void InspectorPanel::emitRemoveScriptCommand()
     {
-        // TODO: Implement removing script component
-    }
+        if (m_applyingSnapshot || !m_hasSelection) return;
 
-    QGroupBox* InspectorPanel::buildScriptSection()
-    {
-        m_scriptGroup = new QGroupBox("Script", this);
-        auto* layout = new QVBoxLayout(m_scriptGroup);
+        protocol::EntityCommandPayload cmd;
+        cmd.op = protocol::EntityCommandOp::AttachScript;
+        cmd.targetIndex = m_current.index;
+        cmd.targetGeneration = m_current.generation;
+        cmd.stringA.clear();
+        cmd.boolA = false;
 
-        auto* form = new QFormLayout();
-        m_scriptPathEdit = new QLineEdit(this);
-        m_scriptPathEdit->setPlaceholderText("assets/scripts/script.lua");
-        form->addRow("Path", m_scriptPathEdit);
-
-        m_wantsTickCheck = new QCheckBox("Wants Tick", this);
-        form->addRow(m_wantsTickCheck);
-
-        layout->addLayout(form);
-
-        auto* buttonLayout = new QHBoxLayout();
-        m_attachScriptButton = new QPushButton("Add Script", this);
-        m_removeScriptButton = new QPushButton("Remove", this);
-
-        buttonLayout->addWidget(m_attachScriptButton);
-        buttonLayout->addWidget(m_removeScriptButton);
-        layout->addLayout(buttonLayout);
-
-        connect(m_attachScriptButton, &QPushButton::clicked, this, &InspectorPanel::emitAttachScriptCommand);
-        connect(m_removeScriptButton, &QPushButton::clicked, this, &InspectorPanel::emitRemoveScriptCommand);
-
-        return m_scriptGroup;
+        emit commandRequested(cmd);
     }
 }

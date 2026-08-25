@@ -3,6 +3,10 @@
 #include <ecs/world.h>
 #include <sol/sol.hpp>
 
+#include <format>
+
+#include <core/log/log.h>
+
 namespace imp::script
 {
 	bool ScriptEntityHandle::isAlive() const noexcept
@@ -34,19 +38,30 @@ namespace imp::script
 					return sol::nullopt;
 				return h.world->transforms.localTransform(h.id).rotation;
 			},
-			"SetRotation", [](ScriptEntityHandle& h, float x, float y, float z)
-			{
-				if (!h.isAlive() || !h.world->transforms.contains(h.id))
-					return;
+			"SetRotation", sol::overload(
+				[](ScriptEntityHandle& h, float x, float y, float z)
+				{
+					if (!h.isAlive() || !h.world->transforms.contains(h.id))
+						return;
 
-				ecs::Transform local = h.world->transforms.localTransform(h.id);
-				local.rotation = math::Quaternionf::fromEuler(
-					math::toRadians(x), 
-					math::toRadians(y),
-					math::toRadians(z)
-				);
-				h.world->transforms.setLocalTransform(h.id, local);
-			},
+					ecs::Transform local = h.world->transforms.localTransform(h.id);
+					local.rotation = math::Quaternionf::fromEuler(
+						math::toRadians(x), 
+						math::toRadians(y),
+						math::toRadians(z)
+					);
+					h.world->transforms.setLocalTransform(h.id, local);
+				},
+				[](ScriptEntityHandle& h, const math::Quaternionf& rotation)
+				{
+					if (!h.isAlive() || !h.world->transforms.contains(h.id))
+						return;
+
+					ecs::Transform local = h.world->transforms.localTransform(h.id);
+					local.rotation = rotation;
+					h.world->transforms.setLocalTransform(h.id, local);
+				}
+			),
 			"SetRenderableVisible", [](ScriptEntityHandle& h, bool visible)
 			{
 				if (!h.isAlive() || !h.world->renderables.contains(h.id))
@@ -64,6 +79,14 @@ namespace imp::script
 			sol::meta_function::to_string, [](const math::Vec3f& v)
 			{
 				return std::format("vec3f({}, {}, {})", v.x, v.y, v.z);
+			},
+			sol::meta_function::equal_to, [](const math::Vec3f& a, const math::Vec3f& b)
+			{
+				return a == b;
+			},
+			sol::meta_function::multiplication, [](const math::Vec3f& a, const math::Vec3f& b)
+			{
+				return a * b;
 			}
 		);
 
@@ -77,6 +100,60 @@ namespace imp::script
 			sol::meta_function::to_string, [](const math::Quaternionf& q)
 			{
 				return std::format("quatf({}, {}, {}, {})", q.x, q.y, q.z, q.w);
+			},
+			sol::meta_function::equal_to, [](const math::Quaternionf& a, const math::Quaternionf& b)
+			{
+				return a == b;
+			},
+			sol::meta_function::multiplication, [](const math::Quaternionf& a, const math::Quaternionf& b)
+			{
+				return a * b;
+			}
+		);
+	}
+
+	void registerLogBindings(sol::state& lua)
+	{
+		lua.create_named_table("Log",
+			"Info", [](const std::string& message)
+			{
+				imp::log::Logger::get().log(
+					imp::log::LogLevel::Info,
+					"Lua",
+					message,
+					"<Lua>",
+					0
+				);
+			},
+			"Warning", [](const std::string& message)
+			{
+				imp::log::Logger::get().log(
+					imp::log::LogLevel::Warning,
+					"Lua",
+					message,
+					"<Lua>",
+					0
+				);
+			},
+			"Error", [](const std::string& message)
+			{
+				imp::log::Logger::get().log(
+					imp::log::LogLevel::Error,
+					"Lua",
+					message,
+					"<Lua>",
+					0
+				);
+			},
+			"Fatal", [](const std::string& message)
+			{
+				imp::log::Logger::get().log(
+					imp::log::LogLevel::Fatal,
+					"Lua",
+					message,
+					"<Lua>",
+					0
+				);
 			}
 		);
 	}
