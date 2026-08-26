@@ -78,6 +78,8 @@ namespace imp::editor
 
 		buildUi();
 		updateConnectionUi();
+
+		m_connection->connectToEngine(m_hostEdit->text(), static_cast<quint16>( m_portSpin->value() ));
 	}
 
 	void MainWindow::buildUi()
@@ -191,9 +193,12 @@ namespace imp::editor
 				static_cast<quint16>( m_portSpin->value() ));
 	}
 
-	void MainWindow::onConnectionStateChanged(ConnectionState /*state*/)
+	void MainWindow::onConnectionStateChanged(ConnectionState state)
 	{
 		updateConnectionUi();
+
+		if (state == ConnectionState::Connected)
+			m_assetBrowser->refresh();
 	}
 
 	void MainWindow::updateConnectionUi()

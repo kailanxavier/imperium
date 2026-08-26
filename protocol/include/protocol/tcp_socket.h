@@ -9,6 +9,13 @@ namespace imp::protocol
     class TCPSocket
     {
     public:
+        enum class ConnectResult
+        {
+            Failed,
+            InProgress,
+            Connected,
+        };
+
         TCPSocket();
         ~TCPSocket();
 
@@ -20,6 +27,8 @@ namespace imp::protocol
 
         // Used by tools to connect to engine
         bool connect(const char* address, u16 port);
+        ConnectResult beginConnect(const char* address, u16 port);
+        [[nodiscard]] ConnectResult pollConnect() const;
 
         // Non-blocking send & receive
         bool send(std::span<const u8> data);

@@ -27,6 +27,7 @@ namespace imp::editor
 		explicit AssetBrowserPanel(QWidget* parent = nullptr);
 
 		void setModel(AssetModel* model);
+		void refresh();
 		void applyListResult(const protocol::AssetCommandResultPayload& result);
 		void addScriptStatus(const protocol::ScriptStatusPayload& status);
 

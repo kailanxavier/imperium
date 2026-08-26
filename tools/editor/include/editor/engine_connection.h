@@ -57,6 +57,8 @@ namespace imp::editor
 	private:
 		void setState(ConnectionState state, QString error = {});
 		void tickReconnect();
+		void tickConnecting();
+		void finaliseConnected();
 
 		protocol::TCPSocket m_socket;
 		protocol::FrameReader m_reader;
@@ -72,5 +74,8 @@ namespace imp::editor
 		QTimer m_pollTimer;
 		std::chrono::steady_clock::time_point m_lastReconnectAttempt{};
 		std::chrono::milliseconds m_reconnectInterval{ 1000 };
+
+		std::chrono::steady_clock::time_point m_connectStartedAt{};
+		std::chrono::milliseconds m_connectTimeout{ 5000 };
 	};
 }

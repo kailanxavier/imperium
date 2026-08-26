@@ -108,10 +108,15 @@ namespace imp::editor
 			delete m_scriptStatusList->takeItem(m_scriptStatusList->count() - 1);
 	}
 
-	void AssetBrowserPanel::onRefreshClicked()
+	void AssetBrowserPanel::refresh()
 	{
 		emit listRequested("assets/", true);
 		emit listRequested("scenes/", true);
+	}
+
+	void AssetBrowserPanel::onRefreshClicked()
+	{
+		refresh();
 	}
 
 	void AssetBrowserPanel::onEntryDoubleClicked(const QModelIndex& index)
