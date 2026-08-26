@@ -62,6 +62,12 @@ namespace imp::editor
         restoreSelectedKey(selectedKey);
     }
 
+    void HierarchyPanel::clearSelection()
+    {
+        if (auto* selection = m_tree->selectionModel())
+            selection->clear();
+    }
+
     QSet<quint64> HierarchyPanel::captureExpandedKeys() const
     {
         QSet<quint64> keys;

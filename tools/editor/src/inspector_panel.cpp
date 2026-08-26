@@ -251,7 +251,9 @@ namespace imp::editor
             if (!m_scriptPathEdit->hasFocus())
                 m_scriptPathEdit->setText(QString::fromStdString(s.path));
 
-            m_wantsTickCheck->setChecked(s.wantsTick);
+            if (!m_wantsTickCheck->hasFocus())
+                m_wantsTickCheck->setChecked(s.wantsTick);
+
             m_attachScriptButton->setText("Update Script");
         }
         else
@@ -261,7 +263,9 @@ namespace imp::editor
             if (!m_scriptPathEdit->hasFocus())
                 m_scriptPathEdit->clear();
 
-            m_wantsTickCheck->setChecked(false);
+            if (!m_wantsTickCheck->hasFocus())
+                m_wantsTickCheck->setChecked(false);
+
             m_attachScriptButton->setText("Add Script");
         }
 

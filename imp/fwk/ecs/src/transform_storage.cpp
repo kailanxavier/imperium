@@ -340,14 +340,18 @@ namespace imp::ecs
 		if (idx == kInvalidDense)
 			return false;
 
-		u32 newParentDense = denseIndexOf(newParent);
+		u32 newParentDense = kInvalidDense;
+		if (newParent.isValid())
+		{
+			newParentDense = denseIndexOf(newParent);
 
-		if (newParentDense == kInvalidDense)
-			return false;
-		if (newParentDense == idx)
-			return false;
-		if (isAncestorOfDense(idx, newParentDense))
-			return false;
+			if (newParentDense == kInvalidDense)
+				return false;
+			if (newParentDense == idx)
+				return false;
+			if (isAncestorOfDense(idx, newParentDense))
+				return false;
+		}
 
 		if (m_parentDense[idx] == newParentDense)
 			return true;

@@ -260,8 +260,16 @@ namespace imp::editor
 			{
 				const QString verb = result->op == protocol::SceneCommandOp::Save ? "Save" : "Load";
 				if (result->success)
+				{
 					m_logView->appendPlainText(QString("[SCENE] %1 succeeded: %2")
 						.arg(verb).arg(QString::fromStdString(result->path)));
+
+					if (result->op == protocol::SceneCommandOp::Load)
+					{
+						m_hierarchy->clearSelection();
+						m_inspector->showEmptyState();
+					}
+				}
 				else
 					m_logView->appendPlainText(QString("[SCENE %1 FAILED] %2: %3")
 						.arg(verb).arg(QString::fromStdString(result->path)).arg(QString::fromStdString(result->error)));

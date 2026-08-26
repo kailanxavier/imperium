@@ -24,6 +24,7 @@ namespace imp::editor
 
 		void setModel(WorldModel* model);
 		void applySnapshot(std::vector<protocol::EntitySnapshotPayload> entities);
+		void clearSelection();
 
 	signals:
 		void selectionCleared();
