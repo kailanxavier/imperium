@@ -5,6 +5,7 @@
 #include <protocol/entity_command.h>
 #include <protocol/scene_command.h>
 #include <protocol/asset_command.h>
+#include <protocol/script_status.h>
 
 #include <filesystem>
 
@@ -138,6 +139,10 @@ namespace imp::app
 			else if (raw.type == protocol::MessageType::AssetCommand)
 			{
 				handleAssetCommand(raw.payload);
+			}
+			else if (raw.type == protocol::MessageType::ScriptStatus)
+			{
+				handleScriptStatus(raw.payload);
 			}
 		}
 	}
@@ -435,6 +440,28 @@ namespace imp::app
 		{
 			const auto bytes = protocol::serialiseAssetCommandResult(result);
 			server.publish(protocol::MessageType::AssetCommandResult, bytes);
+		}
+	}
+
+	void EditorBridgeLayer::handleScriptStatus(std::span<const u8> payload)
+	{
+		auto& server = protocol::ToolServer::instance();
+
+		const auto decoded = protocol::deserialiseScriptStatus(payload);
+		if (!decoded)
+			return;
+
+		const auto& cmd = *decoded;
+		protocol::ScriptStatusPayload status;
+		status.error = cmd.error;
+		status.path = cmd.path;
+		status.reloadedAtMs = cmd.reloadedAtMs;
+		status.success = cmd.success;
+
+		if (server.hasSubscribers(protocol::MessageType::ScriptStatus))
+		{
+			const auto bytes = protocol::serialiseScriptStatus(status);
+			server.publish(protocol::MessageType::ScriptStatus, bytes);
 		}
 	}
 }
