@@ -33,22 +33,23 @@ namespace imp::editor
 		setState(ConnectionState::Connecting);
 
 		const QByteArray hostUtf8 = m_host.toUtf8();
-		if (!m_socket.connect(hostUtf8.constData(), m_port))
+		m_connectStartedAt = std::chrono::steady_clock::now();
+
+		switch (m_socket.beginConnect(hostUtf8.constData(), m_port))
 		{
-			setState(ConnectionState::Errored, "Failed to connect.");
+		case TCPSocket::ConnectResult::Failed:
+			setState(ConnectionState::Errored, "Failed to connect");
+			m_socket = TCPSocket{};
 			m_lastReconnectAttempt = std::chrono::steady_clock::now();
-			return;
+			break;
+
+		case TCPSocket::ConnectResult::Connected:
+			finaliseConnected();
+			break;
+
+		case TCPSocket::ConnectResult::InProgress:
+			break;
 		}
-
-		m_socket.setNonBlocking(true);
-		setState(ConnectionState::Connected);
-
-		sendControl(ControlOp::Subscribe,
-			static_cast<MessageMask>(
-				static_cast<u32>( MessageMask::WorldSnapshot ) |
-				static_cast<u32>( MessageMask::EntityCommandResult ) |
-				static_cast<u32>( MessageMask::SceneCommandResult )
-				));
 	}
 
 	void EngineConnection::disconnectFromEngine()
@@ -83,6 +84,11 @@ namespace imp::editor
 		sendFrame(MessageType::SceneCommand, serialiseSceneCommand(cmd));
 	}
 
+	void EngineConnection::sendAssetCommand(const protocol::AssetCommandPayload& cmd)
+	{
+		sendFrame(MessageType::AssetCommand, serialiseAssetCommand(cmd));
+	}
+
 	void EngineConnection::tickReconnect()
 	{
 		if (!m_wantsConnection)
@@ -96,8 +102,52 @@ namespace imp::editor
 		connectToEngine(m_host, m_port);
 	}
 
+	void EngineConnection::tickConnecting()
+	{
+		switch (m_socket.pollConnect())
+		{
+		case TCPSocket::ConnectResult::Connected:
+			finaliseConnected();
+			break;
+
+		case TCPSocket::ConnectResult::Failed:
+			setState(ConnectionState::Errored, "Failed to connect.");
+			m_socket = TCPSocket{};
+			m_lastReconnectAttempt = std::chrono::steady_clock::now();
+			break;
+		case TCPSocket::ConnectResult::InProgress:
+			if (std::chrono::steady_clock::now() - m_connectStartedAt > m_connectTimeout)
+			{
+				setState(ConnectionState::Errored, "Connection timed out.");
+				m_socket = TCPSocket{};
+				m_lastReconnectAttempt = std::chrono::steady_clock::now();
+			}
+			break;
+		}
+	}
+
+	void EngineConnection::finaliseConnected()
+	{
+		setState(ConnectionState::Connected);
+
+		sendControl(ControlOp::Subscribe,
+			static_cast<MessageMask>(
+				static_cast<u32>( MessageMask::WorldSnapshot ) |
+				static_cast<u32>( MessageMask::EntityCommandResult ) |
+				static_cast<u32>( MessageMask::SceneCommandResult ) |
+				static_cast<u32>( MessageMask::AssetCommandResult ) |
+				static_cast<u32>( MessageMask::ScriptStatus )
+				));
+	}
+
 	void EngineConnection::poll()
 	{
+		if (m_state == ConnectionState::Connecting)
+		{
+			tickConnecting();
+			return;
+		}
+
 		if (m_state != ConnectionState::Connected)
 		{
 			tickReconnect();

@@ -9,6 +9,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QVBoxLayout>
+#include <QPushButton>
 
 #include <core/math/math.h>
 
@@ -46,6 +47,7 @@ namespace imp::editor
         layout->addWidget(buildTransformSection());
         layout->addWidget(buildRenderableSection());
         layout->addWidget(buildLightSection());
+        layout->addWidget(buildScriptSection());
         layout->addStretch();
 
         showEmptyState();
@@ -134,9 +136,49 @@ namespace imp::editor
         return m_lightGroup;
     }
 
+    QGroupBox* InspectorPanel::buildScriptSection()
+    {
+        m_scriptGroup = new QGroupBox("Script", this);
+        auto* layout = new QVBoxLayout(m_scriptGroup);
+
+        auto* form = new QFormLayout();
+        m_scriptPathEdit = new QLineEdit(this);
+        m_scriptPathEdit->setPlaceholderText("assets/scripts/script.lua");
+        form->addRow("Path", m_scriptPathEdit);
+
+        m_wantsTickCheck = new QCheckBox("Wants Tick", this);
+        form->addRow(m_wantsTickCheck);
+
+        layout->addLayout(form);
+
+        auto* buttonLayout = new QHBoxLayout();
+        m_attachScriptButton = new QPushButton("Add Script", this);
+        m_removeScriptButton = new QPushButton("Remove", this);
+
+        buttonLayout->addWidget(m_attachScriptButton);
+        buttonLayout->addWidget(m_removeScriptButton);
+        layout->addLayout(buttonLayout);
+
+        connect(m_attachScriptButton, &QPushButton::clicked, this, &InspectorPanel::emitAttachScriptCommand);
+        connect(m_removeScriptButton, &QPushButton::clicked, this, &InspectorPanel::emitRemoveScriptCommand);
+
+        connect(m_scriptPathEdit, &QLineEdit::textEdited, this, [this](const QString&)
+        {
+            m_scriptDirty = true;
+        });
+
+        connect(m_wantsTickCheck, &QCheckBox::clicked, this, [this](bool)
+        {
+            m_scriptDirty = true;
+        });
+
+        return m_scriptGroup;
+    }
+
     void InspectorPanel::showEmptyState()
     {
         m_hasSelection = false;
+        m_scriptDirty = false;
         m_titleLabel->setText("No selection");
 
         m_nameEdit->setEnabled(false);
@@ -145,11 +187,19 @@ namespace imp::editor
         m_transformGroup->setVisible(false);
         m_renderableGroup->setVisible(false);
         m_lightGroup->setVisible(false);
+        m_scriptGroup->setVisible(false);
     }
 
     void InspectorPanel::showEntity(const protocol::EntitySnapshotPayload& entity)
     {
         m_applyingSnapshot = true;
+
+        const bool isDifferentEntity = !m_hasSelection
+                || m_current.index != entity.index
+                || m_current.generation != entity.generation;
+
+        if (isDifferentEntity)
+            m_scriptDirty = false;
 
         m_current = entity;
         m_hasSelection = true;
@@ -210,6 +260,31 @@ namespace imp::editor
         else
         {
             m_lightGroup->setVisible(false);
+        }
+        if (entity.script)
+        {
+            m_scriptGroup->setVisible(true);
+            const auto& s = *entity.script;
+
+            if (!m_scriptDirty)
+            {
+                m_scriptPathEdit->setText(QString::fromStdString(s.path));
+                m_wantsTickCheck->setChecked(s.wantsTick);
+            }
+
+            m_attachScriptButton->setText("Update Script");
+        }
+        else
+        {
+            m_scriptGroup->setVisible(true);
+
+            if (!m_scriptDirty)
+            {
+                m_scriptPathEdit->clear();
+                m_wantsTickCheck->setChecked(false);
+            }
+
+            m_attachScriptButton->setText("Add Script");
         }
 
         m_applyingSnapshot = false;
@@ -299,6 +374,38 @@ namespace imp::editor
         cmd.targetIndex = m_current.index;
         cmd.targetGeneration = m_current.generation;
         cmd.stringA = m_nameEdit->text().toStdString();
+
+        emit commandRequested(cmd);
+    }
+
+    void InspectorPanel::emitAttachScriptCommand()
+    {
+        if (m_applyingSnapshot || !m_hasSelection) return;
+
+        protocol::EntityCommandPayload cmd;
+        cmd.op = protocol::EntityCommandOp::AttachScript;
+        cmd.targetIndex = m_current.index;
+        cmd.targetGeneration = m_current.generation;
+        cmd.stringA = m_scriptPathEdit->text().toStdString();
+        cmd.boolA = m_wantsTickCheck->isChecked();
+
+        m_scriptDirty = false;
+
+        emit commandRequested(cmd);
+    }
+
+    void InspectorPanel::emitRemoveScriptCommand()
+    {
+        if (m_applyingSnapshot || !m_hasSelection) return;
+
+        protocol::EntityCommandPayload cmd;
+        cmd.op = protocol::EntityCommandOp::AttachScript;
+        cmd.targetIndex = m_current.index;
+        cmd.targetGeneration = m_current.generation;
+        cmd.stringA.clear();
+        cmd.boolA = false;
+
+        m_scriptDirty = false;
 
         emit commandRequested(cmd);
     }

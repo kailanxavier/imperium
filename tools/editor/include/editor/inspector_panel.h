@@ -10,6 +10,7 @@ class QLineEdit;
 class QCheckBox;
 class QGroupBox;
 class QDoubleSpinBox;
+class QPushButton;
 
 namespace imp::editor
 {
@@ -30,12 +31,15 @@ namespace imp::editor
 		QGroupBox* buildTransformSection();
 		QGroupBox* buildRenderableSection();
 		QGroupBox* buildLightSection();
+		QGroupBox* buildScriptSection();
 
 		void emitTransformCommand();
 		void emitVisibleCommand(bool visible);
 		void emitLightColourCommand();
 		void emitLightIntensityCommand(double intensity);
 		void emitNameCommand();
+		void emitAttachScriptCommand();
+		void emitRemoveScriptCommand();
 
 		bool m_applyingSnapshot = false;
 		protocol::EntitySnapshotPayload m_current;
@@ -67,5 +71,13 @@ namespace imp::editor
 		QDoubleSpinBox* m_lightG = nullptr;
 		QDoubleSpinBox* m_lightB = nullptr;
 		QDoubleSpinBox* m_lightIntensity = nullptr;
+
+		QGroupBox* m_scriptGroup = nullptr;
+		QLineEdit* m_scriptPathEdit = nullptr;
+		QCheckBox* m_wantsTickCheck = nullptr;
+		QPushButton* m_attachScriptButton = nullptr;
+		QPushButton* m_removeScriptButton = nullptr;
+
+		bool m_scriptDirty = false;
 	};
 }

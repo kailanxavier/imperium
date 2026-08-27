@@ -5,6 +5,10 @@
 #include <sandbox/asset_manifest.h>
 #include <sandbox/render_resources.h>
 #include <sandbox/sandbox_scene.h>
+#include <script/system.h>
+#include <script/file_watcher.h>
+
+#include <memory>
 
 namespace imp::gfx
 {
@@ -42,5 +46,8 @@ namespace imp::app
 		RenderResources m_resources;
 		SandboxScene m_scene;
 		bool m_enableFrustumCulling = true;
+
+		std::unique_ptr<script::ScriptSystem> m_scriptSystem;
+		std::unique_ptr<script::ScriptFileWatcher> m_scriptWatcher;
 	};
 }

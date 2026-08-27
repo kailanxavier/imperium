@@ -27,6 +27,12 @@ table LightComponent
     intensity: float;
 }
 
+table ScriptComponent
+{
+    path: string;
+    wants_tick: bool;
+}
+
 table EntitySnapshot
 {
     id_index: uint32;
@@ -40,6 +46,7 @@ table EntitySnapshot
     transform: TransformComponent;
     renderable: RenderableComponent;
     light: LightComponent;
+    script: ScriptComponent;
 }
 
 table WorldSnapshot

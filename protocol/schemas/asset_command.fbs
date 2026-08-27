@@ -1,0 +1,30 @@
+namespace imp.protocol.asset;
+
+enum AssetCommandOp : uint8 { List = 0, Read, Write, Delete }
+
+table AssetEntry
+{
+	virtual_path: string;
+	is_directory: bool;
+	size_bytes: uint64;
+}
+
+table AssetCommand
+{
+	op: AssetCommandOp;
+	path: string;
+	recursive: bool;
+	content: [uint8];
+}
+
+table AssetCommandResult
+{
+	op: AssetCommandOp;
+	path: string;
+	success: bool;
+	error: string;
+	entries: [AssetEntry];
+	content: [uint8];
+}
+
+root_type AssetCommand;

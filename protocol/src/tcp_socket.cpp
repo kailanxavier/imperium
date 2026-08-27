@@ -60,6 +60,75 @@ namespace imp::protocol
         return true;
     }
 
+    TCPSocket::ConnectResult TCPSocket::beginConnect(const char* address, u16 port)
+    {
+        close();
+
+        SocketType sock = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+        if (sock == kInvalidSocket)
+            return ConnectResult::Failed;
+
+        m_handle = static_cast<u64>( sock );
+        setNonBlocking(true);
+
+        sockaddr_in serverAddr{};
+        serverAddr.sin_family = AF_INET;
+        serverAddr.sin_port = htons(port);
+
+        if (::inet_pton(AF_INET, address, &serverAddr.sin_addr) <= 0)
+        {
+            close();
+            return ConnectResult::Failed;
+        }
+
+        if (::connect(sock, reinterpret_cast<sockaddr*>(&serverAddr), sizeof(serverAddr)) == 0)
+            return ConnectResult::Connected;
+
+#ifdef _WIN32
+        if (WSAGetLastError() == WSAEWOULDBLOCK)
+            return ConnectResult::InProgress;
+#else
+        if (errno == EINPROGRESS)
+            return ConnectResult::InProgress;
+#endif
+
+        close();
+        return ConnectResult::Failed;
+
+    }
+
+    TCPSocket::ConnectResult TCPSocket::pollConnect() const
+    {
+        if (!isValid())
+            return ConnectResult::Failed;
+
+        fd_set writeSet;
+        fd_set errorSet;
+        FD_ZERO(&writeSet);
+        FD_ZERO(&errorSet);
+        FD_SET(static_cast<SocketType>(m_handle), &writeSet);
+        FD_SET(static_cast<SocketType>(m_handle), &errorSet);
+
+        timeval timeout{};
+        timeout.tv_sec = 0;
+        timeout.tv_usec = 0;
+
+        const int ready = ::select(static_cast<int>(m_handle) + 1, nullptr, &writeSet, &errorSet, &timeout);
+        if (ready <= 0)
+            return ConnectResult::InProgress;
+
+        if (FD_ISSET(static_cast<SocketType>(m_handle), &errorSet))
+            return ConnectResult::Failed;
+
+        int soError = 0;
+        LengthType len = sizeof(soError);
+        if (::getsockopt(static_cast<SocketType>(m_handle), SOL_SOCKET, SO_ERROR,
+            reinterpret_cast<char*>(&soError), &len) != 0 || soError != 0)
+            return ConnectResult::Failed;
+
+        return ConnectResult::Connected;
+    }
+
     bool TCPSocket::send(const std::span<const u8> data)
     {
         if (!isValid()) return false;

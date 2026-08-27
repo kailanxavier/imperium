@@ -67,6 +67,17 @@ namespace imp::protocol
 				lightOffset = lb.Finish();
 			}
 
+			flatbuffers::Offset<world::ScriptComponent> scriptOffset;
+			if (e.script)
+			{
+				const auto pathOffset = builder.CreateString(e.script->path);
+
+				world::ScriptComponentBuilder sb(builder);
+				sb.add_path(pathOffset);
+				sb.add_wants_tick(e.script->wantsTick);
+				scriptOffset = sb.Finish();
+			}
+
 			world::EntitySnapshotBuilder esb(builder);
 			esb.add_id_index(e.index);
 			esb.add_id_generation(e.generation);
@@ -76,6 +87,7 @@ namespace imp::protocol
 			if (e.transform) esb.add_transform(transformOffset);
 			if (e.renderable) esb.add_renderable(renderableOffset);
 			if (e.light) esb.add_light(lightOffset);
+			if (e.script) esb.add_script(scriptOffset);
 
 			entityOffsets.push_back(esb.Finish());
 		}
@@ -137,6 +149,14 @@ namespace imp::protocol
 				lp.colour = fromFbVec3(l->colour());
 				lp.intensity = l->intensity();
 				p.light = lp;
+			}
+
+			if (const auto* s = e->script())
+			{
+				ScriptComponentPayload sp;
+				if (s->path()) sp.path = s->path()->str();
+				sp.wantsTick = s->wants_tick();
+				p.script = sp;
 			}
 
 			out.push_back(std::move(p));

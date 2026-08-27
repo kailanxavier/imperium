@@ -102,7 +102,7 @@ namespace imp::gfx::vulkan
 
 		bool ensureStagingBuffer(VkDeviceSize minSize);
 
-		void deferredDestroy(std::function<void()> deleter);
+		void deferredDestroy(std::function<void()> deleter) override;
 
 		VkInstance m_instance = VK_NULL_HANDLE;
 		VkDebugUtilsMessengerEXT m_debugMessenger = VK_NULL_HANDLE;

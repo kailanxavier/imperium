@@ -1,4 +1,19 @@
 #pragma once
+#include <ecs/entity.h>
 
-// TODO: expose engine types and function to scripts
-namespace imp::script {}
+namespace sol { class state; }
+namespace imp::ecs { class World; }
+
+namespace imp::script 
+{
+	struct ScriptEntityHandle
+	{
+		ecs::EntityId id;
+		ecs::World* world = nullptr;
+
+		[[nodiscard]] bool isAlive() const noexcept;
+	};
+
+	void registerEntityBindings(sol::state& lua);
+	void registerLogBindings(sol::state& lua);
+}

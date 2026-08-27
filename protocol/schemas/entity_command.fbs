@@ -11,6 +11,7 @@ enum EntityCommandOp : uint8
     SetLightIntensity,
     Reparent,
     Destroy,
+    AttachScript,
 }
 
 table EntityCommand

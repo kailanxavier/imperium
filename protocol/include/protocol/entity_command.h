@@ -18,6 +18,7 @@ namespace imp::protocol
 		SetLightIntensity,
 		Reparent,
 		Destroy,
+		AttachScript,
 	};
 
 	struct EntityCommandPayload

@@ -3,10 +3,14 @@
 #include <editor/hierarchy_panel.h>
 #include <editor/inspector_panel.h>
 #include <editor/world_model.h>
+#include <editor/asset_model.h>
+#include <editor/asset_browser_panel.h>
 
 #include <protocol/message_type.h>
 #include <protocol/world_snapshot.h>
 #include <protocol/entity_command.h>
+#include <protocol/asset_command.h>
+#include <protocol/script_status.h>
 
 #include <QDockWidget>
 #include <QHBoxLayout>
@@ -50,6 +54,9 @@ namespace imp::editor
 			case protocol::MessageType::EntityCommandResult: return "EntityCommandResult";
 			case protocol::MessageType::SceneCommand: return "SceneCommand";
 			case protocol::MessageType::SceneCommandResult: return "SceneCommandResult";
+			case protocol::MessageType::ScriptStatus: return "ScriptStatus";
+			case protocol::MessageType::AssetCommand: return "AssetCommand";
+			case protocol::MessageType::AssetCommandResult: return "AssetCommandResult";
 			}
 			return "Unknown";
 		}
@@ -67,8 +74,12 @@ namespace imp::editor
 		m_worldModel = new WorldModel(this);
 		connect(m_worldModel, &WorldModel::reparentRequested, this, &MainWindow::onReparentRequested);
 
+		m_assetModel = new AssetModel(this);
+
 		buildUi();
 		updateConnectionUi();
+
+		m_connection->connectToEngine(m_hostEdit->text(), static_cast<quint16>( m_portSpin->value() ));
 	}
 
 	void MainWindow::buildUi()
@@ -98,6 +109,7 @@ namespace imp::editor
 		rootLayout->addWidget(splitter, 1);
 
 		setCentralWidget(central);
+		buildAssetBrowserDock();
 		buildLogDock();
 		resize(kWidth, kHeight);
 	}
@@ -145,6 +157,19 @@ namespace imp::editor
 		return connectionBar;
 	}
 
+	void MainWindow::buildAssetBrowserDock()
+	{
+		auto* dock = new QDockWidget("Assets", this);
+		
+		m_assetBrowser = new AssetBrowserPanel(dock);
+		m_assetBrowser->setModel(m_assetModel);
+		connect(m_assetBrowser, &AssetBrowserPanel::listRequested, this, &MainWindow::onAssetListRequested);
+		connect(m_assetBrowser, &AssetBrowserPanel::sceneEntryActivated, this, &MainWindow::onSceneEntryActivated);
+
+		dock->setWidget(m_assetBrowser);
+		addDockWidget(Qt::RightDockWidgetArea, dock);
+	}
+
 	void MainWindow::buildLogDock()
 	{
 		auto* dock = new QDockWidget("Frame Log", this);
@@ -168,9 +193,12 @@ namespace imp::editor
 				static_cast<quint16>( m_portSpin->value() ));
 	}
 
-	void MainWindow::onConnectionStateChanged(ConnectionState /*state*/)
+	void MainWindow::onConnectionStateChanged(ConnectionState state)
 	{
 		updateConnectionUi();
+
+		if (state == ConnectionState::Connected)
+			m_assetBrowser->refresh();
 	}
 
 	void MainWindow::updateConnectionUi()
@@ -232,12 +260,44 @@ namespace imp::editor
 			{
 				const QString verb = result->op == protocol::SceneCommandOp::Save ? "Save" : "Load";
 				if (result->success)
+				{
 					m_logView->appendPlainText(QString("[SCENE] %1 succeeded: %2")
 						.arg(verb).arg(QString::fromStdString(result->path)));
+
+					if (result->op == protocol::SceneCommandOp::Load)
+					{
+						m_hierarchy->clearSelection();
+						m_inspector->showEmptyState();
+					}
+				}
 				else
 					m_logView->appendPlainText(QString("[SCENE %1 FAILED] %2: %3")
 						.arg(verb).arg(QString::fromStdString(result->path)).arg(QString::fromStdString(result->error)));
 			}
+		}
+		else if (type == protocol::MessageType::AssetCommandResult)
+		{
+			if (auto result = protocol::deserialiseAssetCommandResult(payload))
+			{
+				if (result->op == protocol::AssetCommandOp::List)
+				{
+					if (result->success)
+						m_assetBrowser->applyListResult(*result);
+					else
+						m_logView->appendPlainText(QString("[ASSET LIST FAILED] %1: %2")
+							.arg(QString::fromStdString(result->path)).arg(QString::fromStdString(result->error)));
+				}
+				else if (!result->success)
+				{
+					m_logView->appendPlainText(QString("[ASSET COMMAND FAILED] %1: %2")
+						.arg(QString::fromStdString(result->path)).arg(QString::fromStdString(result->error)));
+				}
+			}
+		}
+		else if (type == protocol::MessageType::ScriptStatus)
+		{
+			if (auto status = protocol::deserialiseScriptStatus(payload))
+				m_assetBrowser->addScriptStatus(*status);
 		}
 	}
 
@@ -302,5 +362,20 @@ namespace imp::editor
 		cmd.path = m_scenePathEdit->text().toStdString();
 
 		m_connection->sendSceneCommand(cmd);
+	}
+
+	void MainWindow::onAssetListRequested(QString prefix, bool recursive)
+	{
+		protocol::AssetCommandPayload cmd;
+		cmd.op = protocol::AssetCommandOp::List;
+		cmd.path = prefix.toStdString();
+		cmd.recursive = recursive;
+
+		m_connection->sendAssetCommand(cmd);
+	}
+	
+	void MainWindow::onSceneEntryActivated(QString virtualPath)
+	{
+		m_scenePathEdit->setText(virtualPath);
 	}
 }

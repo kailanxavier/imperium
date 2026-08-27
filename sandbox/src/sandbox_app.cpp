@@ -15,6 +15,9 @@ namespace imp::app
 		if (!m_scene.init(ctx, m_assets))
 			return false;
 
+		m_scriptSystem = std::make_unique<script::ScriptSystem>(ctx.vfs);
+		m_scriptWatcher = std::make_unique<script::ScriptFileWatcher>(ctx.vfs, "assets/scripts/");
+
 		return true;
 	}
 
@@ -22,6 +25,19 @@ namespace imp::app
 	{
 		m_camera.update(ctx.input, deltaSeconds);
 		m_scene.update(ctx, m_camera);
+
+		if (m_scriptWatcher && m_scriptWatcher->isValid())
+		{
+			const std::vector<std::string> changedScripts = m_scriptWatcher->poll();
+			for (const auto& path : changedScripts)
+			{
+				LOG_INFO("Script", "Hot reloading: '{}'", path.c_str());
+				m_scriptSystem->reloadScript(path);
+			}
+		}
+
+		if (m_scriptSystem)
+			m_scriptSystem->update(ctx.ecs, deltaSeconds);
 
 		m_resources.ensureInstanceBufferCapacity(ctx, m_scene.instanceCount());
 		if (m_resources.hasInstanceBuffers() && m_scene.instanceCount() > 0)
