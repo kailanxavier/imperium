@@ -162,12 +162,23 @@ namespace imp::editor
         connect(m_attachScriptButton, &QPushButton::clicked, this, &InspectorPanel::emitAttachScriptCommand);
         connect(m_removeScriptButton, &QPushButton::clicked, this, &InspectorPanel::emitRemoveScriptCommand);
 
+        connect(m_scriptPathEdit, &QLineEdit::textEdited, this, [this](const QString&)
+        {
+            m_scriptDirty = true;
+        });
+
+        connect(m_wantsTickCheck, &QCheckBox::clicked, this, [this](bool)
+        {
+            m_scriptDirty = true;
+        });
+
         return m_scriptGroup;
     }
 
     void InspectorPanel::showEmptyState()
     {
         m_hasSelection = false;
+        m_scriptDirty = false;
         m_titleLabel->setText("No selection");
 
         m_nameEdit->setEnabled(false);
@@ -182,6 +193,13 @@ namespace imp::editor
     void InspectorPanel::showEntity(const protocol::EntitySnapshotPayload& entity)
     {
         m_applyingSnapshot = true;
+
+        const bool isDifferentEntity = !m_hasSelection
+                || m_current.index != entity.index
+                || m_current.generation != entity.generation;
+
+        if (isDifferentEntity)
+            m_scriptDirty = false;
 
         m_current = entity;
         m_hasSelection = true;
@@ -248,11 +266,11 @@ namespace imp::editor
             m_scriptGroup->setVisible(true);
             const auto& s = *entity.script;
 
-            if (!m_scriptPathEdit->hasFocus())
+            if (!m_scriptDirty)
+            {
                 m_scriptPathEdit->setText(QString::fromStdString(s.path));
-
-            if (!m_wantsTickCheck->hasFocus())
                 m_wantsTickCheck->setChecked(s.wantsTick);
+            }
 
             m_attachScriptButton->setText("Update Script");
         }
@@ -260,11 +278,11 @@ namespace imp::editor
         {
             m_scriptGroup->setVisible(true);
 
-            if (!m_scriptPathEdit->hasFocus())
+            if (!m_scriptDirty)
+            {
                 m_scriptPathEdit->clear();
-
-            if (!m_wantsTickCheck->hasFocus())
                 m_wantsTickCheck->setChecked(false);
+            }
 
             m_attachScriptButton->setText("Add Script");
         }
@@ -371,6 +389,8 @@ namespace imp::editor
         cmd.stringA = m_scriptPathEdit->text().toStdString();
         cmd.boolA = m_wantsTickCheck->isChecked();
 
+        m_scriptDirty = false;
+
         emit commandRequested(cmd);
     }
 
@@ -384,6 +404,8 @@ namespace imp::editor
         cmd.targetGeneration = m_current.generation;
         cmd.stringA.clear();
         cmd.boolA = false;
+
+        m_scriptDirty = false;
 
         emit commandRequested(cmd);
     }

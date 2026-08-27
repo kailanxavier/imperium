@@ -161,7 +161,12 @@ namespace imp::editor
         if (const QModelIndex found = find({}); found.isValid())
         {
             if (auto* selection = m_tree->selectionModel())
+            {
+                const bool wasAutoScroll = m_tree->hasAutoScroll();
+                m_tree->setAutoScroll(false);
                 selection->setCurrentIndex(found, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+                m_tree->setAutoScroll(wasAutoScroll);
+            }
         }
     }
 }
