@@ -66,6 +66,7 @@ namespace imp::gfx
         Sampled = 1u << 0, // readable in a shader via a sampler
         RenderTarget = 1u << 1, // writable as a colour attachment
         DepthStencil = 1u << 2, // writable as a depth/stencil attachment
+        TransferSrc = 1u << 3, // readable back to CPU
     };
 
     inline TextureUsage operator|(TextureUsage a, TextureUsage b)

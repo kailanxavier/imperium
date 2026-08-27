@@ -10,6 +10,9 @@
 #include <stb_image.h>
 #include <fstream>
 
+#include <cstdio>
+#include <cmath>
+
 namespace imp::gfx
 {
 	namespace
@@ -191,4 +194,93 @@ namespace imp::gfx
 		stbi_image_free(decoded);
 		return result;
 	}
+
+	bool saveImageToFile(const ImageData& image, const std::string& path)
+	{
+		if (!image.isValid())
+		{
+			LOG_ERROR("Image Write", "saveImageToFile(): invalid image data");
+			return false;
+		}
+
+		FILE* file = std::fopen(path.c_str(), "wb");
+		if (!file)
+		{
+			LOG_ERROR("Image Writer", "saveImageToFile(): failed to open '{}' for writing", path.c_str());
+			return false;
+		}
+
+		spng_ctx* ctx = spng_ctx_new(SPNG_CTX_ENCODER);
+		if (!ctx)
+		{
+			LOG_ERROR("Image Writer", "Encoder failed");
+			std::fclose(file);
+			return false;
+		}
+
+		spng_set_png_file(ctx, file);
+
+		spng_ihdr ihdr{};
+		ihdr.width = image.width;
+		ihdr.height = image.height;
+		ihdr.bit_depth = 8;
+		ihdr.color_type = SPNG_COLOR_TYPE_TRUECOLOR_ALPHA;
+		spng_set_ihdr(ctx, &ihdr);
+
+		const int err = spng_encode_image(ctx, image.pixels.data(), image.pixels.size(),
+			SPNG_FMT_PNG, SPNG_ENCODE_FINALIZE);
+
+		if (err != 0)
+			LOG_ERROR("Image Writer", "spng_encode_image failed: {}", spng_strerror(err));
+
+		spng_ctx_free(ctx);
+		std::fclose(file);
+
+		return err == 0;
+	}
+
+	ImageDiffResult compareImages(const ImageData& a, const ImageData& b, u8 perPixelThreshold)
+	{
+		ImageDiffResult result{};
+
+		if (a.width != b.width || a.height != b.height)
+		{
+			result.sameSize = false;
+			return result;
+		}
+		result.sameSize = true;
+
+		if (a.pixels.size() != b.pixels.size())
+			return result;
+
+		u64 totalAbsError = 0;
+		const size_t count = a.pixels.size();
+
+		for (size_t i = 0; i < count; ++i)
+		{
+			const int diff = std::abs(static_cast<int>(a.pixels[i]) - static_cast<int>(b.pixels[i]));
+			totalAbsError += static_cast<u64>(diff);
+			result.maxAbsError = std::max(result.maxAbsError, static_cast<u32>(diff));
+
+			if (i % 4 == 0)
+			{
+				bool pixelDiffers = false;
+				for (u32 c = 0; c < 4; c++) // no way, he said the thing
+				{
+					if (std::abs(static_cast<int>(a.pixels[i + c]) - static_cast<int>(b.pixels[i + c])) > perPixelThreshold)
+					{
+						pixelDiffers = true;
+						break;
+					}
+				}
+				if (pixelDiffers)
+					++result.diffPixelCount;
+			}
+		}
+
+		result.meanAbsError = count > 0 ? static_cast<double>(totalAbsError) / static_cast<double>(count) : 0.0;
+		return result;
+	}
+
+
 }

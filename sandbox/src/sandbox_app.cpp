@@ -6,8 +6,8 @@ namespace imp::app
 {
 	bool SandboxApp::onInit(AppContext& ctx)
 	{
-		m_camera.setPosition({ 0.f, 1.f, 4.f });
-		m_camera.setYawPitch(math::toRadians(-90.f), 0.f);
+		m_camera.setPosition({ 0.f, 1.f, 0.f });
+		m_camera.setYawPitch(math::toRadians(90.f), 0.f);
 
 		if (!m_resources.init(ctx, m_assets, m_scene.cascadeConfig()))
 			return false;
@@ -67,7 +67,10 @@ namespace imp::app
 
 		renderShadowCascades(cmd, m_resources, m_scene, params);
 		renderHdrPass(cmd, m_resources, m_scene, ctx, params);
-		renderTonemapPass(cmd, m_resources, ctx);
+		renderTonemapPass(cmd, m_resources, ctx, ctx.gfx.backBuffer());
+
+		if (m_readbackTarget)
+			renderTonemapPass(cmd, m_resources, ctx, *m_readbackTarget);
 	}
 
 	void SandboxApp::onShutdown(AppContext& ctx)

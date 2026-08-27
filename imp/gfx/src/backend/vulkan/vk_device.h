@@ -103,6 +103,7 @@ namespace imp::gfx::vulkan
 		bool ensureStagingBuffer(VkDeviceSize minSize);
 
 		void deferredDestroy(std::function<void()> deleter) override;
+		bool readbackTexture(IRenderTarget& target, std::vector<u8>& outPixels) override;
 
 		VkInstance m_instance = VK_NULL_HANDLE;
 		VkDebugUtilsMessengerEXT m_debugMessenger = VK_NULL_HANDLE;

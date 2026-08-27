@@ -16,6 +16,18 @@ namespace imp::gfx
 		[[nodiscard]] bool isValid() const { return width > 0 && height > 0 && !pixels.empty(); }
 	};
 
+	struct ImageDiffResult
+	{
+		bool sameSize = false;
+		double meanAbsError = 0.0;
+		u32 maxAbsError = 0;
+		u32 diffPixelCount = 0;
+	};
+
 	[[nodiscard]] ImageData loadImageFromFile(const std::string& path, const fs::VirtualFileSystem* vfs = nullptr);
 	[[nodiscard]] ImageData loadImageFromMemory(const std::vector<u8>& bytes);
+
+	bool saveImageToFile(const ImageData& image, const std::string& path);
+	[[nodiscard]] ImageDiffResult compareImages(const ImageData& a, const ImageData& b, u8 perPixelThreshold = 2);
+
 }
