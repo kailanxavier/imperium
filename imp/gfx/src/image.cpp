@@ -204,9 +204,15 @@ namespace imp::gfx
 		}
 
 		FILE* file{};
-		errno_t error = fopen_s(&file, path.c_str(), "wb");
 
-		if (error != 0 || file == nullptr)
+#ifndef _WIN32
+		file = std::fopen(path.c_str(), "wb");
+#else
+		if (fopen_s(&file, path.c_str(), "wb") != 0)
+			file = nullptr;
+#endif
+
+		if (!file)
 		{
 			LOG_ERROR("Image Writer", "saveImageToFile(): failed to open '{}' for writing", path.c_str());
 			return false;
