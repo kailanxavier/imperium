@@ -67,6 +67,7 @@ namespace imp::gfx
         [[nodiscard]] virtual const char* apiName() const = 0;
 
         virtual void deferredDestroy(std::function<void()> deleter) = 0;
+        virtual bool readbackTexture(IRenderTarget& target, std::vector<u8>& outPixels) = 0;
     };
 
     std::unique_ptr<IDevice> createDevice(GraphicsApi api);

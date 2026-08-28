@@ -29,6 +29,8 @@ namespace imp::gfx::vulkan
 			usageFlags |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 		if (gfx::hasFlag(info.usage, gfx::TextureUsage::DepthStencil))
 			usageFlags |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+		if (gfx::hasFlag(info.usage, gfx::TextureUsage::TransferSrc))
+			usageFlags |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
 		if (m_mipLevels > 1 && !info.transient)
 			usageFlags |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
 		if (info.transient)

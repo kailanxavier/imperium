@@ -40,6 +40,8 @@ namespace imp::app
 		gfx::TextureFormat hdrDepthFormat() const { return m_resources.hdrDepthFormat(); }
 		gfx::SampleCount sampleCount() const { return RenderResources::kMsaaSampleCount; }
 
+		void setReadbackTarget(gfx::IRenderTarget* target) { m_readbackTarget = target; }
+
 	private:
 		fwk::Camera m_camera;
 		AssetManifest m_assets;
@@ -49,5 +51,7 @@ namespace imp::app
 
 		std::unique_ptr<script::ScriptSystem> m_scriptSystem;
 		std::unique_ptr<script::ScriptFileWatcher> m_scriptWatcher;
+
+		gfx::IRenderTarget* m_readbackTarget = nullptr;
 	};
 }

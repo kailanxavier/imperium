@@ -26,7 +26,9 @@ namespace imp::gfx::dx12
 
 		[[nodiscard]] u32 currentFrameIndex() const override { return 0; }
 
-		void deferredDestroy(std::function<void()> deleter) {};
+		void deferredDestroy(std::function<void()> deleter) override {}
+
+		bool readbackTexture(IRenderTarget& target, std::vector<u8>& outPixels) override { return false; }
 
 		void waitIdle() override;
 

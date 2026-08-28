@@ -1495,6 +1495,77 @@ namespace imp::gfx::vulkan
 	{
 		m_destroyQueue.retire(std::move(deleter));
 	}
+
+	bool VulkanDevice::readbackTexture(IRenderTarget &target, std::vector<u8> &outPixels)
+	{
+		auto* vkTarget = dynamic_cast<VulkanRenderTarget*>(&target);
+		if (!vkTarget)
+		{
+			LOG_ERROR("Vulkan", "readbackTexture(): target is not a Vulkan render target");
+			return false;
+		}
+
+		const u32 width = vkTarget->width();
+		const u32 height = vkTarget->height();
+		const VkDeviceSize imageSize = static_cast<VkDeviceSize>(width) * height * 4;
+
+		VulkanBufferCreateInfo stagingInfo{};
+		stagingInfo.allocator = m_vmaAllocator;
+		stagingInfo.size = imageSize;
+		stagingInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+		stagingInfo.hostVisible = true;
+
+		VulkanBuffer staging;
+		if (!staging.create(stagingInfo))
+		{
+			LOG_ERROR("Vulkan", "readbackTexture(): staging buffer creation failed");
+			return false;
+		}
+
+		const VkImage image = vkTarget->image();
+		submitOneTimeCommands([this, image, width, height, &staging](VkCommandBuffer cmd)
+		{
+			VkImageSubresourceRange range{};
+			range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			range.levelCount = 1;
+			range.layerCount = 1;
+
+			VkImageMemoryBarrier2 toTransferSrc{};
+			toTransferSrc.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+			toTransferSrc.srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+			toTransferSrc.srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+			toTransferSrc.dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+			toTransferSrc.dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT;
+			toTransferSrc.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+			toTransferSrc.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+			toTransferSrc.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+			toTransferSrc.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+			toTransferSrc.image = image;
+			toTransferSrc.subresourceRange = range;
+
+			VkDependencyInfo dep1{};
+			dep1.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+			dep1.imageMemoryBarrierCount = 1;
+			dep1.pImageMemoryBarriers = &toTransferSrc;
+			vkCmdPipelineBarrier2(cmd, &dep1);
+
+			VkBufferImageCopy region{};
+			region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			region.imageSubresource.layerCount = 1;
+			region.imageExtent = { width, height, 1 };
+
+			vkCmdCopyImageToBuffer(cmd, image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+				staging.handle(), 1, &region);
+
+			// Leave the image in TRANSFER_SRC_OPTIONAL since it isn't used again
+			// after readback in the smoke test.
+		});
+
+		outPixels.resize(static_cast<size_t>(imageSize));
+		std::memcpy(outPixels.data(), staging.mappedData(), static_cast<size_t>(imageSize));
+
+		return true;
+	}
 }
 
 #endif // IMP_GFX_VULKAN

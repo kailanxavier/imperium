@@ -43,12 +43,13 @@ namespace imp::app
 
 		{
 			ecs::Transform t;
+			t.position = math::Vec3f{ 0.f, 0.f, 15.f };
 			spawnInstance(ctx, t, m_environmentTestHandle);
 		}
 
 		const ecs::EntityId entity = ctx.ecs.createEntity();
 		ecs::Transform t;
-		t.position = math::Vec3f{ 5.f, 0.f, 5.f };
+		t.position = math::Vec3f{ 0.f, 0.f, 0.f };
 		ctx.ecs.transforms.create(entity, t);
 		ctx.ecs.renderables.create(entity, m_environmentHandle);
 		ctx.ecs.scripts.create(entity, "assets/scripts/sponza.lua", true);

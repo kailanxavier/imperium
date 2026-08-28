@@ -104,10 +104,10 @@ namespace imp::app
 		cmd.endRenderPass();
 	}
 
-	void renderTonemapPass(gfx::ICommandList& cmd, RenderResources& resources, AppContext& ctx)
+	void renderTonemapPass(gfx::ICommandList& cmd, RenderResources& resources, AppContext& ctx, gfx::IRenderTarget& target)
 	{
 		gfx::RenderPassDesc tonemapPassDesc{};
-		tonemapPassDesc.colourTarget = &ctx.gfx.backBuffer();
+		tonemapPassDesc.colourTarget = &target;
 		tonemapPassDesc.depthTarget = nullptr;
 		tonemapPassDesc.clearColour = false;
 		tonemapPassDesc.debugName = "Tonemap";
