@@ -15,8 +15,8 @@ using namespace imp;
 
 namespace
 {
-    constexpr u32 kWidth = 1280;
-    constexpr u32 kHeight = 720;
+    constexpr u32 kWidth = 3840;
+    constexpr u32 kHeight = 2160;
     constexpr int kFramesToRender = 30;
     constexpr u8 kPerPixelThreshold = 2;
     constexpr double kMaxAllowedMeanError = 0.5;
