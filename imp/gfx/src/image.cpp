@@ -10,8 +10,8 @@
 #include <stb_image.h>
 #include <fstream>
 
-#include <cstdio>
 #include <cmath>
+#include <stdio.h>
 
 namespace imp::gfx
 {
@@ -203,8 +203,10 @@ namespace imp::gfx
 			return false;
 		}
 
-		FILE* file = std::fopen(path.c_str(), "wb");
-		if (!file)
+		FILE* file{};
+		errno_t error = fopen_s(&file, path.c_str(), "wb");
+
+		if (error != 0 || file == nullptr)
 		{
 			LOG_ERROR("Image Writer", "saveImageToFile(): failed to open '{}' for writing", path.c_str());
 			return false;
