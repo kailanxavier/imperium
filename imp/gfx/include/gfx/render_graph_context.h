@@ -5,6 +5,7 @@
 
 namespace imp::gfx
 {
+	class RenderGraph;
 	class RenderGraphContext
 	{
 	public:
