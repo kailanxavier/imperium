@@ -29,6 +29,7 @@ namespace imp::gfx
 		u64 hashBufferDesc(const BufferDesc& desc)
 		{
 			u64 h = 0;
+			h = hashCombine(h, desc.size);
 			h = hashCombine(h, static_cast<u64>( desc.usage ));
 			h = hashCombine(h, static_cast<u64>( desc.memoryAccess ));
 			h = hashCombine(h, static_cast<u64>( desc.indexFormat ));

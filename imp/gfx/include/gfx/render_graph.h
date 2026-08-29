@@ -48,4 +48,29 @@ namespace imp::gfx
 
 		bool m_compiled = false;
 	};
+
+	template <typename PassData>
+	const PassData& RenderGraph::addPass(
+		const char* name,
+		std::function<void(RenderGraphBuilder&, PassData&)> setup,
+		std::function<void(const PassData&, RenderGraphContext&)> execute)
+	{
+		const u32 passIndex = static_cast<u32>( m_passes.size() );
+		m_passes.emplace_back();
+		m_passes[passIndex].name = name ? name : "";
+
+		RenderGraphBuilder builder;
+		builder.m_graph = this;
+		builder.m_passIndex = passIndex;
+
+		auto passData = std::make_shared<PassData>();
+		setup(builder, *passData);
+
+		m_passes[passIndex].execute = [passData, execute](RenderGraphContext& ctx)
+		{
+			execute(*passData, ctx);
+		};
+
+		return *passData;
+	}
 }

@@ -1,5 +1,6 @@
 #include <sandbox/sandbox_app.h>
 #include <sandbox/scene_renderer.h>
+#include <gfx/render_graph.h>
 #include <core/log/log.h>
 
 namespace imp::app
@@ -51,8 +52,6 @@ namespace imp::app
 
 	void SandboxApp::onRender(AppContext& ctx, gfx::ICommandList& cmd)
 	{
-		m_resources.ensureHdrTargetSize(ctx);
-
 		const u32 w = ctx.gfx.backBuffer().width();
 		const u32 h = ctx.gfx.backBuffer().height();
 		const float aspect = h > 0 ? static_cast<float>( w ) / static_cast<float>( h ) : 1.f;
@@ -65,12 +64,22 @@ namespace imp::app
 		params.currentFrame = ctx.gfx.currentFrameIndex();
 		params.enableFrustumCulling = m_enableFrustumCulling;
 
-		renderShadowCascades(cmd, m_resources, m_scene, params);
-		renderHdrPass(cmd, m_resources, m_scene, ctx, params);
-		renderTonemapPass(cmd, m_resources, ctx, ctx.gfx.backBuffer());
+		gfx::RenderGraph graph(ctx.gfx, m_resources.graphPool());
 
+		const ShadowCascadePasses shadowPasses = addShadowCascadePasses(graph, m_resources, m_scene, params);
+		const gfx::RGTextureHandle hdrResolve = addHdrPass(graph, m_resources, m_scene, ctx, params, shadowPasses);
+
+		addTonemapPass(graph, m_resources, hdrResolve, ctx.gfx.backBuffer(), "Tonemap");
 		if (m_readbackTarget)
-			renderTonemapPass(cmd, m_resources, ctx, *m_readbackTarget);
+			addTonemapPass(graph, m_resources, hdrResolve, *m_readbackTarget, "Tonemap Readback");
+
+		if (!graph.compile())
+		{
+			LOG_ERROR("Sandbox", "RenderGraph::compile() failed");
+			return;
+		}
+
+		graph.execute(cmd);
 	}
 
 	void SandboxApp::onShutdown(AppContext& ctx)

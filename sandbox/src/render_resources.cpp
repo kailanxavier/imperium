@@ -2,6 +2,7 @@
 #include <gfx/model.h>
 #include <gfx/lighting.h>
 #include <gfx/config.h>
+#include <gfx/render_graph_resource_pool.h>
 #include <core/log/log.h>
 #include <cstddef>
 #include <algorithm>
@@ -14,6 +15,8 @@ namespace imp::app
 
 	bool RenderResources::init(AppContext& ctx, const AssetManifest& assets, const gfx::CascadeConfig& cascadeConfig)
 	{
+		m_graphPool = std::make_unique<gfx::RenderGraphResourcePool>(ctx.gfx);
+
 		gfx::ShaderDesc meshVertDesc;
 		meshVertDesc.stage = gfx::ShaderStage::Vertex;
 		meshVertDesc.path = assets.meshVertShader;
@@ -249,6 +252,8 @@ namespace imp::app
 		for (auto& buf : m_cascadeUBOs) buf.reset();
 		for (auto& buf : m_lightUBOs) buf.reset();
 		for (auto& buf : m_instanceBuffers) buf.reset();
+
+		m_graphPool.reset();
 	}
 
 	void RenderResources::ensureHdrTargetSize(AppContext& ctx)

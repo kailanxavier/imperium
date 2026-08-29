@@ -14,6 +14,7 @@ namespace imp::gfx
 	class IBuffer;
 	class IRenderTarget;
 	class ITexture;
+	class RenderGraphResourcePool;
 }
 
 namespace imp::app
@@ -54,6 +55,8 @@ namespace imp::app
 		gfx::IBuffer& instanceBuffer(u32 frame) { return *m_instanceBuffers[frame]; }
 		bool hasInstanceBuffers() const { return !m_instanceBuffers.empty(); }
 
+		gfx::RenderGraphResourcePool& graphPool() { return *m_graphPool; }
+
 	private:
 		std::unique_ptr<gfx::IShader> m_meshVertShader, m_meshFragShader;
 		std::unique_ptr<gfx::IShader> m_shadowVertShader, m_shadowFragShader;
@@ -80,5 +83,7 @@ namespace imp::app
 		std::vector<std::unique_ptr<gfx::IBuffer>> m_lightUBOs;
 		std::vector<std::unique_ptr<gfx::IBuffer>> m_instanceBuffers;
 		u32 m_instanceCapacity = 16;
+
+		std::unique_ptr<gfx::RenderGraphResourcePool> m_graphPool;
 	};
 }
