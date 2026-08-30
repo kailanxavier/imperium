@@ -63,6 +63,10 @@ target_sources(imp_gfx PRIVATE
 	src/render_extraction.cpp
 	src/texture_cache.cpp
 	src/cascade_shadow.cpp
+	src/render_graph.cpp
+	src/render_graph_context.cpp
+	src/render_graph_builder.cpp
+	src/render_graph_resource_pool.cpp
 )
 
 if(IMP_VULKAN_MEM_TEST)
