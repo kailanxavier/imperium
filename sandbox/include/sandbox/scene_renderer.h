@@ -36,8 +36,4 @@ namespace imp::app
 
 	void addTonemapPass(gfx::RenderGraph& graph, RenderResources& resources,
 		gfx::RGTextureHandle hdrResolve, gfx::IRenderTarget& target, const char* passName);
-
-	void renderShadowCascades(gfx::ICommandList& cmd, RenderResources& resources, SandboxScene& scene, const SceneRenderParams& params);
-	void renderHdrPass(gfx::ICommandList& cmd, RenderResources& resources, SandboxScene& scene, AppContext& ctx, const SceneRenderParams& params);
-	void renderTonemapPass(gfx::ICommandList& cmd, RenderResources& resources, AppContext& ctx, gfx::IRenderTarget& target);
 }

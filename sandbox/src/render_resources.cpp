@@ -81,8 +81,6 @@ namespace imp::app
 			return false;
 		}
 
-		ensureHdrTargetSize(ctx);
-
 		gfx::VertexAttribute meshAttrs[4] = {
 			{ 0, static_cast<u32>( offsetof(gfx::ModelVertex, position) ), 3, true },
 			{ 1, static_cast<u32>( offsetof(gfx::ModelVertex, normal) ), 3, true },
@@ -111,8 +109,8 @@ namespace imp::app
 		skyPipelineDesc.depthStencilState.depthWriteEnable = false;
 		skyPipelineDesc.depthStencilState.depthCompareOp = gfx::CompareOp::LessOrEqual;
 		skyPipelineDesc.blendState.blendEnable = false;
-		skyPipelineDesc.colourFormat = m_hdrTarget->format();
-		skyPipelineDesc.depthFormat = m_hdrDepthTarget->format();
+		skyPipelineDesc.colourFormat = m_hdrColourFormat;
+		skyPipelineDesc.depthFormat = m_hdrDepthFormat;
 		skyPipelineDesc.sampleCount = kMsaaSampleCount;
 		skyPipelineDesc.hasInstanceBinding = false;
 		m_skyPipeline = ctx.gfx.createPipeline(skyPipelineDesc);
@@ -137,8 +135,8 @@ namespace imp::app
 		meshPipelineDesc.depthStencilState.depthWriteEnable = true;
 		meshPipelineDesc.depthStencilState.depthCompareOp = gfx::CompareOp::Less;
 		meshPipelineDesc.blendState.blendEnable = false;
-		meshPipelineDesc.colourFormat = m_hdrTarget->format();
-		meshPipelineDesc.depthFormat = m_hdrDepthTarget->format();
+		meshPipelineDesc.colourFormat = m_hdrColourFormat;
+		meshPipelineDesc.depthFormat = m_hdrDepthFormat;
 		meshPipelineDesc.sampleCount = kMsaaSampleCount;
 		meshPipelineDesc.hasInstanceBinding = true;
 		m_pipeline = ctx.gfx.createPipeline(meshPipelineDesc);
@@ -147,7 +145,7 @@ namespace imp::app
 		blendPipelineDesc.blendState.blendEnable = true;
 		blendPipelineDesc.depthStencilState.depthTestEnable = true;
 		blendPipelineDesc.depthStencilState.depthWriteEnable = false;
-		blendPipelineDesc.colourFormat = m_hdrTarget->format();
+		blendPipelineDesc.colourFormat = m_hdrColourFormat;
 		m_blendPipeline = ctx.gfx.createPipeline(blendPipelineDesc);
 
 		gfx::PipelineDesc tonemapPipelineDesc;
@@ -217,8 +215,8 @@ namespace imp::app
 		for (auto& buf : m_lightUBOs)
 			buf = ctx.gfx.createBuffer(lightUboDesc);
 
-		if (!m_pipeline || !m_blendPipeline || !m_hdrTarget || !m_tonemapPipeline || !m_sampler
-			|| !m_shadowPipeline || !m_shadowSampler || !m_hdrDepthTarget)
+		if (!m_pipeline || !m_blendPipeline || !m_tonemapPipeline || !m_sampler
+			|| !m_shadowPipeline || !m_shadowSampler)
 		{
 			LOG_FATAL("Sandbox", "Failed to create pipelines/sampler/light buffer");
 			return false;
@@ -233,9 +231,6 @@ namespace imp::app
 		m_pipeline.reset();
 		m_tonemapPipeline.reset();
 		m_blendPipeline.reset();
-		m_hdrTarget.reset();
-		m_hdrDepthTarget.reset();
-		m_hdrResolveTarget.reset();
 		m_tonemapFragShader.reset();
 		m_tonemapVertShader.reset();
 		m_meshFragShader.reset();
@@ -254,53 +249,6 @@ namespace imp::app
 		for (auto& buf : m_instanceBuffers) buf.reset();
 
 		m_graphPool.reset();
-	}
-
-	void RenderResources::ensureHdrTargetSize(AppContext& ctx)
-	{
-		const u32 w = ctx.gfx.backBuffer().width();
-		const u32 h = ctx.gfx.backBuffer().height();
-
-		if (m_hdrTarget && m_hdrTarget->width() == w && m_hdrTarget->height() == h)
-			return;
-
-		if (w == 0 || h == 0)
-			return;
-
-		ctx.gfx.waitIdle();
-
-		gfx::TextureDesc hdrDesc;
-		hdrDesc.width = w;
-		hdrDesc.height = h;
-		hdrDesc.format = gfx::TextureFormat::RGBA16Float;
-		hdrDesc.usage = gfx::TextureUsage::RenderTarget;
-		hdrDesc.sampleCount = kMsaaSampleCount;
-		auto newTarget = ctx.gfx.createRenderTarget(hdrDesc);
-
-		gfx::TextureDesc resolveDesc;
-		resolveDesc.width = w;
-		resolveDesc.height = h;
-		resolveDesc.format = gfx::TextureFormat::RGBA16Float;
-		resolveDesc.usage = gfx::TextureUsage::Sampled | gfx::TextureUsage::RenderTarget;
-		resolveDesc.sampleCount = gfx::SampleCount::One;
-		auto newResolveTarget = ctx.gfx.createRenderTarget(resolveDesc);
-
-		gfx::TextureDesc hdrDepthDesc;
-		hdrDepthDesc.width = w;
-		hdrDepthDesc.height = h;
-		hdrDepthDesc.format = ctx.gfx.depthBuffer() ? ctx.gfx.depthBuffer()->format() : gfx::TextureFormat::Depth32Float;
-		hdrDepthDesc.usage = gfx::TextureUsage::DepthStencil; // never sampled
-		hdrDepthDesc.sampleCount = kMsaaSampleCount;
-		auto newDepthTarget = ctx.gfx.createRenderTarget(hdrDepthDesc);
-
-		if (newTarget && newResolveTarget && newDepthTarget)
-		{
-			m_hdrTarget = std::move(newTarget);
-			m_hdrResolveTarget = std::move(newResolveTarget);
-			m_hdrDepthTarget = std::move(newDepthTarget);
-		}
-		else
-			LOG_ERROR("Sandbox", "Failed to recreate HDR/resolve/depth targets at {}x{}", w, h);
 	}
 
 	void RenderResources::ensureInstanceBufferCapacity(AppContext& ctx, u32 instanceCount)

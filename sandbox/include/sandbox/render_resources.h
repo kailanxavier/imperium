@@ -28,7 +28,6 @@ namespace imp::app
 		bool init(AppContext& ctx, const AssetManifest& assets, const gfx::CascadeConfig& cascadeConfig);
 		void shutdown();
 
-		void ensureHdrTargetSize(AppContext& ctx);
 		void ensureInstanceBufferCapacity(AppContext& ctx, u32 instanceCount);
 
 		static constexpr gfx::SampleCount kMsaaSampleCount = gfx::SampleCount::Four;
@@ -41,21 +40,18 @@ namespace imp::app
 		gfx::ISampler& sampler() { return *m_sampler; }
 		gfx::ISampler& shadowSampler() { return *m_shadowSampler; }
 
-		gfx::IRenderTarget& hdrTarget() { return *m_hdrTarget; }
-		gfx::IRenderTarget& hdrDepthTarget() { return *m_hdrDepthTarget; }
-		gfx::IRenderTarget& hdrResolveTarget() { return *m_hdrResolveTarget; }
-		gfx::TextureFormat hdrColourFormat() const { return m_hdrTarget->format(); }
-		gfx::TextureFormat hdrDepthFormat() const { return m_hdrDepthTarget->format(); }
+		[[nodiscard]] gfx::TextureFormat hdrColourFormat() const { return m_hdrColourFormat; }
+		[[nodiscard]] gfx::TextureFormat hdrDepthFormat() const { return m_hdrDepthFormat; }
 
-		gfx::IRenderTarget& shadowCascadeTarget(u32 i) { return *m_shadowCascadeTargets[i]; }
-		gfx::ITexture* shadowArrayTexture() { return m_shadowArrayTexture; }
+		[[nodiscard]] gfx::IRenderTarget& shadowCascadeTarget(u32 i) const { return *m_shadowCascadeTargets[i]; }
+		[[nodiscard]] gfx::ITexture* shadowArrayTexture() const { return m_shadowArrayTexture; }
 
-		gfx::IBuffer& cascadeUBO(u32 frame) { return *m_cascadeUBOs[frame]; }
-		gfx::IBuffer& lightUBO(u32 frame) { return *m_lightUBOs[frame]; }
-		gfx::IBuffer& instanceBuffer(u32 frame) { return *m_instanceBuffers[frame]; }
-		bool hasInstanceBuffers() const { return !m_instanceBuffers.empty(); }
+		[[nodiscard]] gfx::IBuffer& cascadeUBO(u32 frame) const { return *m_cascadeUBOs[frame]; }
+		[[nodiscard]] gfx::IBuffer& lightUBO(u32 frame) const { return *m_lightUBOs[frame]; }
+		[[nodiscard]] gfx::IBuffer& instanceBuffer(u32 frame) const { return *m_instanceBuffers[frame]; }
+		[[nodiscard]] bool hasInstanceBuffers() const { return !m_instanceBuffers.empty(); }
 
-		gfx::RenderGraphResourcePool& graphPool() { return *m_graphPool; }
+		[[nodiscard]] gfx::RenderGraphResourcePool& graphPool() const { return *m_graphPool; }
 
 	private:
 		std::unique_ptr<gfx::IShader> m_meshVertShader, m_meshFragShader;
@@ -72,9 +68,8 @@ namespace imp::app
 		std::unique_ptr<gfx::ISampler> m_sampler;
 		std::unique_ptr<gfx::ISampler> m_shadowSampler;
 
-		std::unique_ptr<gfx::IRenderTarget> m_hdrTarget;
-		std::unique_ptr<gfx::IRenderTarget> m_hdrDepthTarget;
-		std::unique_ptr<gfx::IRenderTarget> m_hdrResolveTarget;
+		gfx::TextureFormat m_hdrColourFormat = gfx::TextureFormat::RGBA16Float;
+		gfx::TextureFormat m_hdrDepthFormat = gfx::TextureFormat::Depth32Float;
 
 		std::vector<std::unique_ptr<gfx::IRenderTarget>> m_shadowCascadeTargets;
 		gfx::ITexture* m_shadowArrayTexture = nullptr;
