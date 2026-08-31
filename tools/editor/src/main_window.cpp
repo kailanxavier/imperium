@@ -216,7 +216,15 @@ namespace imp::editor
 		updateConnectionUi();
 
 		if (state == ConnectionState::Connected)
+		{
 			m_assetBrowser->refresh();
+			m_cvarPanel->setConnected(true);
+			m_cvarPanel->refresh();
+		}
+		else
+		{
+			m_cvarPanel->setConnected(false);
+		}
 	}
 
 	void MainWindow::updateConnectionUi()
