@@ -29,6 +29,7 @@ namespace imp::app
 		void shutdown();
 
 		void ensureInstanceBufferCapacity(AppContext& ctx, u32 instanceCount);
+		bool reloadShaders(AppContext& ctx, const AssetManifest& assets);
 
 		static constexpr gfx::SampleCount kMsaaSampleCount = gfx::SampleCount::Four;
 
@@ -54,6 +55,23 @@ namespace imp::app
 		[[nodiscard]] gfx::RenderGraphResourcePool& graphPool() const { return *m_graphPool; }
 
 	private:
+		struct ShaderPipelineSet
+		{
+			std::unique_ptr<gfx::IShader> meshVertShader, meshFragShader;
+			std::unique_ptr<gfx::IShader> shadowVertShader, shadowFragShader;
+			std::unique_ptr<gfx::IShader> skyVertShader, skyFragShader;
+			std::unique_ptr<gfx::IShader> tonemapVertShader, tonemapFragShader;
+
+			std::unique_ptr<gfx::IPipeline> pipeline;
+			std::unique_ptr<gfx::IPipeline> blendPipeline;
+			std::unique_ptr<gfx::IPipeline> shadowPipeline;
+			std::unique_ptr<gfx::IPipeline> skyPipeline;
+			std::unique_ptr<gfx::IPipeline> tonemapPipeline;
+		};
+
+		bool buildShaderPipelineSet(AppContext& ctx, const AssetManifest& assets, ShaderPipelineSet& out) const;
+		void adoptShaderPipelineSet(ShaderPipelineSet&& set);
+
 		std::unique_ptr<gfx::IShader> m_meshVertShader, m_meshFragShader;
 		std::unique_ptr<gfx::IShader> m_shadowVertShader, m_shadowFragShader;
 		std::unique_ptr<gfx::IShader> m_tonemapVertShader, m_tonemapFragShader;
