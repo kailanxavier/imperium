@@ -30,6 +30,7 @@ add_library(imp_core STATIC
 	src/vfs.cpp
 	src/exe_path.cpp
 	src/cvar.cpp
+	src/directory_watcher.cpp
 )
 
 target_include_directories(imp_core

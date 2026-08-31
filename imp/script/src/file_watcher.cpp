@@ -1,9 +1,5 @@
 #include <script/file_watcher.h>
-
 #include <core/fs/vfs.h>
-
-#include <system_error>
-#include <unordered_set>
 
 namespace imp::script
 {
@@ -43,69 +39,18 @@ namespace imp::script
 
 	ScriptFileWatcher::ScriptFileWatcher(fs::VirtualFileSystem& vfs, std::string watchedVirtualPrefix, std::string extension)
 		: m_virtualPrefix(normalisePrefix(watchedVirtualPrefix))
-		, m_extension(std::move(extension))
-		, m_physicalRoot(resolveMountPhysicalRoot(vfs, m_virtualPrefix))
+		, m_watcher(std::make_unique<fs::DirectoryWatcher>(resolveMountPhysicalRoot(vfs, m_virtualPrefix),
+			std::vector<std::string>{std::move(extension)}))
 	{ }
 
-	std::vector<std::string> ScriptFileWatcher::poll()
+	std::vector<std::string> ScriptFileWatcher::poll() const
 	{
 		std::vector<std::string> changed;
 		if (!isValid())
 			return changed;
 
-		std::error_code ec;
-		std::unordered_set<std::string> seenThisPoll;
-
-		auto it = std::filesystem::recursive_directory_iterator(
-			m_physicalRoot, std::filesystem::directory_options::skip_permission_denied, ec);
-		const auto end = std::filesystem::recursive_directory_iterator();
-
-		for (; !ec && it != end; it.increment(ec))
-		{
-			const std::filesystem::directory_entry& entry = *it;
-
-			std::error_code fileEc;
-			if (!entry.is_regular_file(fileEc) || fileEc)
-				continue;
-
-			if (entry.path().extension() != m_extension)
-				continue;
-
-			const std::filesystem::path relative = std::filesystem::relative(entry.path(), m_physicalRoot, fileEc);
-			if (fileEc)
-				continue;
-
-			const std::string virtualPath = m_virtualPrefix + relative.generic_string();
-
-			const std::filesystem::file_time_type mtime = entry.last_write_time(fileEc);
-			if (fileEc)
-				continue;
-
-			seenThisPoll.insert(virtualPath);
-
-			const auto known = m_knownMTimes.find(virtualPath);
-			if (known == m_knownMTimes.end())
-			{
-				m_knownMTimes.emplace(virtualPath, mtime);
-				if (m_hasBaseline)
-					changed.push_back(virtualPath);
-			}
-			else if (known->second != mtime)
-			{
-				known->second = mtime;
-				changed.push_back(virtualPath);
-			}
-		}
-
-		for (auto entryIt = m_knownMTimes.begin(); entryIt != m_knownMTimes.end();)
-		{
-			if (!seenThisPoll.contains(entryIt->first))
-				entryIt = m_knownMTimes.erase(entryIt);
-			else
-				++entryIt;
-		}
-
-		m_hasBaseline = true;
+		for (std::string& relative : m_watcher->poll())
+			changed.push_back(m_virtualPrefix + relative);
 		return changed;
 	}
 }
