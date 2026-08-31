@@ -80,7 +80,7 @@ namespace imp::gfx
             return false;
 
         const std::vector<std::string> changed = m_watcher.poll();
-        if (!changed.empty())
+        if (changed.empty())
             return false;
 
         const bool includeChanged = std::ranges::any_of(changed.begin(), changed.end(),

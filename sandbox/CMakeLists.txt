@@ -35,8 +35,8 @@ IMP_COPY_ASSETS(sandbox)
 
 target_compile_definitions(sandbox PRIVATE
 		IMP_HOT_RELOAD_ENABLED=1
-		IMP_SHADER_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan"
-		IMP_SCRIPT_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets/scripts"
+		IMP_SHADER_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/"
+		IMP_SCRIPT_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets/scripts/"
 )
 
 if (GLSLC_EXECUTABLE)

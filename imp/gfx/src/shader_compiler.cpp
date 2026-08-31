@@ -60,6 +60,6 @@ namespace imp::gfx
             outErrorLog += buffer.data();
 
         const int exitCode = IMP_PCLOSE(pipe);
-        return exitCode;
+        return exitCode == 0;
     }
 }
