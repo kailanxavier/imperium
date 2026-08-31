@@ -6,8 +6,11 @@
 #include <protocol/scene_command.h>
 #include <protocol/asset_command.h>
 #include <protocol/script_status.h>
+#include <protocol/cvar_command.h>
 
 #include <filesystem>
+
+#include "core/config/cvar.h"
 
 namespace imp::app
 {
@@ -143,6 +146,10 @@ namespace imp::app
 			else if (raw.type == protocol::MessageType::ScriptStatus)
 			{
 				handleScriptStatus(raw.payload);
+			}
+			else if (raw.type == protocol::MessageType::CVarCommand)
+			{
+				handleCVarCommand(raw.payload);
 			}
 		}
 	}
@@ -464,4 +471,103 @@ namespace imp::app
 			server.publish(protocol::MessageType::ScriptStatus, bytes);
 		}
 	}
+
+	void EditorBridgeLayer::handleCVarCommand(std::span<const u8> payload)
+	{
+		auto& server = protocol::ToolServer::instance();
+
+		const auto decoded = protocol::deserialiseCVarCommand(payload);
+		if (!decoded)
+			return;
+
+		const auto& cmd = *decoded;
+		auto& registry = CVarRegistry::get();
+
+		protocol::CVarCommandResultPayload result;
+		result.op = cmd.op;
+		result.name = cmd.name;
+
+		auto toPayloadEntry = [](const CVarSnapshot& s)
+		{
+			protocol::CVarEntryPayload e;
+			e.name = s.name;
+			e.type = static_cast<protocol::CVarType>(s.kind);
+			e.floatValue = s.floatValue;
+			e.intValue = s.intValue;
+			e.boolValue = s.boolValue;
+			return e;
+		};
+
+		switch (cmd.op)
+		{
+			case protocol::CVarCommandOp::List:
+			{
+				const auto snapshots = registry.list();
+				result.entries.reserve(snapshots.size());
+				for (const auto& s : snapshots)
+					result.entries.push_back(toPayloadEntry(s));
+
+				result.success = true;
+				break;
+			}
+			case protocol::CVarCommandOp::Get:
+			{
+				if (cmd.name.empty())
+				{
+					result.success = false;
+					result.error = "Empty name";
+					break;
+				}
+
+				if (const auto snapshot = registry.get(cmd.name))
+				{
+					result.entry = toPayloadEntry(*snapshot);
+					result.success = true;
+				}
+				else
+				{
+					result.success = false;
+					result.error = "Unknown cvar.";
+				}
+				break;
+			}
+			case protocol::CVarCommandOp::Set:
+			{
+				if (cmd.name.empty())
+				{
+					result.success = false;
+					result.error = "Empty name";
+					break;
+				}
+
+				bool applied = false;
+				switch (cmd.type)
+				{
+					case protocol::CVarType::Float: applied = registry.setFloat(cmd.name, cmd.floatValue); break;
+					case protocol::CVarType::Int:   applied = registry.setInt(cmd.name, cmd.intValue); break;
+					case protocol::CVarType::Bool:  applied = registry.setBool(cmd.name, cmd.boolValue); break;
+				}
+
+				if (applied)
+				{
+					if (const auto snapshot = registry.get(cmd.name))
+						result.entry = toPayloadEntry(*snapshot);
+					result.success = true;
+				}
+				else
+				{
+					result.success = false;
+					result.error = "Unknown cvar, or type mismatch.";
+				}
+				break;
+			}
+		}
+
+		if (server.hasSubscribers(protocol::MessageType::CVarCommandResult))
+		{
+			const auto bytes = protocol::serialiseCVarCommandResult(result);
+			server.publish(protocol::MessageType::CVarCommandResult, bytes);
+		}
+	}
+
 }

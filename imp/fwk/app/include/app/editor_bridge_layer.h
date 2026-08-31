@@ -34,6 +34,7 @@ namespace imp::app
 		void handleSceneCommand(std::span<const u8> payload);
 		void handleAssetCommand(std::span<const u8> payload);
 		void handleScriptStatus(std::span<const u8> payload);
+		void handleCVarCommand(std::span<const u8> payload);
 
 		ecs::World& m_world;
 		fs::VirtualFileSystem& m_vfs;

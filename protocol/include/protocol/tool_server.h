@@ -35,7 +35,7 @@ namespace imp::protocol
         ToolServer() = default;
         void networkThreadLoop(u16 port);
 
-        static constexpr size_t kTypeCount = 12;
+        static constexpr size_t kTypeCount = 14;
         static size_t typeIndex(MessageType type) { return static_cast<size_t>(type) - 1; }
 
         struct TelemetryChannel

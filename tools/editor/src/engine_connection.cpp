@@ -89,6 +89,11 @@ namespace imp::editor
 		sendFrame(MessageType::AssetCommand, serialiseAssetCommand(cmd));
 	}
 
+	void EngineConnection::sendCVarCommand(const protocol::CVarCommandPayload& cmd)
+	{
+		sendFrame(MessageType::CVarCommand, serialiseCVarCommand(cmd));
+	}
+
 	void EngineConnection::tickReconnect()
 	{
 		if (!m_wantsConnection)
@@ -136,7 +141,8 @@ namespace imp::editor
 				static_cast<u32>( MessageMask::EntityCommandResult ) |
 				static_cast<u32>( MessageMask::SceneCommandResult ) |
 				static_cast<u32>( MessageMask::AssetCommandResult ) |
-				static_cast<u32>( MessageMask::ScriptStatus )
+				static_cast<u32>( MessageMask::ScriptStatus ) |
+				static_cast<u32>( MessageMask::CVarCommandResult )
 				));
 	}
 

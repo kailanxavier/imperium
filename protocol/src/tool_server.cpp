@@ -49,7 +49,6 @@ namespace imp::protocol
 
         InboundCommand discard;
         while (m_inboundCommands.tryPop(discard)) {}
-
     }
 
     bool ToolServer::hasSubscribers(MessageType type) const
@@ -159,7 +158,8 @@ namespace imp::protocol
                     else if (frame->type == MessageType::ConsoleCommand ||
                             frame->type == MessageType::EntityCommand ||
                             frame->type == MessageType::SceneCommand ||
-                            frame->type == MessageType::AssetCommand)
+                            frame->type == MessageType::AssetCommand ||
+                            frame->type == MessageType::CVarCommand)
                     {
                         m_inboundCommands.tryPush({ frame->type, std::move(frame->payload) });
                     }

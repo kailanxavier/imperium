@@ -1,11 +1,30 @@
 #pragma once
 #include <core/types/int_types.h>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <vector>
 
 namespace imp
 {
+	enum class CVarKind : u8
+	{
+		Float = 0,
+		Int,
+		Bool,
+	};
+
+	struct CVarSnapshot
+	{
+		std::string name;
+		CVarKind kind = CVarKind::Float;
+
+		float floatValue = 0.f;
+		i32 intValue = 0;
+		bool boolValue = false;
+	};
+
 	class CVarRegistry
 	{
 	public:
@@ -16,6 +35,13 @@ namespace imp
 		bool& registerBool(std::string_view name, bool defaultValue);
 
 		bool loadFromFile(std::string_view path);
+
+		[[nodiscard]] std::vector<CVarSnapshot> list() const;
+		[[nodiscard]] std::optional<CVarSnapshot> get(std::string_view name) const;
+
+		bool setFloat(std::string_view name, float value);
+		bool setInt(std::string_view name, i32 value);
+		bool setBool(std::string_view name, bool value);
 
 	private:
 		std::unordered_map<std::string, float> m_floats;

@@ -5,12 +5,14 @@
 #include <editor/world_model.h>
 #include <editor/asset_model.h>
 #include <editor/asset_browser_panel.h>
+#include <editor/cvar_panel.h>
 
 #include <protocol/message_type.h>
 #include <protocol/world_snapshot.h>
 #include <protocol/entity_command.h>
 #include <protocol/asset_command.h>
 #include <protocol/script_status.h>
+#include <protocol/cvar_command.h>
 
 #include <QDockWidget>
 #include <QHBoxLayout>
@@ -57,6 +59,8 @@ namespace imp::editor
 			case protocol::MessageType::ScriptStatus: return "ScriptStatus";
 			case protocol::MessageType::AssetCommand: return "AssetCommand";
 			case protocol::MessageType::AssetCommandResult: return "AssetCommandResult";
+			case protocol::MessageType::CVarCommand: return "CVarCommand";
+			case protocol::MessageType::CVarCommandResult: return "CVarCommandResult";
 			}
 			return "Unknown";
 		}
@@ -110,6 +114,7 @@ namespace imp::editor
 
 		setCentralWidget(central);
 		buildAssetBrowserDock();
+		buildCVarDock();
 		buildLogDock();
 		resize(kWidth, kHeight);
 	}
@@ -191,6 +196,19 @@ namespace imp::editor
 		busy ? m_connection->disconnectFromEngine()
 			: m_connection->connectToEngine(m_hostEdit->text(),
 				static_cast<quint16>( m_portSpin->value() ));
+	}
+
+	void MainWindow::buildCVarDock()
+	{
+		auto* dock = new QDockWidget("CVars", this);
+
+		m_cvarPanel = new CVarPanel(dock);
+		connect(m_cvarPanel, &CVarPanel::listRequested, this, &MainWindow::onCVarListRequested);
+		connect(m_cvarPanel, &CVarPanel::setRequested, this, &MainWindow::onCVarSetRequested);
+		connect(m_cvarPanel, &CVarPanel::errorReported, this, &MainWindow::onCVarErrorReported);
+
+		dock->setWidget(m_cvarPanel);
+		addDockWidget(Qt::BottomDockWidgetArea, dock);
 	}
 
 	void MainWindow::onConnectionStateChanged(ConnectionState state)
@@ -299,6 +317,16 @@ namespace imp::editor
 			if (auto status = protocol::deserialiseScriptStatus(payload))
 				m_assetBrowser->addScriptStatus(*status);
 		}
+		else if (type == protocol::MessageType::CVarCommandResult)
+		{
+			if (auto result = protocol::deserialiseCVarCommandResult(payload))
+			{
+				if (result->op == protocol::CVarCommandOp::List)
+					m_cvarPanel->applyListResult(*result);
+				else
+					m_cvarPanel->applyCommandResult(*result);
+			}
+		}
 	}
 
 	void MainWindow::onEntitySelected(const QModelIndex& index)
@@ -377,5 +405,23 @@ namespace imp::editor
 	void MainWindow::onSceneEntryActivated(QString virtualPath)
 	{
 		m_scenePathEdit->setText(virtualPath);
+	}
+
+	void MainWindow::onCVarListRequested()
+	{
+		protocol::CVarCommandPayload cmd;
+		cmd.op = protocol::CVarCommandOp::List;
+
+		m_connection->sendCVarCommand(cmd);
+	}
+
+	void MainWindow::onCVarSetRequested(protocol::CVarCommandPayload cmd)
+	{
+		m_connection->sendCVarCommand(cmd);
+	}
+
+	void MainWindow::onCVarErrorReported(QString message)
+	{
+		m_logView->appendPlainText("[CVAR] " + message);
 	}
 }
