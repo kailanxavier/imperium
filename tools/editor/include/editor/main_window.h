@@ -1,6 +1,7 @@
 #pragma once
 #include <QMainWindow>
 #include <QString>
+#include <QKeyEvent>
 #include <editor/engine_connection.h>
 #include <protocol/world_snapshot.h>
 
@@ -18,6 +19,7 @@ namespace imp::editor
 	class WorldModel;
 	class AssetModel;
 	class AssetBrowserPanel;
+	class CVarPanel;
 
 	class MainWindow final : public QMainWindow
 	{
@@ -35,17 +37,25 @@ namespace imp::editor
 		void onCommandRequested(imp::protocol::EntityCommandPayload cmd);
 		void onReparentRequested(quint32 childIndex, quint32 childGeneration, 
 			bool hasNewParent, quint32 newParentIndex, quint32 newParentGeneration);
+		void onCreateRequested(QString modelPath, bool hasParent,
+			quint32 parentIndex, quint32 parentGeneration);
+		void onDestroyRequested();
 		void onDragStateChanged(bool active);
 		void onSceneSaveClicked();
 		void onSceneLoadClicked();
 		void onAssetListRequested(QString prefix, bool recursive);
 		void onSceneEntryActivated(QString virtualPath);
+		void onCVarListRequested();
+		void onCVarSetRequested(imp::protocol::CVarCommandPayload cmd);
+		void onCVarErrorReported(QString message);
+
 
 	private:
 		void buildUi();
 		QWidget* buildConnectionBar();
 		void buildLogDock();
 		void buildAssetBrowserDock();
+		void buildCVarDock();
 		void updateConnectionUi();
 
 		EngineConnection* m_connection = nullptr;
@@ -54,6 +64,7 @@ namespace imp::editor
 		InspectorPanel* m_inspector = nullptr;
 		AssetModel* m_assetModel = nullptr;
 		AssetBrowserPanel* m_assetBrowser = nullptr;
+		CVarPanel* m_cvarPanel = nullptr;
 
 		QLineEdit* m_hostEdit = nullptr;
 		QSpinBox* m_portSpin = nullptr;

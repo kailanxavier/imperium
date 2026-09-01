@@ -8,6 +8,9 @@
 #include <script/system.h>
 #include <script/file_watcher.h>
 
+#include <core/fs/directory_watcher.h>
+#include <gfx/shader_hot_reload.h>
+
 #include <memory>
 
 namespace imp::gfx
@@ -50,7 +53,12 @@ namespace imp::app
 		bool m_enableFrustumCulling = true;
 
 		std::unique_ptr<script::ScriptSystem> m_scriptSystem;
-		std::unique_ptr<script::ScriptFileWatcher> m_scriptWatcher;
+
+		std::unique_ptr<fs::DirectoryWatcher> m_scriptSourceWatcher;
+		std::unique_ptr<gfx::ShaderHotReloadWatcher> m_shaderWatcher;
+
+		void pollShaderHotReload(AppContext& ctx);
+		void pollScriptHotReload(AppContext& ctx);
 
 		gfx::IRenderTarget* m_readbackTarget = nullptr;
 	};

@@ -13,21 +13,19 @@ namespace imp::app
 	RenderResources::RenderResources() = default;
 	RenderResources::~RenderResources() = default;
 
-	bool RenderResources::init(AppContext& ctx, const AssetManifest& assets, const gfx::CascadeConfig& cascadeConfig)
+	bool RenderResources::buildShaderPipelineSet(AppContext &ctx, const AssetManifest &assets, ShaderPipelineSet &out) const
 	{
-		m_graphPool = std::make_unique<gfx::RenderGraphResourcePool>(ctx.gfx);
-
 		gfx::ShaderDesc meshVertDesc;
 		meshVertDesc.stage = gfx::ShaderStage::Vertex;
 		meshVertDesc.path = assets.meshVertShader;
-		m_meshVertShader = ctx.gfx.createShader(meshVertDesc);
+		out.meshVertShader = ctx.gfx.createShader(meshVertDesc);
 
 		gfx::ShaderDesc meshFragDesc;
 		meshFragDesc.stage = gfx::ShaderStage::Fragment;
 		meshFragDesc.path = assets.meshFragShader;
-		m_meshFragShader = ctx.gfx.createShader(meshFragDesc);
+		out.meshFragShader = ctx.gfx.createShader(meshFragDesc);
 
-		if (!m_meshFragShader || !m_meshVertShader)
+		if (!out.meshFragShader || !out.meshVertShader)
 		{
 			LOG_ERROR("Sandbox", "Failed to load mesh shaders.");
 			return false;
@@ -36,14 +34,14 @@ namespace imp::app
 		gfx::ShaderDesc tonemapVertDesc;
 		tonemapVertDesc.stage = gfx::ShaderStage::Vertex;
 		tonemapVertDesc.path = assets.tonemapVertShader;
-		m_tonemapVertShader = ctx.gfx.createShader(tonemapVertDesc);
+		out.tonemapVertShader = ctx.gfx.createShader(tonemapVertDesc);
 
 		gfx::ShaderDesc tonemapFragDesc;
 		tonemapFragDesc.stage = gfx::ShaderStage::Fragment;
 		tonemapFragDesc.path = assets.tonemapFragShader;
-		m_tonemapFragShader = ctx.gfx.createShader(tonemapFragDesc);
+		out.tonemapFragShader = ctx.gfx.createShader(tonemapFragDesc);
 
-		if (!m_tonemapVertShader || !m_tonemapFragShader)
+		if (!out.tonemapVertShader || !out.tonemapFragShader)
 		{
 			LOG_ERROR("Sandbox", "Failed to load tonemap shaders.");
 			return false;
@@ -52,14 +50,14 @@ namespace imp::app
 		gfx::ShaderDesc shadowVertDesc;
 		shadowVertDesc.stage = gfx::ShaderStage::Vertex;
 		shadowVertDesc.path = assets.shadowVertShader;
-		m_shadowVertShader = ctx.gfx.createShader(shadowVertDesc);
+		out.shadowVertShader = ctx.gfx.createShader(shadowVertDesc);
 
 		gfx::ShaderDesc shadowFragDesc;
 		shadowFragDesc.stage = gfx::ShaderStage::Fragment;
 		shadowFragDesc.path = assets.shadowFragShader;
-		m_shadowFragShader = ctx.gfx.createShader(shadowFragDesc);
+		out.shadowFragShader = ctx.gfx.createShader(shadowFragDesc);
 
-		if (!m_shadowVertShader || !m_shadowFragShader)
+		if (!out.shadowVertShader || !out.shadowFragShader)
 		{
 			LOG_ERROR("Sandbox", "Failed to load shadow shaders.");
 			return false;
@@ -68,14 +66,14 @@ namespace imp::app
 		gfx::ShaderDesc skyVertDesc;
 		skyVertDesc.stage = gfx::ShaderStage::Vertex;
 		skyVertDesc.path = assets.skyVertShader;
-		m_skyVertShader = ctx.gfx.createShader(skyVertDesc);
+		out.skyVertShader = ctx.gfx.createShader(skyVertDesc);
 
 		gfx::ShaderDesc skyFragDesc;
 		skyFragDesc.stage = gfx::ShaderStage::Fragment;
 		skyFragDesc.path = assets.skyFragShader;
-		m_skyFragShader = ctx.gfx.createShader(skyFragDesc);
+		out.skyFragShader = ctx.gfx.createShader(skyFragDesc);
 
-		if (!m_skyFragShader || !m_skyVertShader)
+		if (!out.skyFragShader || !out.skyVertShader)
 		{
 			LOG_ERROR("Sandbox", "Failed to load sky shaders");
 			return false;
@@ -102,8 +100,8 @@ namespace imp::app
 		};
 
 		gfx::PipelineDesc skyPipelineDesc{};
-		skyPipelineDesc.vertexShader = m_skyVertShader.get();
-		skyPipelineDesc.fragmentShader = m_skyFragShader.get();
+		skyPipelineDesc.vertexShader = out.skyVertShader.get();
+		skyPipelineDesc.fragmentShader = out.skyFragShader.get();
 		skyPipelineDesc.rasterizerState.cullMode = gfx::CullMode::None;
 		skyPipelineDesc.depthStencilState.depthTestEnable = true;
 		skyPipelineDesc.depthStencilState.depthWriteEnable = false;
@@ -113,17 +111,17 @@ namespace imp::app
 		skyPipelineDesc.depthFormat = m_hdrDepthFormat;
 		skyPipelineDesc.sampleCount = kMsaaSampleCount;
 		skyPipelineDesc.hasInstanceBinding = false;
-		m_skyPipeline = ctx.gfx.createPipeline(skyPipelineDesc);
+		out.skyPipeline = ctx.gfx.createPipeline(skyPipelineDesc);
 
-		if (!m_skyPipeline)
+		if (!out.skyPipeline)
 		{
 			LOG_ERROR("Sandbox", "Failed to create sky pipeline");
 			return false;
 		}
 
 		gfx::PipelineDesc meshPipelineDesc{};
-		meshPipelineDesc.vertexShader = m_meshVertShader.get();
-		meshPipelineDesc.fragmentShader = m_meshFragShader.get();
+		meshPipelineDesc.vertexShader = out.meshVertShader.get();
+		meshPipelineDesc.fragmentShader = out.meshFragShader.get();
 		meshPipelineDesc.vertexLayout.stride = sizeof(gfx::ModelVertex);
 		meshPipelineDesc.vertexLayout.attributeCount = 4;
 		meshPipelineDesc.vertexLayout.attributes = meshAttrs;
@@ -139,21 +137,91 @@ namespace imp::app
 		meshPipelineDesc.depthFormat = m_hdrDepthFormat;
 		meshPipelineDesc.sampleCount = kMsaaSampleCount;
 		meshPipelineDesc.hasInstanceBinding = true;
-		m_pipeline = ctx.gfx.createPipeline(meshPipelineDesc);
+		out.pipeline = ctx.gfx.createPipeline(meshPipelineDesc);
 
 		gfx::PipelineDesc blendPipelineDesc{ meshPipelineDesc };
 		blendPipelineDesc.blendState.blendEnable = true;
 		blendPipelineDesc.depthStencilState.depthTestEnable = true;
 		blendPipelineDesc.depthStencilState.depthWriteEnable = false;
 		blendPipelineDesc.colourFormat = m_hdrColourFormat;
-		m_blendPipeline = ctx.gfx.createPipeline(blendPipelineDesc);
+		out.blendPipeline = ctx.gfx.createPipeline(blendPipelineDesc);
 
 		gfx::PipelineDesc tonemapPipelineDesc;
-		tonemapPipelineDesc.vertexShader = m_tonemapVertShader.get();
-		tonemapPipelineDesc.fragmentShader = m_tonemapFragShader.get();
+		tonemapPipelineDesc.vertexShader = out.tonemapVertShader.get();
+		tonemapPipelineDesc.fragmentShader = out.tonemapFragShader.get();
 		tonemapPipelineDesc.colourFormat = ctx.gfx.backBuffer().format();
 		tonemapPipelineDesc.depthFormat = gfx::TextureFormat::Unknown;
-		m_tonemapPipeline = ctx.gfx.createPipeline(tonemapPipelineDesc);
+		out.tonemapPipeline = ctx.gfx.createPipeline(tonemapPipelineDesc);
+
+		gfx::PipelineDesc shadowPipelineDesc{};
+		shadowPipelineDesc.vertexShader = out.shadowVertShader.get();
+		shadowPipelineDesc.fragmentShader = out.shadowFragShader.get();
+		shadowPipelineDesc.vertexLayout.attributeCount = 3;
+		shadowPipelineDesc.vertexLayout.attributes = shadowAttrs;
+		shadowPipelineDesc.vertexLayout.stride = sizeof(gfx::ModelVertex);
+		shadowPipelineDesc.instanceLayout = meshPipelineDesc.instanceLayout;
+		shadowPipelineDesc.rasterizerState.cullMode = gfx::CullMode::Back; // reduces acne on closed meshes
+		shadowPipelineDesc.depthStencilState.depthTestEnable = true;
+		shadowPipelineDesc.depthStencilState.depthWriteEnable = true;
+		shadowPipelineDesc.depthStencilState.depthCompareOp = gfx::CompareOp::Less;
+		shadowPipelineDesc.colourFormat = gfx::TextureFormat::Unknown;
+		shadowPipelineDesc.depthFormat = gfx::TextureFormat::Depth32Float;
+		shadowPipelineDesc.hasInstanceBinding = true;
+		out.shadowPipeline = ctx.gfx.createPipeline(shadowPipelineDesc);
+
+		if (!out.pipeline || !out.blendPipeline || !out.tonemapPipeline || !out.shadowPipeline)
+		{
+			LOG_ERROR("Sandbox", "Failed to create one or more pipelines");
+			return false;
+		}
+
+		return true;
+	}
+
+	void RenderResources::adoptShaderPipelineSet(ShaderPipelineSet&& set)
+	{
+		m_meshVertShader = std::move(set.meshVertShader);
+		m_meshFragShader = std::move(set.meshFragShader);
+		m_shadowVertShader = std::move(set.shadowVertShader);
+		m_shadowFragShader = std::move(set.shadowFragShader);
+		m_tonemapVertShader = std::move(set.tonemapVertShader);
+		m_tonemapFragShader = std::move(set.tonemapFragShader);
+		m_skyVertShader = std::move(set.skyVertShader);
+		m_skyFragShader = std::move(set.skyFragShader);
+
+		m_pipeline = std::move(set.pipeline);
+		m_blendPipeline = std::move(set.blendPipeline);
+		m_shadowPipeline = std::move(set.shadowPipeline);
+		m_skyPipeline = std::move(set.skyPipeline);
+		m_tonemapPipeline = std::move(set.tonemapPipeline);
+	}
+
+	bool RenderResources::reloadShaders(AppContext &ctx, const AssetManifest &assets)
+	{
+		ShaderPipelineSet fresh;
+		if (!buildShaderPipelineSet(ctx, assets, fresh))
+		{
+			LOG_ERROR("Sandbox", "Shader hot reload failed, keeping the last working pipelines");
+			return false;
+		}
+
+		ctx.gfx.waitIdle();
+		adoptShaderPipelineSet(std::move(fresh));
+
+		LOG_INFO("Sandbox", "Shader hot reload succeeded");
+		return true;
+	}
+
+
+
+	bool RenderResources::init(AppContext& ctx, const AssetManifest& assets, const gfx::CascadeConfig& cascadeConfig)
+	{
+		m_graphPool = std::make_unique<gfx::RenderGraphResourcePool>(ctx.gfx);
+
+		ShaderPipelineSet initial;
+		if (!buildShaderPipelineSet(ctx, assets, initial))
+			return false;
+		adoptShaderPipelineSet(std::move(initial));
 
 		gfx::SamplerDesc samplerDesc{};
 		samplerDesc.minFilter = gfx::FilterMode::Linear;
@@ -182,22 +250,6 @@ namespace imp::app
 		shadowSamplerDesc.addressModeU = gfx::AddressMode::ClampToEdge;
 		shadowSamplerDesc.addressModeV = gfx::AddressMode::ClampToEdge;
 		m_shadowSampler = ctx.gfx.createSampler(shadowSamplerDesc);
-
-		gfx::PipelineDesc shadowPipelineDesc{};
-		shadowPipelineDesc.vertexShader = m_shadowVertShader.get();
-		shadowPipelineDesc.fragmentShader = m_shadowFragShader.get();
-		shadowPipelineDesc.vertexLayout.attributeCount = 3;
-		shadowPipelineDesc.vertexLayout.attributes = shadowAttrs;
-		shadowPipelineDesc.vertexLayout.stride = sizeof(gfx::ModelVertex);
-		shadowPipelineDesc.instanceLayout = meshPipelineDesc.instanceLayout;
-		shadowPipelineDesc.rasterizerState.cullMode = gfx::CullMode::Back; // reduces acne on closed meshes
-		shadowPipelineDesc.depthStencilState.depthTestEnable = true;
-		shadowPipelineDesc.depthStencilState.depthWriteEnable = true;
-		shadowPipelineDesc.depthStencilState.depthCompareOp = gfx::CompareOp::Less;
-		shadowPipelineDesc.colourFormat = gfx::TextureFormat::Unknown;
-		shadowPipelineDesc.depthFormat = gfx::TextureFormat::Depth32Float;
-		shadowPipelineDesc.hasInstanceBinding = true;
-		m_shadowPipeline = ctx.gfx.createPipeline(shadowPipelineDesc);
 
 		gfx::BufferDesc cascadeUboDesc{};
 		cascadeUboDesc.size = sizeof(gfx::CascadeUBO);

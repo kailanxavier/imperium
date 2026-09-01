@@ -45,6 +45,8 @@ namespace imp::editor
 		m_tree->setSelectionMode(QAbstractItemView::SingleSelection);
 		m_tree->setSelectionBehavior(QAbstractItemView::SelectRows);
 		m_tree->header()->setStretchLastSection(true);
+		m_tree->setDragEnabled(true);
+		m_tree->setDragDropMode(QAbstractItemView::DragOnly);
 		connect(m_tree, &QTreeView::doubleClicked, this, &AssetBrowserPanel::onEntryDoubleClicked);
 		assetsLayout->addWidget(m_tree);
 

@@ -1,8 +1,20 @@
 #include <editor/asset_model.h>
+#include <editor/mime_types.h>
+
 #include <QStringList>
+#include <QMimeData>
 
 namespace imp::editor
 {
+	namespace
+	{
+		bool isModelPath(const QString& path)
+		{
+			return path.endsWith(".glb", Qt::CaseInsensitive)
+				|| path.endsWith(".gltf", Qt::CaseInsensitive);
+		}
+	}
+
 	AssetModel::AssetModel(QObject* parent) : QAbstractItemModel(parent) {}
 
 	void AssetModel::clear()
@@ -206,5 +218,36 @@ namespace imp::editor
 			return nullptr;
 
 		return &node.entry;
+	}
+
+	Qt::ItemFlags AssetModel::flags(const QModelIndex& index) const
+	{
+		const Qt::ItemFlags base = QAbstractItemModel::flags(index);
+		if (!index.isValid())
+			return base;
+
+		if (!isDirectoryAt(index) && isModelPath(virtualPathAt(index)))
+			return base | Qt::ItemIsDragEnabled;
+
+		return base;
+	}
+
+	QStringList AssetModel::mimeTypes() const
+	{
+		return { QString::fromLatin1(kAssetPathMimeType) };
+	}
+
+	QMimeData* AssetModel::mimeData(const QModelIndexList& indexes) const
+	{
+		if (indexes.isEmpty())
+			return nullptr;
+
+		const QString path = virtualPathAt(indexes.first());
+		if (path.isEmpty() || !isModelPath(path))
+			return nullptr;
+
+		auto* mime = new QMimeData();
+		mime->setData(QString::fromLatin1(kAssetPathMimeType), path.toUtf8());
+		return mime;
 	}
 }

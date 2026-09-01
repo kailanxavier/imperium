@@ -12,6 +12,7 @@ enum EntityCommandOp : uint8
     Reparent,
     Destroy,
     AttachScript,
+    Create
 }
 
 table EntityCommand

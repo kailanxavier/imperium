@@ -23,7 +23,9 @@ namespace imp::editor
         m_tree->setDropIndicatorShown(true);
         m_tree->setDragDropMode(QAbstractItemView::DragDrop);
         m_tree->setDefaultDropAction(Qt::MoveAction);
+
         connect(m_tree, &EntityTreeView::dragStateChanged, this, &HierarchyPanel::dragStateChanged);
+	    connect(m_tree, &EntityTreeView::destroyRequested, this, &HierarchyPanel::destroyRequested);
 
 		auto* layout = new QVBoxLayout(this);
 		layout->setContentsMargins(0, 0, 0, 0);
@@ -67,6 +69,25 @@ namespace imp::editor
         if (auto* selection = m_tree->selectionModel())
             selection->clear();
     }
+
+    std::optional<std::pair<quint32, quint32>> HierarchyPanel::selectedEntity() const
+	{
+	    if (!m_model)
+	        return std::nullopt;
+
+	    const auto* selection = m_tree->selectionModel();
+	    if (!selection)
+	        return std::nullopt;
+
+	    const auto rows = selection->selectedRows();
+	    if (rows.isEmpty())
+	        return std::nullopt;
+
+	    if (const auto* entity = m_model->entityAt(rows.first()))
+	        return std::make_pair(entity->index, entity->generation);
+
+	    return std::nullopt;
+	}
 
     QSet<quint64> HierarchyPanel::captureExpandedKeys() const
     {

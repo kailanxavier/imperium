@@ -1,4 +1,5 @@
 #include <editor/world_model.h>
+#include <editor/mime_types.h>
 
 #include <QDataStream>
 #include <QHash>
@@ -10,11 +11,6 @@
 
 namespace imp::editor
 {
-	namespace
-	{
-        const char* kEntityMimeType = "application/x-imperium-entity-id";
-	}
-
     quint64 WorldModel::entityKey(quint32 index, quint32 generation)
     {
         return ( static_cast<quint64>( index ) << 32 ) | generation;
@@ -183,12 +179,12 @@ namespace imp::editor
 
     QStringList WorldModel::mimeTypes() const
     {
-        return { QString::fromLatin1(kEntityMimeType) };
+        return { QString::fromLatin1(kEntityMimeType), QString::fromLatin1(kAssetPathMimeType) };
     }
 
     Qt::DropActions WorldModel::supportedDropActions() const
     {
-        return Qt::MoveAction;
+        return Qt::MoveAction | Qt::CopyAction;
     }
 
     QMimeData* WorldModel::mimeData(const QModelIndexList& indexes) const
@@ -211,7 +207,16 @@ namespace imp::editor
 
     bool WorldModel::canDropMimeData(const QMimeData* data, Qt::DropAction action, int /*row*/, int /*column*/, const QModelIndex& /*parent*/) const
     {
-        return action == Qt::MoveAction && data && data->hasFormat(QString::fromLatin1(kEntityMimeType));
+        if (!data)
+            return false;
+
+        if (action == Qt::MoveAction && data->hasFormat(QString::fromLatin1(kEntityMimeType)))
+            return true;
+
+        if (action == Qt::CopyAction && data->hasFormat(QString::fromLatin1(kAssetPathMimeType)))
+            return true;
+
+        return false;
     }
 
     bool WorldModel::dropMimeData(const QMimeData* data, Qt::DropAction action, int row, int column, const QModelIndex& parent)
@@ -229,25 +234,46 @@ namespace imp::editor
 
     bool WorldModel::handleDrop(const QMimeData* data, const QModelIndex& target)
     {
-        if (!data || !data->hasFormat(QString::fromLatin1(kEntityMimeType)))
+        if (!data)
             return false;
 
-        const QByteArray encoded = data->data(QString::fromLatin1(kEntityMimeType));
-        QDataStream stream(encoded);
-        quint32 childIndex = 0;
-        quint32 childGeneration = 0;
-        stream >> childIndex >> childGeneration;
+        if (data->hasFormat(QString::fromLatin1(kEntityMimeType)))
+        {
+            const QByteArray encoded = data->data(QString::fromLatin1(kEntityMimeType));
+            QDataStream stream(encoded);
+            quint32 childIndex = 0;
+            quint32 childGeneration = 0;
+            stream >> childIndex >> childGeneration;
 
-        if (stream.status() != QDataStream::Ok)
-            return false;
+            if (stream.status() != QDataStream::Ok)
+                return false;
 
-        const auto* parentEntity = entityAt(target);
-        const bool hasNewParent = parentEntity != nullptr;
+            const auto* parentEntity = entityAt(target);
+            const bool hasNewParent = parentEntity != nullptr;
 
-        emit reparentRequested(childIndex, childGeneration, hasNewParent,
-            hasNewParent ? parentEntity->index : 0,
-            hasNewParent ? parentEntity->generation : 0);
+            emit reparentRequested(childIndex, childGeneration, hasNewParent,
+                hasNewParent ? parentEntity->index : 0,
+                hasNewParent ? parentEntity->generation : 0);
 
-        return true;
+            return true;
+        }
+
+        if (data->hasFormat(QString::fromLatin1(kAssetPathMimeType)))
+        {
+            const QString modelPath = QString::fromUtf8(data->data(QString::fromLatin1(kAssetPathMimeType)));
+            if (modelPath.isEmpty())
+                return false;
+
+            const auto* parentEntity = entityAt(target);
+            const bool hasParent = parentEntity != nullptr;
+
+            emit createRequested(modelPath, hasParent,
+                hasParent ? parentEntity->index : 0,
+                hasParent ? parentEntity->generation : 0);
+
+            return true;
+        }
+
+        return false;
     }
 }

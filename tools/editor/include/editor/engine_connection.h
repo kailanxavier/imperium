@@ -9,6 +9,7 @@
 #include <protocol/frame.h>
 #include <protocol/scene_command.h>
 #include <protocol/asset_command.h>
+#include <protocol/cvar_command.h>
 #include <protocol/tcp_socket.h>
 
 #include <chrono>
@@ -41,6 +42,7 @@ namespace imp::editor
 		void sendEntityCommand(const protocol::EntityCommandPayload& cmd);
 		void sendSceneCommand(const protocol::SceneCommandPayload& cmd);
 		void sendAssetCommand(const protocol::AssetCommandPayload& cmd);
+		void sendCVarCommand(const protocol::CVarCommandPayload& cmd);
 
 		[[nodiscard]] ConnectionState state() const { return m_state; }
 		[[nodiscard]] const QString& lastError() const { return m_lastError; }

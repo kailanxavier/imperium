@@ -2,6 +2,7 @@
 #include <editor/world_model.h>
 
 #include <QDropEvent>
+#include <QKeyEvent>
 
 namespace imp::editor
 {
@@ -28,4 +29,16 @@ namespace imp::editor
 
         event->ignore();
     }
+
+    void EntityTreeView::keyPressEvent(QKeyEvent *event)
+	{
+	    if (event->key() == Qt::Key_Backspace || event->key() == Qt::Key_Delete)
+	    {
+	        emit destroyRequested();
+	        event->accept();
+	    	return;
+	    }
+
+		QTreeView::keyPressEvent(event);
+	}
 }

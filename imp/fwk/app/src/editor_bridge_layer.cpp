@@ -6,8 +6,11 @@
 #include <protocol/scene_command.h>
 #include <protocol/asset_command.h>
 #include <protocol/script_status.h>
+#include <protocol/cvar_command.h>
 
 #include <filesystem>
+
+#include "core/config/cvar.h"
 
 namespace imp::app
 {
@@ -144,6 +147,10 @@ namespace imp::app
 			{
 				handleScriptStatus(raw.payload);
 			}
+			else if (raw.type == protocol::MessageType::CVarCommand)
+			{
+				handleCVarCommand(raw.payload);
+			}
 		}
 	}
 
@@ -156,151 +163,163 @@ namespace imp::app
 			return;
 
 		const auto& cmd = *decoded;
-		const ecs::EntityId target{ cmd.targetIndex, cmd.targetGeneration };
 
 		protocol::EntityCommandResultPayload result;
 		result.op = cmd.op;
 		result.targetIndex = cmd.targetIndex;
 		result.targetGeneration = cmd.targetGeneration;
 
-		if (!m_world.registry.isAlive(target))
+		if (cmd.op == protocol::EntityCommandOp::Create)
 		{
-			result.success = false;
-			result.error = "Target entity is not alive.";
+			handleCreateEntityCommand(cmd, result);
 		}
 		else
 		{
-			result.success = true;
+			const ecs::EntityId target{ cmd.targetIndex, cmd.targetGeneration };
 
-			switch (cmd.op)
+			if (!m_world.registry.isAlive(target))
 			{
-			case protocol::EntityCommandOp::SetLocalTransform:
-			{
-				if (m_world.transforms.contains(target))
-				{
-					ecs::Transform t;
-					t.position = cmd.vec3A;
-					t.rotation = cmd.quatA;
-					t.scale = cmd.vec3B;
-					m_world.transforms.setLocalTransform(target, t);
-				}
-				else
-				{
-					result.success = false;
-					result.error = "Target has no transform component.";
-				}
-				break;
+				result.success = false;
+				result.error = "Target entity is not alive.";
 			}
-			case protocol::EntityCommandOp::SetName:
+			else
 			{
-				if (m_world.names.contains(target))
-					m_world.names.setName(target, cmd.stringA);
-				else
-					m_world.names.create(target, cmd.stringA);
-				break;
-			}
-			case protocol::EntityCommandOp::SetRenderableVisible:
-			{
-				if (m_world.renderables.contains(target))
-				{
-					m_world.renderables.setVisible(target, cmd.boolA);
-				}
-				else
-				{
-					result.success = false;
-					result.error = "Target has no renderable component.";
-				}
-				break;
-			}
-			case protocol::EntityCommandOp::SetLightColour:
-			{
-				if (m_world.lights.contains(target))
-				{
-					m_world.lights.setColour(target, cmd.vec3A);
-				}
-				else
-				{
-					result.success = false;
-					result.error = "Target has no light component.";
-				}
-				break;
-			}
-			case protocol::EntityCommandOp::SetLightIntensity:
-			{
-				if (m_world.lights.contains(target))
-				{
-					m_world.lights.setIntensity(target, cmd.floatA);
-				}
-				else
-				{
-					result.success = false;
-					result.error = "Target has no light component.";
-				}
-				break;
-			}
-			case protocol::EntityCommandOp::Reparent:
-			{
-				if (!m_world.transforms.contains(target))
-				{
-					result.success = false;
-					result.error = "Target has no Transform component.";
-					break;
-				}
+				result.success = true;
 
-				const bool unparenting = ( cmd.refIndex == 0xFFFFFFFFu );
-				const ecs::EntityId newParent = unparenting
-					? ecs::EntityId{}
-				: ecs::EntityId{ cmd.refIndex, cmd.refGeneration };
-
-				if (!unparenting && !m_world.registry.isAlive(newParent))
+				switch (cmd.op)
 				{
-					result.success = false;
-					result.error = "New parent is not alive.";
-					break;
-				}
-
-				if (!unparenting && !m_world.transforms.contains(newParent))
+				case protocol::EntityCommandOp::Create:
+						// This is handled outside the switch because the entity
+						// isn't alive when it is created.
+						break;
+				case protocol::EntityCommandOp::SetLocalTransform:
 				{
-					result.success = false;
-					result.error = "New parent has no Transform component.";
-					break;
-				}
-
-				if (!m_world.transforms.reparent(target, newParent))
-				{
-					result.success = false;
-					result.error = "Reparent rejected. Are you trying to create a cycle or parent it to itself?";
-				}
-
-				break;
-			}
-			case protocol::EntityCommandOp::Destroy:
-			{
-				m_world.destroyEntity(target);
-				break;
-			}
-			case protocol::EntityCommandOp::AttachScript:
-			{
-				if (cmd.stringA.empty())
-				{
-					if (m_world.scripts.contains(target))
-						m_world.scripts.destroy(target);
-				}
-				else
-				{
-					if (m_world.scripts.contains(target))
+					if (m_world.transforms.contains(target))
 					{
-						m_world.scripts.setScriptPath(target, cmd.stringA);
-						m_world.scripts.setWantsTick(target, cmd.boolA);
+						ecs::Transform t;
+						t.position = cmd.vec3A;
+						t.rotation = cmd.quatA;
+						t.scale = cmd.vec3B;
+						m_world.transforms.setLocalTransform(target, t);
 					}
 					else
 					{
-						m_world.scripts.create(target, cmd.stringA, cmd.boolA);
+						result.success = false;
+						result.error = "Target has no transform component.";
 					}
+					break;
 				}
-				
-				break;
-			}
+				case protocol::EntityCommandOp::SetName:
+				{
+					if (m_world.names.contains(target))
+						m_world.names.setName(target, cmd.stringA);
+					else
+						m_world.names.create(target, cmd.stringA);
+					break;
+				}
+				case protocol::EntityCommandOp::SetRenderableVisible:
+				{
+					if (m_world.renderables.contains(target))
+					{
+						m_world.renderables.setVisible(target, cmd.boolA);
+					}
+					else
+					{
+						result.success = false;
+						result.error = "Target has no renderable component.";
+					}
+					break;
+				}
+				case protocol::EntityCommandOp::SetLightColour:
+				{
+					if (m_world.lights.contains(target))
+					{
+						m_world.lights.setColour(target, cmd.vec3A);
+					}
+					else
+					{
+						result.success = false;
+						result.error = "Target has no light component.";
+					}
+					break;
+				}
+				case protocol::EntityCommandOp::SetLightIntensity:
+				{
+					if (m_world.lights.contains(target))
+					{
+						m_world.lights.setIntensity(target, cmd.floatA);
+					}
+					else
+					{
+						result.success = false;
+						result.error = "Target has no light component.";
+					}
+					break;
+				}
+				case protocol::EntityCommandOp::Reparent:
+				{
+					if (!m_world.transforms.contains(target))
+					{
+						result.success = false;
+						result.error = "Target has no Transform component.";
+						break;
+					}
+
+					const bool unparenting = ( cmd.refIndex == 0xFFFFFFFFu );
+					const ecs::EntityId newParent = unparenting
+						? ecs::EntityId{}
+					: ecs::EntityId{ cmd.refIndex, cmd.refGeneration };
+
+					if (!unparenting && !m_world.registry.isAlive(newParent))
+					{
+						result.success = false;
+						result.error = "New parent is not alive.";
+						break;
+					}
+
+					if (!unparenting && !m_world.transforms.contains(newParent))
+					{
+						result.success = false;
+						result.error = "New parent has no Transform component.";
+						break;
+					}
+
+					if (!m_world.transforms.reparent(target, newParent))
+					{
+						result.success = false;
+						result.error = "Reparent rejected. Are you trying to create a cycle or parent it to itself?";
+					}
+
+					break;
+				}
+				case protocol::EntityCommandOp::Destroy:
+				{
+					m_world.destroyEntity(target);
+					break;
+				}
+				case protocol::EntityCommandOp::AttachScript:
+				{
+					if (cmd.stringA.empty())
+					{
+						if (m_world.scripts.contains(target))
+							m_world.scripts.destroy(target);
+					}
+					else
+					{
+						if (m_world.scripts.contains(target))
+						{
+							m_world.scripts.setScriptPath(target, cmd.stringA);
+							m_world.scripts.setWantsTick(target, cmd.boolA);
+						}
+						else
+						{
+							m_world.scripts.create(target, cmd.stringA, cmd.boolA);
+						}
+					}
+
+					break;
+				}
+				}
 			}
 		}
 
@@ -310,6 +329,65 @@ namespace imp::app
 			server.publish(protocol::MessageType::EntityCommandResult, bytes);
 		}
 	}
+
+	void EditorBridgeLayer::handleCreateEntityCommand(const protocol::EntityCommandPayload &cmd, protocol::EntityCommandResultPayload &result)
+	{
+		if (cmd.stringA.empty())
+		{
+			result.success = false;
+			result.error = "Empty model path.";
+			return;
+		}
+
+		if (!m_modelLoader)
+		{
+			result.success = false;
+			result.error = "No model loader configured.";
+			return;
+		}
+
+		const ecs::ModelHandle model = m_modelLoader(cmd.stringA);
+		if (!model.isValid())
+		{
+			result.success = false;
+			result.error = "Failed to load model: " + cmd.stringA;
+			return;
+		}
+
+		ecs::EntitySpawnDesc desc;
+		desc.transform.position = cmd.vec3A;
+		desc.transform.rotation = cmd.quatA;
+		desc.transform.scale = ( cmd.vec3B == math::Vec3f::zero() ) ? math::Vec3f::one() : cmd.vec3B;
+		desc.model = model;
+
+		if (cmd.refIndex != 0xFFFFFFFFu)
+		{
+			const ecs::EntityId parent{ cmd.refIndex, cmd.refGeneration };
+			if (!m_world.registry.isAlive(parent))
+			{
+				result.success = false;
+				result.error = "Parent entity is not alive.";
+				return;
+			}
+			if (!m_world.transforms.contains(parent))
+			{
+				result.success = false;
+				result.error = "Parent has no Transform component.";
+				return;
+			}
+			desc.parent = parent;
+		}
+
+		const auto slash = cmd.stringA.find_last_of('/');
+		desc.name = ( slash == std::string::npos ) ? cmd.stringA : cmd.stringA.substr(slash + 1);
+
+		const ecs::EntityId newEntity = m_world.spawnEntity(desc);
+
+		result.success = true;
+		result.targetIndex = newEntity.index;
+		result.targetGeneration = newEntity.generation;
+	}
+
 
 	void EditorBridgeLayer::handleSceneCommand(std::span<const u8> payload)
 	{
@@ -464,4 +542,103 @@ namespace imp::app
 			server.publish(protocol::MessageType::ScriptStatus, bytes);
 		}
 	}
+
+	void EditorBridgeLayer::handleCVarCommand(std::span<const u8> payload)
+	{
+		auto& server = protocol::ToolServer::instance();
+
+		const auto decoded = protocol::deserialiseCVarCommand(payload);
+		if (!decoded)
+			return;
+
+		const auto& cmd = *decoded;
+		auto& registry = CVarRegistry::get();
+
+		protocol::CVarCommandResultPayload result;
+		result.op = cmd.op;
+		result.name = cmd.name;
+
+		auto toPayloadEntry = [](const CVarSnapshot& s)
+		{
+			protocol::CVarEntryPayload e;
+			e.name = s.name;
+			e.type = static_cast<protocol::CVarType>(s.kind);
+			e.floatValue = s.floatValue;
+			e.intValue = s.intValue;
+			e.boolValue = s.boolValue;
+			return e;
+		};
+
+		switch (cmd.op)
+		{
+			case protocol::CVarCommandOp::List:
+			{
+				const auto snapshots = registry.list();
+				result.entries.reserve(snapshots.size());
+				for (const auto& s : snapshots)
+					result.entries.push_back(toPayloadEntry(s));
+
+				result.success = true;
+				break;
+			}
+			case protocol::CVarCommandOp::Get:
+			{
+				if (cmd.name.empty())
+				{
+					result.success = false;
+					result.error = "Empty name";
+					break;
+				}
+
+				if (const auto snapshot = registry.get(cmd.name))
+				{
+					result.entry = toPayloadEntry(*snapshot);
+					result.success = true;
+				}
+				else
+				{
+					result.success = false;
+					result.error = "Unknown cvar.";
+				}
+				break;
+			}
+			case protocol::CVarCommandOp::Set:
+			{
+				if (cmd.name.empty())
+				{
+					result.success = false;
+					result.error = "Empty name";
+					break;
+				}
+
+				bool applied = false;
+				switch (cmd.type)
+				{
+					case protocol::CVarType::Float: applied = registry.setFloat(cmd.name, cmd.floatValue); break;
+					case protocol::CVarType::Int:   applied = registry.setInt(cmd.name, cmd.intValue); break;
+					case protocol::CVarType::Bool:  applied = registry.setBool(cmd.name, cmd.boolValue); break;
+				}
+
+				if (applied)
+				{
+					if (const auto snapshot = registry.get(cmd.name))
+						result.entry = toPayloadEntry(*snapshot);
+					result.success = true;
+				}
+				else
+				{
+					result.success = false;
+					result.error = "Unknown cvar, or type mismatch.";
+				}
+				break;
+			}
+		}
+
+		if (server.hasSubscribers(protocol::MessageType::CVarCommandResult))
+		{
+			const auto bytes = protocol::serialiseCVarCommandResult(result);
+			server.publish(protocol::MessageType::CVarCommandResult, bytes);
+		}
+	}
+
 }

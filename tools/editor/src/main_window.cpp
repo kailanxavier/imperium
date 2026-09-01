@@ -5,12 +5,14 @@
 #include <editor/world_model.h>
 #include <editor/asset_model.h>
 #include <editor/asset_browser_panel.h>
+#include <editor/cvar_panel.h>
 
 #include <protocol/message_type.h>
 #include <protocol/world_snapshot.h>
 #include <protocol/entity_command.h>
 #include <protocol/asset_command.h>
 #include <protocol/script_status.h>
+#include <protocol/cvar_command.h>
 
 #include <QDockWidget>
 #include <QHBoxLayout>
@@ -57,6 +59,8 @@ namespace imp::editor
 			case protocol::MessageType::ScriptStatus: return "ScriptStatus";
 			case protocol::MessageType::AssetCommand: return "AssetCommand";
 			case protocol::MessageType::AssetCommandResult: return "AssetCommandResult";
+			case protocol::MessageType::CVarCommand: return "CVarCommand";
+			case protocol::MessageType::CVarCommandResult: return "CVarCommandResult";
 			}
 			return "Unknown";
 		}
@@ -73,6 +77,7 @@ namespace imp::editor
 
 		m_worldModel = new WorldModel(this);
 		connect(m_worldModel, &WorldModel::reparentRequested, this, &MainWindow::onReparentRequested);
+		connect(m_worldModel, &WorldModel::createRequested, this, &MainWindow::onCreateRequested);
 
 		m_assetModel = new AssetModel(this);
 
@@ -97,6 +102,7 @@ namespace imp::editor
 		connect(m_hierarchy, &HierarchyPanel::entitySelected, this, &MainWindow::onEntitySelected);
 		connect(m_hierarchy, &HierarchyPanel::selectionCleared, this, &MainWindow::onSelectionCleared);
 		connect(m_hierarchy, &HierarchyPanel::dragStateChanged, this, &MainWindow::onDragStateChanged);
+		connect(m_hierarchy, &HierarchyPanel::destroyRequested, this, &MainWindow::onDestroyRequested);
 		splitter->addWidget(m_hierarchy);
 
 		m_inspector = new InspectorPanel(this);
@@ -110,6 +116,7 @@ namespace imp::editor
 
 		setCentralWidget(central);
 		buildAssetBrowserDock();
+		buildCVarDock();
 		buildLogDock();
 		resize(kWidth, kHeight);
 	}
@@ -193,12 +200,33 @@ namespace imp::editor
 				static_cast<quint16>( m_portSpin->value() ));
 	}
 
+	void MainWindow::buildCVarDock()
+	{
+		auto* dock = new QDockWidget("CVars", this);
+
+		m_cvarPanel = new CVarPanel(dock);
+		connect(m_cvarPanel, &CVarPanel::listRequested, this, &MainWindow::onCVarListRequested);
+		connect(m_cvarPanel, &CVarPanel::setRequested, this, &MainWindow::onCVarSetRequested);
+		connect(m_cvarPanel, &CVarPanel::errorReported, this, &MainWindow::onCVarErrorReported);
+
+		dock->setWidget(m_cvarPanel);
+		addDockWidget(Qt::BottomDockWidgetArea, dock);
+	}
+
 	void MainWindow::onConnectionStateChanged(ConnectionState state)
 	{
 		updateConnectionUi();
 
 		if (state == ConnectionState::Connected)
+		{
 			m_assetBrowser->refresh();
+			m_cvarPanel->setConnected(true);
+			m_cvarPanel->refresh();
+		}
+		else
+		{
+			m_cvarPanel->setConnected(false);
+		}
 	}
 
 	void MainWindow::updateConnectionUi()
@@ -299,6 +327,16 @@ namespace imp::editor
 			if (auto status = protocol::deserialiseScriptStatus(payload))
 				m_assetBrowser->addScriptStatus(*status);
 		}
+		else if (type == protocol::MessageType::CVarCommandResult)
+		{
+			if (auto result = protocol::deserialiseCVarCommandResult(payload))
+			{
+				if (result->op == protocol::CVarCommandOp::List)
+					m_cvarPanel->applyListResult(*result);
+				else
+					m_cvarPanel->applyCommandResult(*result);
+			}
+		}
 	}
 
 	void MainWindow::onEntitySelected(const QModelIndex& index)
@@ -332,6 +370,35 @@ namespace imp::editor
 			cmd.refGeneration = newParentGeneration;
 		}
 
+		m_connection->sendEntityCommand(cmd);
+	}
+
+	void MainWindow::onCreateRequested(QString modelPath, bool hasParent, quint32 parentIndex, quint32 parentGeneration)
+	{
+		protocol::EntityCommandPayload cmd;
+		cmd.op = protocol::EntityCommandOp::Create;
+		cmd.stringA = modelPath.toStdString();
+		cmd.vec3A = math::Vec3f::one();
+
+		if (hasParent)
+		{
+			cmd.refIndex = parentIndex;
+			cmd.refGeneration = parentGeneration;
+		}
+
+		m_connection->sendEntityCommand(cmd);
+	}
+
+	void MainWindow::onDestroyRequested()
+	{
+		const auto entity = m_hierarchy->selectedEntity();
+		if (!entity)
+			return;
+
+		protocol::EntityCommandPayload cmd;
+		cmd.op = protocol::EntityCommandOp::Destroy;
+		cmd.targetIndex = entity->first;
+		cmd.targetGeneration = entity->second;
 		m_connection->sendEntityCommand(cmd);
 	}
 
@@ -377,5 +444,23 @@ namespace imp::editor
 	void MainWindow::onSceneEntryActivated(QString virtualPath)
 	{
 		m_scenePathEdit->setText(virtualPath);
+	}
+
+	void MainWindow::onCVarListRequested()
+	{
+		protocol::CVarCommandPayload cmd;
+		cmd.op = protocol::CVarCommandOp::List;
+
+		m_connection->sendCVarCommand(cmd);
+	}
+
+	void MainWindow::onCVarSetRequested(protocol::CVarCommandPayload cmd)
+	{
+		m_connection->sendCVarCommand(cmd);
+	}
+
+	void MainWindow::onCVarErrorReported(QString message)
+	{
+		m_logView->appendPlainText("[CVAR] " + message);
 	}
 }

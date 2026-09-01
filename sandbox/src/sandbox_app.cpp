@@ -3,6 +3,9 @@
 #include <gfx/render_graph.h>
 #include <core/log/log.h>
 
+#include <gfx/shader_compiler.h>
+#include <fstream>
+
 namespace imp::app
 {
 	bool SandboxApp::onInit(AppContext& ctx)
@@ -17,9 +20,59 @@ namespace imp::app
 			return false;
 
 		m_scriptSystem = std::make_unique<script::ScriptSystem>(ctx.vfs);
-		m_scriptWatcher = std::make_unique<script::ScriptFileWatcher>(ctx.vfs, "assets/scripts/");
+
+		m_scriptSourceWatcher = std::make_unique<fs::DirectoryWatcher>(
+			std::filesystem::path(IMP_SCRIPT_SOURCE_DIR), std::vector<std::string>{ ".lua" });
+
+		gfx::ShaderCompiler compiler(IMP_SHADER_COMPILER_PATH, IMP_SHADER_COMPILER_IS_GLSLANG_VALIDATOR != 0);
+		const std::string shaderOutputDir = ctx.vfs.resolvePhysicalPath("assets/shaders/", true);
+		m_shaderWatcher = std::make_unique<gfx::ShaderHotReloadWatcher>(
+			std::filesystem::path(IMP_SHADER_SOURCE_DIR), std::filesystem::path(shaderOutputDir), std::move(compiler));
+
+		if (m_scriptSourceWatcher->isValid() || m_shaderWatcher->isValid())
+			LOG_INFO("Sandbox", "Hot reload active (scripts: {}, shaders: {})",
+				m_scriptSourceWatcher->isValid(), m_shaderWatcher->isValid());
 
 		return true;
+	}
+
+	void SandboxApp::pollShaderHotReload(AppContext &ctx)
+	{
+		if (!m_shaderWatcher || !m_shaderWatcher->isValid())
+			return;
+
+		if (m_shaderWatcher->poll())
+			m_resources.reloadShaders(ctx, m_assets);
+	}
+
+	void SandboxApp::pollScriptHotReload(AppContext &ctx)
+	{
+		if (!m_scriptSourceWatcher || !m_scriptSourceWatcher->isValid())
+			return;
+
+		for (const std::string& relative : m_scriptSourceWatcher->poll())
+		{
+			std::ifstream sourceFile(m_scriptSourceWatcher->root() / relative, std::ios::binary);
+			if (!sourceFile)
+			{
+				LOG_ERROR("Script", "Hot reload of '{}' failed. Could not open source file", relative.c_str());
+				continue;
+			}
+
+
+			const fs::Bytes bytes((std::istreambuf_iterator<char>(sourceFile)), std::istreambuf_iterator<char>());
+
+			const std::string virtualPath = "assets/scripts/" + relative;
+			if (!ctx.vfs.writeEntireFile(virtualPath, bytes))
+			{
+				LOG_ERROR("Script", "Hot reload of '{}' failed. Could not copy to '{}'",
+					relative.c_str(), virtualPath.c_str());
+				continue;
+			}
+
+			LOG_INFO("Script", "Hot reloading '{}'", virtualPath.c_str());
+			m_scriptSystem->reloadScript(virtualPath);
+		}
 	}
 
 	void SandboxApp::onUpdate(AppContext& ctx, float deltaSeconds)
@@ -27,15 +80,8 @@ namespace imp::app
 		m_camera.update(ctx.input, deltaSeconds);
 		m_scene.update(ctx, m_camera);
 
-		if (m_scriptWatcher && m_scriptWatcher->isValid())
-		{
-			const std::vector<std::string> changedScripts = m_scriptWatcher->poll();
-			for (const auto& path : changedScripts)
-			{
-				LOG_INFO("Script", "Hot reloading: '{}'", path.c_str());
-				m_scriptSystem->reloadScript(path);
-			}
-		}
+		pollShaderHotReload(ctx);
+		pollScriptHotReload(ctx);
 
 		if (m_scriptSystem)
 			m_scriptSystem->update(ctx.ecs, deltaSeconds);

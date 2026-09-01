@@ -1,8 +1,9 @@
 #pragma once
 
-#include <filesystem>
+#include <core/fs/directory_watcher.h>
+
 #include <string>
-#include <unordered_map>
+#include <memory>
 #include <vector>
 
 namespace imp::fs { class VirtualFileSystem; }
@@ -18,15 +19,11 @@ namespace imp::script
 		ScriptFileWatcher(const ScriptFileWatcher&) = delete;
 		ScriptFileWatcher& operator=(const ScriptFileWatcher&) = delete;
 
-		[[nodiscard]] bool isValid() const noexcept { return !m_physicalRoot.empty(); }
-		std::vector<std::string> poll();
+		[[nodiscard]] bool isValid() const noexcept { return m_watcher && m_watcher->isValid(); }
+		[[nodiscard]] std::vector<std::string> poll() const;
 
 	private:
 		std::string m_virtualPrefix;
-		std::string m_extension;
-		std::filesystem::path m_physicalRoot;
-
-		std::unordered_map<std::string, std::filesystem::file_time_type> m_knownMTimes;
-		bool m_hasBaseline = false;
+		std::unique_ptr<fs::DirectoryWatcher> m_watcher;
 	};
 }

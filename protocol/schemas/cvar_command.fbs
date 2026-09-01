@@ -1,0 +1,49 @@
+namespace imp.protocol.cvar;
+
+enum CVarType : uint8
+{
+    Float = 0,
+    Int,
+    Bool,
+}
+
+enum CVarCommandOp : uint8
+{
+    List = 0,
+    Get,
+    Set,
+}
+
+table CVarEntry
+{
+    name: string;
+    type: CVarType;
+    float_value: float;
+    int_value: int32;
+    bool_value: bool;
+}
+
+table CVarCommand
+{
+    op: CVarCommandOp;
+    name: string;
+
+    type: CVarType;
+    float_value: float;
+    int_value: int32;
+    bool_value: bool;
+}
+
+table CVarCommandResult
+{
+    op: CVarCommandOp;
+    name: string;
+    success: bool;
+    error: string;
+
+    entries: [CVarEntry];
+
+    entry: CVarEntry;
+}
+
+root_type CVarCommand;

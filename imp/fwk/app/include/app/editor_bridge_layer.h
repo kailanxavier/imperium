@@ -5,6 +5,7 @@
 #include <core/fs/vfs.h>
 #include <ecs/world.h>
 #include <scene/scene.h>
+#include <protocol/entity_command.h>
 #include <chrono>
 #include <span>
 
@@ -25,15 +26,19 @@ namespace imp::app
 		void onUpdate(float deltaSeconds) override;
 		void onDetach() override;
 
-
 	private:
 		void publishSnapshot();
 		void drainCommands();
 
 		void handleEntityCommand(std::span<const u8> payload);
+
+		void handleCreateEntityCommand(const protocol::EntityCommandPayload& cmd,
+			protocol::EntityCommandResultPayload& result);
+
 		void handleSceneCommand(std::span<const u8> payload);
 		void handleAssetCommand(std::span<const u8> payload);
 		void handleScriptStatus(std::span<const u8> payload);
+		void handleCVarCommand(std::span<const u8> payload);
 
 		ecs::World& m_world;
 		fs::VirtualFileSystem& m_vfs;
