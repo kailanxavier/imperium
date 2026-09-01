@@ -36,6 +36,8 @@ namespace imp::editor
 		void onCommandRequested(imp::protocol::EntityCommandPayload cmd);
 		void onReparentRequested(quint32 childIndex, quint32 childGeneration, 
 			bool hasNewParent, quint32 newParentIndex, quint32 newParentGeneration);
+		void onCreateRequested(QString modelPath, bool hasParent,
+			quint32 parentIndex, quint32 parentGeneration);
 		void onDragStateChanged(bool active);
 		void onSceneSaveClicked();
 		void onSceneLoadClicked();

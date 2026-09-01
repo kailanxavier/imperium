@@ -22,6 +22,7 @@ add_executable(imp_editor
 	include/editor/asset_model.h
 	include/editor/asset_browser_panel.h
 	include/editor/cvar_panel.h
+	include/editor/mime_types.h
 )
 
 IMP_SET_RUNTIME_DIR(imp_editor tools/editor)

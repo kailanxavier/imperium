@@ -19,6 +19,7 @@ namespace imp::protocol
 		Reparent,
 		Destroy,
 		AttachScript,
+		Create,
 	};
 
 	struct EntityCommandPayload

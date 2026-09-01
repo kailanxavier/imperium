@@ -10,6 +10,16 @@
 
 namespace imp::ecs
 {
+	struct EntitySpawnDesc
+	{
+		std::string name;
+		Transform transform;
+		EntityId parent{};
+		ModelHandle model{};
+		bool addCollider = true;
+		math::Vec3f colliderHalfExtents = math::Vec3f{ 0.5f, 0.5f, 0.5f };
+	};
+
 	class World
 	{
 	public:
@@ -22,6 +32,24 @@ namespace imp::ecs
 		ScriptStorage scripts;
 
 		EntityId createEntity() { return registry.create(); }
+
+		EntityId spawnEntity(const EntitySpawnDesc& desc)
+		{
+			const EntityId id = createEntity();
+			transforms.create(id, desc.transform, desc.parent);
+
+			if (!desc.name.empty())
+				names.create(id, desc.name);
+
+			if (desc.model.isValid())
+			{
+				renderables.create(id, desc.model);
+				if (desc.addCollider)
+					colliders.createAABB(id, -desc.colliderHalfExtents, desc.colliderHalfExtents);
+			}
+
+			return id;
+		}
 
 		void destroyEntity(EntityId entity)
 		{

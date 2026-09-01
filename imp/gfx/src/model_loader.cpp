@@ -99,12 +99,24 @@ namespace imp::gfx
 
 				if (len > 1e-8f)
 				{
-					tangent = tangent / len;
+					tangent /= len;
 				}
 				else
 				{
-					const math::Vec3f fallback = std::abs(n.x) < 0.9f ? math::Vec3f::unitX() : math::Vec3f::unitY();
-					tangent = math::normalise(math::cross(n, fallback));
+					const float normalLen = math::length(n);
+
+					if (normalLen <= 1e-8f)
+					{
+						vertices[i].tangent = { 1.f, 0.f, 0.f, 1.f };
+						continue;
+					}
+
+					const math::Vec3f fallback = std::abs(n.x) < 0.9f
+						? math::Vec3f::unitX()
+						: math::Vec3f::unitY();
+
+					const math::Vec3f perp = math::cross(n, fallback);
+					tangent = math::normalise(perp);
 				}
 
 				const float handedness = ( math::dot(math::cross(n, tangent), tan2[i]) < 0.f ) ? -1.f : 1.f;
@@ -193,17 +205,6 @@ namespace imp::gfx
 				cgltf_accessor_read_float(posAccessor, i, pos, 3);
 				vertices[i].position = { pos[0], pos[1], pos[2] };
 
-				if (normalAccessor)
-				{
-					float n[3] = { 0.f, 0.f, 1.f };
-					cgltf_accessor_read_float(normalAccessor, i, n, 3);
-					vertices[i].normal = { n[0], n[1], n[2] };
-				}
-				else
-				{
-					vertices[i].normal = { 0.f, 0.f, 0.f };
-				}
-
 				if (uvAccessor)
 				{
 					float uv[2] = { 0.f, 0.f };
@@ -251,6 +252,63 @@ namespace imp::gfx
 				indices.resize(vertexCount);
 				for (cgltf_size i = 0; i < vertexCount; ++i)
 					indices[i] = static_cast<u32>(i);
+			}
+
+			auto isValidNormal = [](const math::Vec3f& n)
+			{
+				if (!std::isfinite(n.x) || !std::isfinite(n.y) || !std::isfinite(n.z))
+					return false;
+				return math::lengthSq(n) > 1e-12f;
+			};
+
+			std::vector<bool> vertexNeedsNormal(vertexCount, false);
+			bool anyInvalid = false;
+
+			if (normalAccessor)
+			{
+				for (cgltf_size i = 0; i < vertexCount; ++i)
+				{
+					if (!isValidNormal(vertices[i].normal))
+					{
+						vertexNeedsNormal[i] = true;
+						vertices[i].normal = math::Vec3f::zero(); // reset so it can accumulate face contributions
+						anyInvalid = true;
+					}
+				}
+				if (anyInvalid)
+					LOG_WARN("Model Loader", "Primitive has invalid/degenerate normals. Regenerating affected vertices geometrically");
+			}
+			else
+			{
+				std::fill(vertexNeedsNormal.begin(), vertexNeedsNormal.end(), true);
+				anyInvalid = true;
+			}
+
+			if (anyInvalid)
+			{
+				for (size_t i = 0; i + 2 < indices.size(); i += 3)
+				{
+					const u32 i0 = indices[i], i1 = indices[i + 1], i2 = indices[i + 2];
+					if (!vertexNeedsNormal[i0] && !vertexNeedsNormal[i1] && !vertexNeedsNormal[i2])
+						continue;
+
+					const math::Vec3f e1 = vertices[i1].position - vertices[i0].position;
+					const math::Vec3f e2 = vertices[i2].position - vertices[i0].position;
+					const math::Vec3f faceNormal = math::cross(e1, e2); // unnormalized = area-weighted
+
+					if (vertexNeedsNormal[i0]) vertices[i0].normal += faceNormal;
+					if (vertexNeedsNormal[i1]) vertices[i1].normal += faceNormal;
+					if (vertexNeedsNormal[i2]) vertices[i2].normal += faceNormal;
+				}
+
+				for (cgltf_size i = 0; i < vertexCount; ++i)
+				{
+					if (!vertexNeedsNormal[i])
+						continue;
+
+					const float len = math::length(vertices[i].normal);
+					vertices[i].normal = (len > 1e-8f) ? vertices[i].normal / len : math::Vec3f{ 0.f, 0.f, 1.f };
+				}
 			}
 
 			if (!tangentAccessor)

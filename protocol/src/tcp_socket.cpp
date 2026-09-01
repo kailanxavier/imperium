@@ -1,4 +1,6 @@
 #include "protocol/tcp_socket.h"
+
+#include "core/log/log.h"
 #include "protocol/tcp_helpers.h"
 
 namespace imp::protocol

@@ -44,6 +44,7 @@ namespace imp::editor
 	signals:
 		void reparentRequested(quint32 childIndex, quint32 childGeneration,
 			bool hasNewParent, quint32 newParentIndex, quint32 newParentGeneration);
+		void createRequested(QString modelPath, bool hasParent, quint32 parentIndex, quint32 parentGeneration);
 
 	private:
 		struct Node

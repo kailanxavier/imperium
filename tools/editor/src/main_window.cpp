@@ -77,6 +77,7 @@ namespace imp::editor
 
 		m_worldModel = new WorldModel(this);
 		connect(m_worldModel, &WorldModel::reparentRequested, this, &MainWindow::onReparentRequested);
+		connect(m_worldModel, &WorldModel::createRequested, this, &MainWindow::onCreateRequested);
 
 		m_assetModel = new AssetModel(this);
 
@@ -366,6 +367,22 @@ namespace imp::editor
 		{
 			cmd.refIndex = newParentIndex;
 			cmd.refGeneration = newParentGeneration;
+		}
+
+		m_connection->sendEntityCommand(cmd);
+	}
+
+	void MainWindow::onCreateRequested(QString modelPath, bool hasParent, quint32 parentIndex, quint32 parentGeneration)
+	{
+		protocol::EntityCommandPayload cmd;
+		cmd.op = protocol::EntityCommandOp::Create;
+		cmd.stringA = modelPath.toStdString();
+		cmd.vec3A = math::Vec3f::one();
+
+		if (hasParent)
+		{
+			cmd.refIndex = parentIndex;
+			cmd.refGeneration = parentGeneration;
 		}
 
 		m_connection->sendEntityCommand(cmd);

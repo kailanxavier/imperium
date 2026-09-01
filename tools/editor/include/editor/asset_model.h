@@ -3,6 +3,8 @@
 #include <protocol/asset_command.h>
 #include <vector>
 
+class QMimeData;
+
 namespace imp::editor
 {
 	class AssetModel final : public QAbstractItemModel
@@ -25,6 +27,10 @@ namespace imp::editor
 		int columnCount(const QModelIndex& parent = {}) const override;
 		QVariant data(const QModelIndex& index, int role) const override;
 		QVariant headerData(int section, Qt::Orientation orientation, int role) const override;
+
+		Qt::ItemFlags flags(const QModelIndex& index) const override;
+		QStringList mimeTypes() const override;
+		QMimeData* mimeData(const QModelIndexList &indexes) const override;
 
 	private:
 		struct Node

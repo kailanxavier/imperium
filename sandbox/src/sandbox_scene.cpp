@@ -73,10 +73,11 @@ namespace imp::app
 
 	ecs::EntityId SandboxScene::spawnInstance(AppContext& ctx, const ecs::Transform& t, const gfx::ModelHandle& model)
 	{
-		const ecs::EntityId entity = ctx.ecs.createEntity();
-		ctx.ecs.transforms.create(entity, t);
-		ctx.ecs.renderables.create(entity, model);
-		ctx.ecs.colliders.createAABB(entity, math::Vec3f{ -0.5f, -0.5f, -0.5f }, math::Vec3f{ 0.5f, 0.5f, 0.5f });
+		ecs::EntitySpawnDesc desc;
+		desc.transform = t;
+		desc.model = model;
+
+		const ecs::EntityId entity = ctx.ecs.spawnEntity(desc);
 		m_instances.push_back(entity);
 		return entity;
 	}
