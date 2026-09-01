@@ -7,6 +7,37 @@
 
 namespace imp::app
 {
+	namespace
+	{
+		void logSessionLength(const std::chrono::steady_clock::time_point& startTime)
+		{
+			struct Duration
+			{
+				long long minutes = 0;
+				long long seconds = 0;
+			};
+
+			std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
+			const auto cast = std::chrono::duration_cast<std::chrono::seconds>(now - startTime).count();
+
+			Duration duration{};
+
+			if (cast >= 60)
+			{
+				duration.seconds = cast % 60;
+				duration.minutes = cast / 60;
+			}
+			else
+			{
+				duration.seconds = cast;
+			}
+
+			duration.minutes == 0
+				? LOG_INFO("Application", "Session length: {}s", duration.seconds)
+				: LOG_INFO("Application", "Session length: {}m, {}s", duration.minutes, duration.seconds);
+		}
+	}
+
 	Application::~Application()
 	{
 		if (m_initialised)
@@ -17,6 +48,8 @@ namespace imp::app
 	{
 		if (m_initialised)
 			return false;
+
+		m_startTime = std::chrono::steady_clock::now();
 
 		for (const auto& mount : desc.vfsMounts)
 		{
@@ -145,6 +178,8 @@ namespace imp::app
 
 		m_window.destroy();
 		m_initialised = false;
+
+		logSessionLength(m_startTime);
 	}
 
 	void Application::mainLoopFrame()

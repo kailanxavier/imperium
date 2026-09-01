@@ -74,6 +74,8 @@ namespace imp::app
 
 		std::chrono::steady_clock::time_point m_lastFrameTime;
 
+		std::chrono::steady_clock::time_point m_startTime{};
+
 		bool m_initialised = false;
 	};
 }
