@@ -25,11 +25,13 @@ namespace imp::editor
 		void setModel(WorldModel* model);
 		void applySnapshot(std::vector<protocol::EntitySnapshotPayload> entities);
 		void clearSelection();
+		std::optional<std::pair<quint32, quint32>> selectedEntity() const;
 
 	signals:
 		void selectionCleared();
 		void entitySelected(const QModelIndex& index);
 		void dragStateChanged(bool active);
+		void destroyRequested();
 
 	private:
 		[[nodiscard]] QSet<quint64> captureExpandedKeys() const;

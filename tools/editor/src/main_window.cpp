@@ -102,6 +102,7 @@ namespace imp::editor
 		connect(m_hierarchy, &HierarchyPanel::entitySelected, this, &MainWindow::onEntitySelected);
 		connect(m_hierarchy, &HierarchyPanel::selectionCleared, this, &MainWindow::onSelectionCleared);
 		connect(m_hierarchy, &HierarchyPanel::dragStateChanged, this, &MainWindow::onDragStateChanged);
+		connect(m_hierarchy, &HierarchyPanel::destroyRequested, this, &MainWindow::onDestroyRequested);
 		splitter->addWidget(m_hierarchy);
 
 		m_inspector = new InspectorPanel(this);
@@ -385,6 +386,19 @@ namespace imp::editor
 			cmd.refGeneration = parentGeneration;
 		}
 
+		m_connection->sendEntityCommand(cmd);
+	}
+
+	void MainWindow::onDestroyRequested()
+	{
+		const auto entity = m_hierarchy->selectedEntity();
+		if (!entity)
+			return;
+
+		protocol::EntityCommandPayload cmd;
+		cmd.op = protocol::EntityCommandOp::Destroy;
+		cmd.targetIndex = entity->first;
+		cmd.targetGeneration = entity->second;
 		m_connection->sendEntityCommand(cmd);
 	}
 

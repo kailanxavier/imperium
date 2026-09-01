@@ -1,5 +1,6 @@
 #pragma once
 #include <QAbstractItemModel>
+#include <QKeyEvent>
 #include <protocol/world_snapshot.h>
 #include <vector>
 

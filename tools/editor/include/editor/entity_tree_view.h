@@ -12,9 +12,11 @@ namespace imp::editor
 
 	signals:
 		void dragStateChanged(bool active);
+		void destroyRequested();
 
 	protected:
 		void startDrag(Qt::DropActions supportedActions) override;
 		void dropEvent(QDropEvent* event) override;
+		void keyPressEvent(QKeyEvent* event) override;
 	};
 }

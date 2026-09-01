@@ -1,6 +1,7 @@
 #pragma once
 #include <QMainWindow>
 #include <QString>
+#include <QKeyEvent>
 #include <editor/engine_connection.h>
 #include <protocol/world_snapshot.h>
 
@@ -38,6 +39,7 @@ namespace imp::editor
 			bool hasNewParent, quint32 newParentIndex, quint32 newParentGeneration);
 		void onCreateRequested(QString modelPath, bool hasParent,
 			quint32 parentIndex, quint32 parentGeneration);
+		void onDestroyRequested();
 		void onDragStateChanged(bool active);
 		void onSceneSaveClicked();
 		void onSceneLoadClicked();
