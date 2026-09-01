@@ -12,15 +12,13 @@
 #define IMP_PCLOSE pclose
 #endif
 
-
-
 namespace imp::gfx
 {
     namespace
     {
         std::string quote(const std::filesystem::path& path)
         {
-            return "\"" + path.string() + "\"";
+            return "\"" + path.generic_string() + "\"";
         }
     }
 

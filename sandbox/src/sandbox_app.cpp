@@ -6,6 +6,9 @@
 #include <gfx/shader_compiler.h>
 #include <fstream>
 
+#include <filesystem>
+#include <memory>
+
 namespace imp::app
 {
 	bool SandboxApp::onInit(AppContext& ctx)
