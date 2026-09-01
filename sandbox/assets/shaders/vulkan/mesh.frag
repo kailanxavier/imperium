@@ -58,6 +58,13 @@ layout(binding = 7) uniform CascadeUBO
     vec4 blendParams;
 } cascades;
 
+layout(binding = 8) uniform sampler2D aoTexture;
+layout(binding = 9) uniform ScreenParamsUBO
+{
+    vec4 resolutionAndInv;
+    vec4 flags;
+} screen;
+
 int selectCascade(float viewSpaceDepth, out float blend, out int nextCascade)
 {
     float nearPlane = cascades.blendParams.x;
@@ -126,7 +133,11 @@ void main()
     vec3 mrSample = texture(metallicRoughnessTexture, inUV).rgb;
     float roughness = clamp(material.roughnessFactor * mrSample.g, 0.045, 1.0); // floor avoids a2==0 degenerate GGX
     float metallic = clamp(material.metallicFactor * mrSample.b, 0.0, 1.0);
+
     float occlusion = texture(occlusionTexture, inUV).r;
+    float ssao = texture(aoTexture, gl_FragCoord.xy * screen.resolutionAndInv.zw).r;
+    ssao = mix(1.0, ssao, screen.flags.x);
+    occlusion *= ssao;
 
     vec3 N = normalize(inNormalWS);
     vec3 T = normalize(inTangentWS);

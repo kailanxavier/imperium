@@ -13,6 +13,11 @@ namespace imp::app
 		std::string tonemapFragShader = "assets/shaders/tonemap.frag.spv";
 		std::string skyVertShader = "assets/shaders/sky.vert.spv";
 		std::string skyFragShader = "assets/shaders/sky.frag.spv";
+		std::string prepassVertShader = "assets/shaders/depth_normal_prepass.vert.spv";
+		std::string prepassFragShader = "assets/shaders/depth_normal_prepass.frag.spv";
+		std::string fullscreenVertShader = "assets/shaders/fullscreen.vert.spv";
+		std::string gtaoFragShader = "assets/shaders/gtao.frag.spv";
+		std::string blurFragShader = "assets/shaders/bilateral_blur.frag.spv";
 
 		std::string environmentModel = "assets/models/khr-sponza.glb";
 		std::string environmentTestModel = "assets/models/environment_test.glb";

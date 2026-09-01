@@ -108,6 +108,11 @@ namespace imp::gfx
 							ctx.cmd->bindTexture(*ctx.shadowArrayTexture, *ctx.shadowSampler, 5);
 						if (ctx.cascadeBuffer)
 							ctx.cmd->bindUniformBuffer(*ctx.cascadeBuffer, 7);
+
+						if (ctx.aoTexture)
+							ctx.cmd->bindTexture(*ctx.aoTexture, *ctx.sampler, 8);
+						if (ctx.screenParamsBuffer)
+							ctx.cmd->bindUniformBuffer(*ctx.screenParamsBuffer, 9);
 					}
 
 					ctx.cmd->bindVertexBuffer(*prim.vertexBuffer, 0);

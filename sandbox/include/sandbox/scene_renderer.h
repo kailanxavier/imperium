@@ -32,8 +32,24 @@ namespace imp::app
 		SandboxScene& scene, const SceneRenderParams& params);
 
 	gfx::RGTextureHandle addHdrPass(gfx::RenderGraph& graph, RenderResources& resources,
-		SandboxScene& scene, AppContext& ctx, const SceneRenderParams& params, const ShadowCascadePasses& shadowPasses);
+		SandboxScene& scene, AppContext& ctx,
+		const SceneRenderParams& params, const ShadowCascadePasses& shadowPasses, gfx::RGTextureHandle aoTexture);
 
 	void addTonemapPass(gfx::RenderGraph& graph, RenderResources& resources,
 		gfx::RGTextureHandle hdrResolve, gfx::IRenderTarget& target, const char* passName);
+
+	struct PrepassOutputs
+	{
+		gfx::RGTextureHandle normalTarget;
+		gfx::RGTextureHandle depthTarget;
+	};
+
+	PrepassOutputs addDepthNormalPrepass(gfx::RenderGraph& graph, RenderResources& resources,
+		SandboxScene& scene, AppContext& ctx, const SceneRenderParams& params);
+
+	gfx::RGTextureHandle addGTAOPass(gfx::RenderGraph& graph, RenderResources& resources,
+		AppContext& ctx, const PrepassOutputs& prepass, const SceneRenderParams& params);
+
+	gfx::RGTextureHandle addBilateralBlurPass(gfx::RenderGraph& graph, RenderResources& resources,
+		AppContext& ctx, const PrepassOutputs& prepass, gfx::RGTextureHandle rawAO);
 }
