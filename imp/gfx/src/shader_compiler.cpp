@@ -1,8 +1,10 @@
 #include <gfx/shader_compiler.h>
+#include <core/log/log.h>
 
 #include <system_error>
 #include <cstdio>
 #include <array>
+#include <algorithm>
 
 #if defined(_WIN32)
 #define IMP_POPEN _popen
@@ -18,7 +20,11 @@ namespace imp::gfx
     {
         std::string quote(const std::filesystem::path& path)
         {
-            return "\"" + path.generic_string() + "\"";
+            std::string value = path.string();
+#ifdef _WIN32
+            std::ranges::replace(value, '\\', '/');
+#endif
+            return "\"" + value + "\"";
         }
     }
 
@@ -40,11 +46,20 @@ namespace imp::gfx
         std::error_code ec;
         std::filesystem::create_directories(outSpirv.parent_path(), ec);
 
+        // TODO: Fix this hack of hacks with an actual Windows backend
+        //       to run the commands, because this is incredibly fragile.
+        //       It only works because the path to the compiler has no spaces.
+#ifndef _WIN32
         std::string command = quote(m_compilerPath) + " ";
+#else
+        std::string command = m_compilerPath + " ";
+#endif
         command += m_usesGlslangValidator
             ? ("-V " + quote(source) + " -o " + quote(outSpirv))
             : (quote(source) + " -o " + quote(outSpirv));
         command += " 2>&1";
+
+        LOG_DEBUG("Shader Compiler", "Running '{}'", command.c_str());
 
         FILE* pipe = IMP_POPEN(command.c_str(), "r");
         if (!pipe)
@@ -58,6 +73,9 @@ namespace imp::gfx
             outErrorLog += buffer.data();
 
         const int exitCode = IMP_PCLOSE(pipe);
+
+        LOG_DEBUG("Shader Compiler", "Exit code: {}", exitCode);
+
         return exitCode == 0;
     }
 }

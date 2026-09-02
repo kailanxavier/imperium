@@ -22,7 +22,7 @@ namespace imp::log
 
 			switch (e.level)
 			{
-				case LogLevel::Info:
+				case LogLevel::Debug:
 					colour = BLUE; break;
 				case LogLevel::Warning:
 					colour = YELLOW; break;
