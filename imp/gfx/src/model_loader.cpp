@@ -275,8 +275,8 @@ namespace imp::gfx
 						anyInvalid = true;
 					}
 				}
-				if (anyInvalid)
-					LOG_WARN("Model Loader", "Primitive has invalid/degenerate normals. Regenerating affected vertices geometrically");
+				/*if (anyInvalid)
+					LOG_WARN("Model Loader", "Primitive has invalid/degenerate normals. Regenerating affected vertices geometrically");*/
 			}
 			else
 			{
