@@ -213,16 +213,17 @@ namespace imp::app
 			return false;
 		}
 
-		gfx::VertexAttribute prepassAttrs[2] = {
+		gfx::VertexAttribute prepassAttrs[3] = {
 			{ 0, static_cast<u32>( offsetof(gfx::ModelVertex, position) ), 3, true },
 			{ 1, static_cast<u32>( offsetof(gfx::ModelVertex, normal) ), 3, true },
+			{ 2, static_cast<u32>(offsetof(gfx::ModelVertex, uv)), 2, true },
 		};
 
 		gfx::PipelineDesc prepassPipelineDesc{};
 		prepassPipelineDesc.vertexShader = out.prepassVertShader.get();
 		prepassPipelineDesc.fragmentShader = out.prepassFragShader.get();
 		prepassPipelineDesc.vertexLayout.stride = sizeof(gfx::ModelVertex);
-		prepassPipelineDesc.vertexLayout.attributeCount = 2;
+		prepassPipelineDesc.vertexLayout.attributeCount = 3;
 		prepassPipelineDesc.vertexLayout.attributes = prepassAttrs;
 		prepassPipelineDesc.instanceLayout = meshPipelineDesc.instanceLayout;
 		prepassPipelineDesc.rasterizerState.cullMode = gfx::CullMode::Back;
@@ -371,6 +372,14 @@ namespace imp::app
 		for (auto& buf : m_screenParamsUBOs)
 			buf = ctx.gfx.createBuffer(screenParamsDesc);
 
+		gfx::BufferDesc blurParamsDesc{};
+		blurParamsDesc.size = sizeof(gfx::BlurParamsUBO);
+		blurParamsDesc.usage = gfx::BufferUsage::Uniform;
+		blurParamsDesc.memoryAccess = gfx::MemoryAccess::HostVisible;
+		m_blurParamsUBOs.resize(gfx::kMaxFramesInFlight);
+		for (auto& buf : m_blurParamsUBOs)
+			buf = ctx.gfx.createBuffer(blurParamsDesc);
+
 		if (!m_pipeline || !m_blendPipeline || !m_tonemapPipeline || !m_sampler
 			|| !m_shadowPipeline || !m_shadowSampler)
 		{
@@ -413,6 +422,7 @@ namespace imp::app
 		for (auto& buf : m_instanceBuffers) buf.reset();
 		for (auto& buf : m_aoParamsUBOs) buf.reset();
 		for (auto& buf : m_screenParamsUBOs) buf.reset();
+		for (auto& buf : m_blurParamsUBOs) buf.reset();
 
 		m_graphPool.reset();
 	}

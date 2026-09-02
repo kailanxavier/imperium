@@ -3,7 +3,6 @@
 layout(location = 0) in vec3 inPosition;
 layout(location = 1) in vec3 inNormal;
 layout(location = 2) in vec2 inUV;
-layout(location = 3) in vec4 inTangent;
 
 layout(location = 4) in vec4 inInstanceModelRow0;
 layout(location = 5) in vec4 inInstanceModelRow1;
@@ -11,6 +10,7 @@ layout(location = 6) in vec4 inInstanceModelRow2;
 layout(location = 7) in vec4 inInstanceModelRow3;
 
 layout(location = 0) out vec3 outNormalWS;
+layout(location = 1) out vec2 outUV;
 
 layout(push_constant) uniform PushConstants
 {
@@ -27,6 +27,7 @@ void main()
 
     mat3 normalMatrix = transpose(inverse(mat3(world)));
     outNormalWS = normalize(normalMatrix * inNormal);
+    outUV = inUV;
 
     gl_Position = pc.viewProj * worldPos;
 }

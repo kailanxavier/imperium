@@ -7,6 +7,8 @@
 
 #include <core/log/log.h>
 
+#include "gfx/resources.h"
+
 namespace imp::gfx
 {
 	namespace
@@ -81,15 +83,15 @@ namespace imp::gfx
 					pc.nodeWorld = nodeWorld;
 					ctx.cmd->pushConstants(&pc, sizeof(pc), 0);
 
+					auto resolveTexture = [&](i32 materialTexIndex, i32 fallbackTexIndex) -> gfx::ITexture*
+					{
+						const i32 texIdx = ( materialTexIndex >= 0 ) ? materialTexIndex : fallbackTexIndex;
+						return ( texIdx >= 0 && model.textures[texIdx].texture ) ? model.textures[texIdx].texture.get() : nullptr;
+					};
+
 					if (ctx.lightBuffer)
 					{
 						ctx.cmd->bindUniformBuffer(*ctx.lightBuffer, 0);
-
-						auto resolveTexture = [&](i32 materialTexIndex, i32 fallbackTexIndex) -> gfx::ITexture*
-							{
-								const i32 texIdx = ( materialTexIndex >= 0 ) ? materialTexIndex : fallbackTexIndex;
-								return ( texIdx >= 0 && model.textures[texIdx].texture ) ? model.textures[texIdx].texture.get() : nullptr;
-							};
 
 						if (gfx::ITexture* albedo = resolveTexture(mat ? mat->baseColourTextureIndex : -1, model.fallbackAlbedoTextureIndex))
 							ctx.cmd->bindTexture(*albedo, *ctx.sampler, 1);
@@ -113,6 +115,15 @@ namespace imp::gfx
 							ctx.cmd->bindTexture(*ctx.aoTexture, *ctx.sampler, 8);
 						if (ctx.screenParamsBuffer)
 							ctx.cmd->bindUniformBuffer(*ctx.screenParamsBuffer, 9);
+					}
+					else if (ctx.alphaTestOnly)
+					{
+						if (gfx::ITexture* albedo = resolveTexture(mat ? mat->baseColourTextureIndex : -1, model.fallbackAlbedoTextureIndex))
+							ctx.cmd->bindTexture(*albedo, *ctx.sampler, 0);
+
+						gfx::IBuffer* factors = ( mat && mat->factorsBuffer ) ? mat->factorsBuffer.get() : model.defaultMaterialFactorsBuffer.get();
+						if (factors)
+							ctx.cmd->bindUniformBuffer(*factors, 1);
 					}
 
 					ctx.cmd->bindVertexBuffer(*prim.vertexBuffer, 0);

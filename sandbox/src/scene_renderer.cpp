@@ -278,7 +278,7 @@ namespace imp::app
 			depthDesc.usage = gfx::TextureUsage::DepthStencil | gfx::TextureUsage::Sampled;
 			d.depthTarget = b.createTexture("PrepassDepth", depthDesc);
 
-			d.normalTarget = b.writeColour(d.normalTarget, gfx::RGLoadOp::Clear, { 0.f, 0.f, 0.f, 0.f });
+			d.normalTarget = b.writeColour(d.normalTarget, gfx::RGLoadOp::Clear, { 1.f, 1.f, 1.f, 1.f });
 			d.depthTarget = b.writeDepth(d.depthTarget, gfx::RGLoadOp::Clear, 1.f);
 
 			d.instanceBuffer = &resources.instanceBuffer(params.currentFrame);
@@ -293,6 +293,8 @@ namespace imp::app
 				prepassCtx.modelRegistry = &d.scene->modelRegistry();
 				prepassCtx.instanceBuffer = d.instanceBuffer;
 				prepassCtx.viewProj = d.viewProj;
+				prepassCtx.sampler = &d.resources->sampler();
+				prepassCtx.alphaTestOnly = true;
 				// no light or shadow bindings needed, this is a normals only pass
 
 				rgCtx.cmd().bindPipeline(d.resources->prepassPipeline());

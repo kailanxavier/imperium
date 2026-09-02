@@ -208,4 +208,5 @@ void main()
 
     float outAlpha = (material.alphaMode > 1.5) ? alpha : 1.0;
     outColour = vec4(result, outAlpha);
+    //outColour = vec4(vec3(ssao), 1.0);
 }

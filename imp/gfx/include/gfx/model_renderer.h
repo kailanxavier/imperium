@@ -45,6 +45,7 @@ namespace imp::gfx
 
 		gfx::ITexture* aoTexture = nullptr;
 		gfx::IBuffer* screenParamsBuffer = nullptr;
+		bool alphaTestOnly = false;
 
 		math::Mat4f viewProj;
 
