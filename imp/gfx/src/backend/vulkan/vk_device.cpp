@@ -44,6 +44,25 @@ namespace imp::gfx::vulkan
 			VK_KHR_SWAPCHAIN_EXTENSION_NAME,
 		};
 
+		const std::vector<const char*> kOptionalRayTracingExtensions = {
+			VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME,
+			VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
+			VK_KHR_RAY_QUERY_EXTENSION_NAME,
+		};
+
+		bool checkDeviceExtensionSupported(VkPhysicalDevice device, const char* extensionName)
+		{
+			u32 count = 0;
+			vkEnumerateDeviceExtensionProperties(device, nullptr, &count, nullptr);
+			std::vector<VkExtensionProperties> available(count);
+			vkEnumerateDeviceExtensionProperties(device, nullptr, &count, available.data());
+
+			for (const auto& ext : available)
+				if (std::strcmp(ext.extensionName, extensionName) == 0)
+					return true;
+			return false;
+		}
+
 		bool checkValidationLayerSupport()
 		{
 			u32 layerCount = 0;
@@ -1122,6 +1141,52 @@ namespace imp::gfx::vulkan
 		if (!m_anisotropySupported)
 			LOG_WARN("Vulkan", "Device does not support sampler anisotropy");
 
+		m_enabledDeviceExtensions = kDeviceExtensions;
+		bool allRtExtensionsPresent = true;
+		for (const char* ext : kOptionalRayTracingExtensions)
+		{
+			if (!checkDeviceExtensionSupported(best, ext))
+			{
+				allRtExtensionsPresent = false;
+				break;
+			}
+		}
+
+		if (allRtExtensionsPresent)
+		{
+			VkPhysicalDeviceRayQueryFeaturesKHR rayQueryFeatures{};
+			rayQueryFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR;
+
+			VkPhysicalDeviceAccelerationStructureFeaturesKHR accelFeatures{};
+			accelFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
+
+			accelFeatures.pNext = &rayQueryFeatures;
+
+			VkPhysicalDeviceFeatures2 rtFeatures2{};
+			rtFeatures2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+			rtFeatures2.pNext = &accelFeatures;
+
+			vkGetPhysicalDeviceFeatures2(best, &rtFeatures2);
+
+			m_rayQuerySupported = accelFeatures.accelerationStructure == VK_TRUE
+				&& rayQueryFeatures.rayQuery == VK_TRUE;
+		}
+		else
+		{
+			m_rayQuerySupported = false;
+		}
+
+		if (m_rayQuerySupported)
+		{
+			for (const char* ext : kOptionalRayTracingExtensions)
+				m_enabledDeviceExtensions.push_back(ext);
+			LOG_INFO("Vulkan", "Device supports VK_KHR_acceleration_structure + VK_KHR_ray_query");
+		}
+		else
+		{
+			LOG_INFO("Vulkan", "Device does not support ray query.");
+		}
+
 		LOG_INFO("Vulkan", "Selected physical device: {} (score={}, memory={} MiB)", props.deviceName, bestScore, bestMem);
 		return true;
 	}
@@ -1146,10 +1211,21 @@ namespace imp::gfx::vulkan
 			queueCreateInfos.push_back(qci);
 		}
 
+		VkPhysicalDeviceRayQueryFeaturesKHR rayQueryFeatures{};
+		rayQueryFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR;
+		rayQueryFeatures.rayQuery = VK_TRUE;
+
+		VkPhysicalDeviceAccelerationStructureFeaturesKHR accelFeatures{};
+		accelFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
+		accelFeatures.accelerationStructure = VK_TRUE;
+		accelFeatures.pNext = &rayQueryFeatures;
+
 		VkPhysicalDeviceVulkan13Features features13{};
 		features13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
 		features13.dynamicRendering = VK_TRUE;
 		features13.synchronization2 = VK_TRUE;
+		if (m_rayQuerySupported)
+			features13.pNext = &accelFeatures;
 
 		VkPhysicalDeviceFeatures2 features2{};
 		features2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
@@ -1162,8 +1238,8 @@ namespace imp::gfx::vulkan
 		createInfo.pQueueCreateInfos = queueCreateInfos.data();
 		createInfo.queueCreateInfoCount = static_cast<u32>( queueCreateInfos.size() );
 		createInfo.pEnabledFeatures = VK_NULL_HANDLE;
-		createInfo.enabledExtensionCount = static_cast<u32>( kDeviceExtensions.size() );
-		createInfo.ppEnabledExtensionNames = kDeviceExtensions.data();
+		createInfo.enabledExtensionCount = static_cast<u32>( m_enabledDeviceExtensions.size() );
+		createInfo.ppEnabledExtensionNames = m_enabledDeviceExtensions.data();
 
 		VK_CHECK(vkCreateDevice(m_physicalDevice, &createInfo, allocationCallbacks(), &m_device));
 

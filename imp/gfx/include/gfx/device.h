@@ -63,8 +63,10 @@ namespace imp::gfx
         virtual void newImGuiFrame() = 0;
         virtual void renderImGui(ICommandList& cmd) = 0;
 
-        [[nodiscard]] virtual GraphicsApi api() const = 0;
-        [[nodiscard]] virtual const char* apiName() const = 0;
+        virtual GraphicsApi api() const = 0;
+        virtual const char* apiName() const = 0;
+
+        virtual bool supportsRayTracing() const { return false; }
 
         virtual void deferredDestroy(std::function<void()> deleter) = 0;
         virtual bool readbackTexture(IRenderTarget& target, std::vector<u8>& outPixels) = 0;

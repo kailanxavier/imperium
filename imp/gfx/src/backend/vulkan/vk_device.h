@@ -74,6 +74,8 @@ namespace imp::gfx::vulkan
 		gfx::GraphicsApi api() const override { return gfx::GraphicsApi::Vulkan; }
 		const char* apiName() const override { return "Vulkan"; }
 
+		[[nodiscard]] bool supportsRayTracing() const override { return m_rayQuerySupported; }
+
 		[[nodiscard]] const fs::VirtualFileSystem& getVfs() const { return *m_vfs; }
 	private:
 		bool createInstance(const gfx::DeviceDesc& desc);
@@ -138,6 +140,9 @@ namespace imp::gfx::vulkan
 
 		bool m_anisotropySupported = false;
 		float m_maxSamplerAnisotropy = 1.f;
+
+		bool m_rayQuerySupported = false;
+		std::vector<const char*> m_enabledDeviceExtensions;
 
 		const fs::VirtualFileSystem* m_vfs = nullptr;
 
