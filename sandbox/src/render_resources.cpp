@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <algorithm>
 #include <core/config/cvar.h>
+#include <gfx/ao.h>
 
 namespace imp::app
 {
@@ -76,6 +77,43 @@ namespace imp::app
 		if (!out.skyFragShader || !out.skyVertShader)
 		{
 			LOG_ERROR("Sandbox", "Failed to load sky shaders");
+			return false;
+		}
+
+		gfx::ShaderDesc prepassVertDesc;
+		prepassVertDesc.stage = gfx::ShaderStage::Vertex;
+		prepassVertDesc.path = assets.prepassVertShader;
+		out.prepassVertShader = ctx.gfx.createShader(prepassVertDesc);
+
+		gfx::ShaderDesc prepassFragDesc;
+		prepassFragDesc.stage = gfx::ShaderStage::Fragment;
+		prepassFragDesc.path = assets.prepassFragShader;
+		out.prepassFragShader = ctx.gfx.createShader(prepassFragDesc);
+
+		if (!out.prepassVertShader || !out.prepassFragShader)
+		{
+			LOG_ERROR("Sandbox", "Failed to load depth/normal prepass shaders.");
+			return false;
+		}
+
+		gfx::ShaderDesc fullscreenVertDesc;
+		fullscreenVertDesc.stage = gfx::ShaderStage::Vertex;
+		fullscreenVertDesc.path = assets.fullscreenVertShader;
+		out.fullscreenVertShader = ctx.gfx.createShader(fullscreenVertDesc);
+
+		gfx::ShaderDesc gtaoFragDesc;
+		gtaoFragDesc.stage = gfx::ShaderStage::Fragment;
+		gtaoFragDesc.path = assets.gtaoFragShader;
+		out.gtaoFragShader = ctx.gfx.createShader(gtaoFragDesc);
+
+		gfx::ShaderDesc blurFragDesc;
+		blurFragDesc.stage = gfx::ShaderStage::Fragment;
+		blurFragDesc.path = assets.blurFragShader;
+		out.blurFragShader = ctx.gfx.createShader(blurFragDesc);
+
+		if (!out.fullscreenVertShader || !out.gtaoFragShader || !out.blurFragShader)
+		{
+			LOG_ERROR("Sandbox", "Failed to load AO shaders.");
 			return false;
 		}
 
@@ -175,6 +213,49 @@ namespace imp::app
 			return false;
 		}
 
+		gfx::VertexAttribute prepassAttrs[3] = {
+			{ 0, static_cast<u32>( offsetof(gfx::ModelVertex, position) ), 3, true },
+			{ 1, static_cast<u32>( offsetof(gfx::ModelVertex, normal) ), 3, true },
+			{ 2, static_cast<u32>(offsetof(gfx::ModelVertex, uv)), 2, true },
+		};
+
+		gfx::PipelineDesc prepassPipelineDesc{};
+		prepassPipelineDesc.vertexShader = out.prepassVertShader.get();
+		prepassPipelineDesc.fragmentShader = out.prepassFragShader.get();
+		prepassPipelineDesc.vertexLayout.stride = sizeof(gfx::ModelVertex);
+		prepassPipelineDesc.vertexLayout.attributeCount = 3;
+		prepassPipelineDesc.vertexLayout.attributes = prepassAttrs;
+		prepassPipelineDesc.instanceLayout = meshPipelineDesc.instanceLayout;
+		prepassPipelineDesc.rasterizerState.cullMode = gfx::CullMode::Back;
+		prepassPipelineDesc.depthStencilState.depthTestEnable = true;
+		prepassPipelineDesc.depthStencilState.depthWriteEnable = true;
+		prepassPipelineDesc.depthStencilState.depthCompareOp = gfx::CompareOp::Less;
+		prepassPipelineDesc.blendState.blendEnable = false;
+		prepassPipelineDesc.colourFormat = gfx::TextureFormat::RGBA16Float;
+		prepassPipelineDesc.depthFormat = gfx::TextureFormat::Depth32Float;
+		prepassPipelineDesc.sampleCount = gfx::SampleCount::One;
+		prepassPipelineDesc.hasInstanceBinding = true;
+		out.prepassPipeline = ctx.gfx.createPipeline(prepassPipelineDesc);
+
+		gfx::PipelineDesc gtaoPipelineDesc{};
+		gtaoPipelineDesc.vertexShader = out.fullscreenVertShader.get();
+		gtaoPipelineDesc.fragmentShader = out.gtaoFragShader.get();
+		gtaoPipelineDesc.colourFormat = gfx::TextureFormat::RGBA8Unorm;
+		gtaoPipelineDesc.depthFormat = gfx::TextureFormat::Unknown;
+		gtaoPipelineDesc.sampleCount = gfx::SampleCount::One;
+		gtaoPipelineDesc.hasInstanceBinding = false;
+		out.gtaoPipeline = ctx.gfx.createPipeline(gtaoPipelineDesc);
+
+		gfx::PipelineDesc blurPipelineDesc{ gtaoPipelineDesc };
+		blurPipelineDesc.fragmentShader = out.blurFragShader.get();
+		out.blurPipeline = ctx.gfx.createPipeline(blurPipelineDesc);
+
+		if (!out.prepassPipeline || !out.gtaoPipeline || !out.blurPipeline)
+		{
+			LOG_ERROR("Sandbox", "Failed to create one or more AO pipelines");
+			return false;
+		}
+
 		return true;
 	}
 
@@ -188,12 +269,20 @@ namespace imp::app
 		m_tonemapFragShader = std::move(set.tonemapFragShader);
 		m_skyVertShader = std::move(set.skyVertShader);
 		m_skyFragShader = std::move(set.skyFragShader);
+		m_prepassVertShader = std::move(set.prepassVertShader);
+		m_prepassFragShader = std::move(set.prepassFragShader);
+		m_fullscreenVertShader = std::move(set.fullscreenVertShader);
+		m_gtaoFragShader = std::move(set.gtaoFragShader);
+		m_blurFragShader = std::move(set.blurFragShader);
 
 		m_pipeline = std::move(set.pipeline);
 		m_blendPipeline = std::move(set.blendPipeline);
 		m_shadowPipeline = std::move(set.shadowPipeline);
 		m_skyPipeline = std::move(set.skyPipeline);
 		m_tonemapPipeline = std::move(set.tonemapPipeline);
+		m_prepassPipeline = std::move(set.prepassPipeline);
+		m_gtaoPipeline = std::move(set.gtaoPipeline);
+		m_blurPipeline = std::move(set.blurPipeline);
 	}
 
 	bool RenderResources::reloadShaders(AppContext &ctx, const AssetManifest &assets)
@@ -267,6 +356,30 @@ namespace imp::app
 		for (auto& buf : m_lightUBOs)
 			buf = ctx.gfx.createBuffer(lightUboDesc);
 
+		gfx::BufferDesc aoParamsDesc{};
+		aoParamsDesc.size = sizeof(gfx::AOParamsUBO);
+		aoParamsDesc.usage = gfx::BufferUsage::Uniform;
+		aoParamsDesc.memoryAccess = gfx::MemoryAccess::HostVisible;
+		m_aoParamsUBOs.resize(gfx::kMaxFramesInFlight);
+		for (auto& buf : m_aoParamsUBOs)
+			buf = ctx.gfx.createBuffer(aoParamsDesc);
+
+		gfx::BufferDesc screenParamsDesc{};
+		screenParamsDesc.size = sizeof(gfx::ScreenParamsUBO);
+		screenParamsDesc.usage = gfx::BufferUsage::Uniform;
+		screenParamsDesc.memoryAccess = gfx::MemoryAccess::HostVisible;
+		m_screenParamsUBOs.resize(gfx::kMaxFramesInFlight);
+		for (auto& buf : m_screenParamsUBOs)
+			buf = ctx.gfx.createBuffer(screenParamsDesc);
+
+		gfx::BufferDesc blurParamsDesc{};
+		blurParamsDesc.size = sizeof(gfx::BlurParamsUBO);
+		blurParamsDesc.usage = gfx::BufferUsage::Uniform;
+		blurParamsDesc.memoryAccess = gfx::MemoryAccess::HostVisible;
+		m_blurParamsUBOs.resize(gfx::kMaxFramesInFlight);
+		for (auto& buf : m_blurParamsUBOs)
+			buf = ctx.gfx.createBuffer(blurParamsDesc);
+
 		if (!m_pipeline || !m_blendPipeline || !m_tonemapPipeline || !m_sampler
 			|| !m_shadowPipeline || !m_shadowSampler)
 		{
@@ -295,10 +408,21 @@ namespace imp::app
 		m_skyFragShader.reset();
 		m_skyVertShader.reset();
 		m_skyPipeline.reset();
+		m_prepassPipeline.reset();
+		m_gtaoPipeline.reset();
+		m_blurPipeline.reset();
+		m_prepassVertShader.reset();
+		m_prepassFragShader.reset();
+		m_fullscreenVertShader.reset();
+		m_gtaoFragShader.reset();
+		m_blurFragShader.reset();
 
 		for (auto& buf : m_cascadeUBOs) buf.reset();
 		for (auto& buf : m_lightUBOs) buf.reset();
 		for (auto& buf : m_instanceBuffers) buf.reset();
+		for (auto& buf : m_aoParamsUBOs) buf.reset();
+		for (auto& buf : m_screenParamsUBOs) buf.reset();
+		for (auto& buf : m_blurParamsUBOs) buf.reset();
 
 		m_graphPool.reset();
 	}

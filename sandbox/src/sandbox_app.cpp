@@ -6,6 +6,11 @@
 #include <gfx/shader_compiler.h>
 #include <fstream>
 
+#include <filesystem>
+#include <memory>
+
+#include <gfx/ao_cvars.h>
+
 namespace imp::app
 {
 	bool SandboxApp::onInit(AppContext& ctx)
@@ -112,8 +117,14 @@ namespace imp::app
 
 		gfx::RenderGraph graph(ctx.gfx, m_resources.graphPool());
 
+		const PrepassOutputs prepass = addDepthNormalPrepass(graph, m_resources, m_scene, ctx, params);
+		const gfx::RGTextureHandle rawAO = addGTAOPass(graph, m_resources, ctx, prepass, params);
+		const gfx::RGTextureHandle aoTexture = gfx::ao::cvarBlurEnabled
+			? addBilateralBlurPass(graph, m_resources, ctx, prepass, rawAO)
+			: rawAO;
+
 		const ShadowCascadePasses shadowPasses = addShadowCascadePasses(graph, m_resources, m_scene, params);
-		const gfx::RGTextureHandle hdrResolve = addHdrPass(graph, m_resources, m_scene, ctx, params, shadowPasses);
+		const gfx::RGTextureHandle hdrResolve = addHdrPass(graph, m_resources, m_scene, ctx, params, shadowPasses, aoTexture);
 
 		addTonemapPass(graph, m_resources, hdrResolve, ctx.gfx.backBuffer(), "Tonemap");
 		if (m_readbackTarget)

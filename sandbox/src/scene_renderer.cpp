@@ -4,6 +4,8 @@
 #include <gfx/render_extraction.h>
 #include <gfx/lighting.h>
 #include <cstdio>
+#include <gfx/ao.h>
+#include <gfx/ao_cvars.h>
 
 namespace imp::app
 {
@@ -29,6 +31,8 @@ namespace imp::app
 			gfx::RGBufferHandle lightUBO;
 			gfx::RGBufferHandle cascadeUBO;
 			gfx::RGTextureHandle shadowArray;
+			gfx::RGTextureHandle aoTexture;
+			gfx::RGBufferHandle screenParamsUBO;
 
 			RenderResources* resources = nullptr;
 			SandboxScene* scene = nullptr;
@@ -40,6 +44,40 @@ namespace imp::app
 		{
 			gfx::RGTextureHandle hdrResolve;
 			gfx::RGTextureHandle output;
+			RenderResources* resources = nullptr;
+		};
+
+		struct PrepassData
+		{
+			gfx::RGTextureHandle normalTarget;
+			gfx::RGTextureHandle depthTarget;
+
+			gfx::IBuffer* instanceBuffer = nullptr;
+			math::Mat4f viewProj;
+
+			RenderResources* resources = nullptr;
+			SandboxScene* scene = nullptr;
+		};
+
+		struct GTAOPassData
+		{
+			gfx::RGTextureHandle depthIn;
+			gfx::RGTextureHandle normalIn;
+			gfx::RGTextureHandle aoOut;
+			gfx::RGBufferHandle paramsUBO;
+
+			RenderResources* resources = nullptr;
+		};
+
+		struct BlurPassData
+		{
+			gfx::RGTextureHandle aoIn;
+			gfx::RGTextureHandle depthIn;
+			gfx::RGTextureHandle normalIn;
+			gfx::RGTextureHandle blurredOut;
+			gfx::RGBufferHandle paramsUBO;
+
+			float texelSizeX = 0.f, texelSizeY = 0.f;
 			RenderResources* resources = nullptr;
 		};
 	}
@@ -98,7 +136,7 @@ namespace imp::app
 		return out;
 	}
 
-	gfx::RGTextureHandle addHdrPass(gfx::RenderGraph &graph, RenderResources &resources, SandboxScene &scene, AppContext &ctx, const SceneRenderParams &params, const ShadowCascadePasses &shadowPasses)
+	gfx::RGTextureHandle addHdrPass(gfx::RenderGraph &graph, RenderResources &resources, SandboxScene &scene, AppContext &ctx, const SceneRenderParams &params, const ShadowCascadePasses &shadowPasses, gfx::RGTextureHandle aoTexture)
 	{
 		const auto& data = graph.addPass<HdrPassData>("HDR",
 			[&](gfx::RenderGraphBuilder& b, HdrPassData& d)
@@ -134,6 +172,15 @@ namespace imp::app
 				for (const auto& cascadeTarget : shadowPasses.cascadeDepthTargets)
 					b.readTexture(cascadeTarget);
 
+				d.aoTexture = b.readTexture(aoTexture);
+				d.screenParamsUBO = b.readBuffer(b.importBuffer("ScreenParamsUBO", &resources.screenParamsUBO(params.currentFrame)));
+
+				gfx::ScreenParamsUBO screenParams{};
+				screenParams.resolutionAndInv = { static_cast<float>(w), static_cast<float>(h),
+					1.f / static_cast<float>(w), 1.f / static_cast<float>(h) };
+				screenParams.flags = { gfx::ao::cvarEnabled ? 1.f : 0.f, 0.f, 0.f, 0.f };
+				resources.screenParamsUBO(params.currentFrame).update(&screenParams, sizeof(screenParams), 0);
+
 				d.resources = &resources;
 				d.scene = &scene;
 				d.ctx = &ctx;
@@ -153,6 +200,9 @@ namespace imp::app
 				renderCtx.shadowArrayTexture = &rgCtx.texture(d.shadowArray);
 				renderCtx.cascadeBuffer = &rgCtx.buffer(d.cascadeUBO);
 				renderCtx.shadowSampler = &d.resources->shadowSampler();
+				renderCtx.aoTexture = &rgCtx.texture(d.aoTexture);
+				renderCtx.screenParamsBuffer = &rgCtx.buffer(d.screenParamsUBO);
+
 				if (d.params.enableFrustumCulling)
 				{
 					mainCullVolume.useFrustum = true;
@@ -206,4 +256,132 @@ namespace imp::app
 			});
 	}
 
+	PrepassOutputs addDepthNormalPrepass(gfx::RenderGraph &graph, RenderResources &resources, SandboxScene &scene, AppContext &ctx, const SceneRenderParams &params)
+	{
+		const auto& data = graph.addPass<PrepassData>("DepthNormalPrepass",
+			[&](gfx::RenderGraphBuilder& b, PrepassData& d)
+			{
+				const u32 w = ctx.gfx.backBuffer().width();
+			const u32 h = ctx.gfx.backBuffer().height();
+
+			gfx::TextureDesc normalDesc{};
+			normalDesc.width = w; normalDesc.height = h;
+			normalDesc.format = gfx::TextureFormat::RGBA16Float;
+			normalDesc.sampleCount = gfx::SampleCount::One;
+			normalDesc.usage = gfx::TextureUsage::RenderTarget | gfx::TextureUsage::Sampled;
+			d.normalTarget = b.createTexture("PrepassNormal", normalDesc);
+
+			gfx::TextureDesc depthDesc{};
+			depthDesc.width = w; depthDesc.height = h;
+			depthDesc.format = gfx::TextureFormat::Depth32Float;
+			depthDesc.sampleCount = gfx::SampleCount::One;
+			depthDesc.usage = gfx::TextureUsage::DepthStencil | gfx::TextureUsage::Sampled;
+			d.depthTarget = b.createTexture("PrepassDepth", depthDesc);
+
+			d.normalTarget = b.writeColour(d.normalTarget, gfx::RGLoadOp::Clear, { 1.f, 1.f, 1.f, 1.f });
+			d.depthTarget = b.writeDepth(d.depthTarget, gfx::RGLoadOp::Clear, 1.f);
+
+			d.instanceBuffer = &resources.instanceBuffer(params.currentFrame);
+			d.viewProj = params.camera->projection(params.aspect) * params.camera->view();
+			d.resources = &resources;
+			d.scene = &scene;
+			},
+			[](const PrepassData& d, gfx::RenderGraphContext& rgCtx)
+			{
+				gfx::ModelRenderContext prepassCtx{};
+				prepassCtx.cmd = &rgCtx.cmd();
+				prepassCtx.modelRegistry = &d.scene->modelRegistry();
+				prepassCtx.instanceBuffer = d.instanceBuffer;
+				prepassCtx.viewProj = d.viewProj;
+				prepassCtx.sampler = &d.resources->sampler();
+				prepassCtx.alphaTestOnly = true;
+				// no light or shadow bindings needed, this is a normals only pass
+
+				rgCtx.cmd().bindPipeline(d.resources->prepassPipeline());
+				drawModelBatches(prepassCtx, d.scene->extraction());
+			});
+
+		return { data.normalTarget, data.depthTarget };
+	}
+
+	gfx::RGTextureHandle addGTAOPass(gfx::RenderGraph &graph, RenderResources &resources, AppContext& ctx, const PrepassOutputs &prepass, const SceneRenderParams &params)
+	{
+		gfx::AOParamsUBO cpuParams{};
+		cpuParams.invProj = math::inverse(params.camera->projection(params.aspect));
+		cpuParams.invView = math::inverse(params.camera->view());
+		cpuParams.view = params.camera->view();
+		cpuParams.params = { gfx::ao::cvarRadius, gfx::ao::cvarIntensity,
+			static_cast<float>(gfx::ao::cvarSliceCount.operator i32()), static_cast<float>(gfx::ao::cvarStepCount.operator i32()) };
+		cpuParams.params2 = { gfx::ao::cvarThickness, gfx::ao::cvarPower,
+			static_cast<float>(ctx.gfx.backBuffer().width()), static_cast<float>(ctx.gfx.backBuffer().height()) };
+		resources.aoParamsUBO(params.currentFrame).update(&cpuParams, sizeof(cpuParams), 0);
+
+		const auto& data = graph.addPass<GTAOPassData>("GTAO",
+			[&](gfx::RenderGraphBuilder& b, GTAOPassData& d)
+			{
+				d.depthIn = b.readTexture(prepass.depthTarget);
+				d.normalIn = b.readTexture(prepass.normalTarget);
+				d.paramsUBO = b.readBuffer(b.importBuffer("AOParamsUBO", &resources.aoParamsUBO(params.currentFrame)));
+
+				gfx::TextureDesc aoDesc{};
+				aoDesc.width = ctx.gfx.backBuffer().width();
+				aoDesc.height = ctx.gfx.backBuffer().height();
+				aoDesc.format = gfx::TextureFormat::RGBA8Unorm;
+				aoDesc.usage = gfx::TextureUsage::RenderTarget | gfx::TextureUsage::Sampled;
+				d.aoOut = b.createTexture("AORaw", aoDesc);
+				d.aoOut = b.writeColour(d.aoOut, gfx::RGLoadOp::DontCare);
+
+				d.resources = &resources;
+			},
+			[](const GTAOPassData& d, gfx::RenderGraphContext& rgCtx)
+			{
+				rgCtx.cmd().bindPipeline(d.resources->gtaoPipeline());
+				rgCtx.cmd().bindTexture(rgCtx.texture(d.depthIn), d.resources->sampler(), 0);
+				rgCtx.cmd().bindTexture(rgCtx.texture(d.normalIn), d.resources->sampler(), 1);
+				rgCtx.cmd().bindUniformBuffer(rgCtx.buffer(d.paramsUBO), 2);
+				rgCtx.cmd().draw(3, 1);
+			});
+
+		return data.aoOut;
+	}
+
+	gfx::RGTextureHandle addBilateralBlurPass(gfx::RenderGraph &graph, RenderResources &resources, AppContext &ctx, const PrepassOutputs &prepass, gfx::RGTextureHandle rawAO)
+	{
+		const auto& data = graph.addPass<BlurPassData>("AOBilateralBlur",
+		[&](gfx::RenderGraphBuilder& b, BlurPassData& d)
+		{
+			d.aoIn = b.readTexture(rawAO);
+			d.depthIn = b.readTexture(prepass.depthTarget);
+			d.normalIn = b.readTexture(prepass.normalTarget);
+
+			const u32 w = ctx.gfx.backBuffer().width();
+			const u32 h = ctx.gfx.backBuffer().height();
+
+			gfx::TextureDesc blurDesc{};
+			blurDesc.width = w; blurDesc.height = h;
+			blurDesc.format = gfx::TextureFormat::RGBA8Unorm;
+			blurDesc.usage = gfx::TextureUsage::RenderTarget | gfx::TextureUsage::Sampled;
+			d.blurredOut = b.createTexture("AOBlurred", blurDesc);
+			d.blurredOut = b.writeColour(d.blurredOut, gfx::RGLoadOp::DontCare);
+
+			gfx::BlurParamsUBO cpuParams{};
+			cpuParams.texelSizeAndSigmas = { 1.f / static_cast<float>(w), 1.f / static_cast<float>(h),
+				gfx::ao::cvarBlurDepthSigma, gfx::ao::cvarBlurNormalSigma };
+			resources.blurParamsUBO(ctx.gfx.currentFrameIndex()).update(&cpuParams, sizeof(cpuParams), 0);
+
+			d.paramsUBO = b.readBuffer(b.importBuffer("BlurParamsUBO", &resources.blurParamsUBO(ctx.gfx.currentFrameIndex())));
+			d.resources = &resources;
+		},
+		[](const BlurPassData& d, gfx::RenderGraphContext& rgCtx)
+		{
+			rgCtx.cmd().bindPipeline(d.resources->blurPipeline());
+			rgCtx.cmd().bindTexture(rgCtx.texture(d.aoIn), d.resources->sampler(), 0);
+			rgCtx.cmd().bindTexture(rgCtx.texture(d.depthIn), d.resources->sampler(), 1);
+			rgCtx.cmd().bindTexture(rgCtx.texture(d.normalIn), d.resources->sampler(), 2);
+			rgCtx.cmd().bindUniformBuffer(rgCtx.buffer(d.paramsUBO), 3);
+			rgCtx.cmd().draw(3, 1);
+		});
+
+		return data.blurredOut;
+	}
 }

@@ -52,6 +52,14 @@ namespace imp::app
 		[[nodiscard]] gfx::IBuffer& instanceBuffer(u32 frame) const { return *m_instanceBuffers[frame]; }
 		[[nodiscard]] bool hasInstanceBuffers() const { return !m_instanceBuffers.empty(); }
 
+		gfx::IPipeline& prepassPipeline() { return *m_prepassPipeline; }
+		gfx::IPipeline& gtaoPipeline() { return *m_gtaoPipeline; }
+		gfx::IPipeline& blurPipeline() { return *m_blurPipeline; }
+
+		[[nodiscard]] gfx::IBuffer& aoParamsUBO(u32 frame) const { return *m_aoParamsUBOs[frame]; }
+		[[nodiscard]] gfx::IBuffer& screenParamsUBO(u32 frame) const { return *m_screenParamsUBOs[frame]; }
+		[[nodiscard]] gfx::IBuffer& blurParamsUBO(u32 frame) const { return *m_blurParamsUBOs[frame]; }
+
 		[[nodiscard]] gfx::RenderGraphResourcePool& graphPool() const { return *m_graphPool; }
 
 	private:
@@ -61,12 +69,19 @@ namespace imp::app
 			std::unique_ptr<gfx::IShader> shadowVertShader, shadowFragShader;
 			std::unique_ptr<gfx::IShader> skyVertShader, skyFragShader;
 			std::unique_ptr<gfx::IShader> tonemapVertShader, tonemapFragShader;
+			std::unique_ptr<gfx::IShader> prepassVertShader, prepassFragShader;
+			std::unique_ptr<gfx::IShader> fullscreenVertShader;
+			std::unique_ptr<gfx::IShader> gtaoFragShader;
+			std::unique_ptr<gfx::IShader> blurFragShader;
 
 			std::unique_ptr<gfx::IPipeline> pipeline;
 			std::unique_ptr<gfx::IPipeline> blendPipeline;
 			std::unique_ptr<gfx::IPipeline> shadowPipeline;
 			std::unique_ptr<gfx::IPipeline> skyPipeline;
 			std::unique_ptr<gfx::IPipeline> tonemapPipeline;
+			std::unique_ptr<gfx::IPipeline> prepassPipeline;
+			std::unique_ptr<gfx::IPipeline> gtaoPipeline;
+			std::unique_ptr<gfx::IPipeline> blurPipeline;
 		};
 
 		bool buildShaderPipelineSet(AppContext& ctx, const AssetManifest& assets, ShaderPipelineSet& out) const;
@@ -76,12 +91,19 @@ namespace imp::app
 		std::unique_ptr<gfx::IShader> m_shadowVertShader, m_shadowFragShader;
 		std::unique_ptr<gfx::IShader> m_tonemapVertShader, m_tonemapFragShader;
 		std::unique_ptr<gfx::IShader> m_skyVertShader, m_skyFragShader;
+		std::unique_ptr<gfx::IShader> m_prepassVertShader, m_prepassFragShader;
+		std::unique_ptr<gfx::IShader> m_fullscreenVertShader;
+		std::unique_ptr<gfx::IShader> m_gtaoFragShader;
+		std::unique_ptr<gfx::IShader> m_blurFragShader;
 
 		std::unique_ptr<gfx::IPipeline> m_pipeline;
 		std::unique_ptr<gfx::IPipeline> m_blendPipeline;
 		std::unique_ptr<gfx::IPipeline> m_shadowPipeline;
 		std::unique_ptr<gfx::IPipeline> m_skyPipeline;
 		std::unique_ptr<gfx::IPipeline> m_tonemapPipeline;
+		std::unique_ptr<gfx::IPipeline> m_prepassPipeline;
+		std::unique_ptr<gfx::IPipeline> m_gtaoPipeline;
+		std::unique_ptr<gfx::IPipeline> m_blurPipeline;
 
 		std::unique_ptr<gfx::ISampler> m_sampler;
 		std::unique_ptr<gfx::ISampler> m_shadowSampler;
@@ -95,6 +117,9 @@ namespace imp::app
 		std::vector<std::unique_ptr<gfx::IBuffer>> m_cascadeUBOs;
 		std::vector<std::unique_ptr<gfx::IBuffer>> m_lightUBOs;
 		std::vector<std::unique_ptr<gfx::IBuffer>> m_instanceBuffers;
+		std::vector<std::unique_ptr<gfx::IBuffer>> m_aoParamsUBOs;
+		std::vector<std::unique_ptr<gfx::IBuffer>> m_screenParamsUBOs;
+		std::vector<std::unique_ptr<gfx::IBuffer>> m_blurParamsUBOs;
 		u32 m_instanceCapacity = 16;
 
 		std::unique_ptr<gfx::RenderGraphResourcePool> m_graphPool;

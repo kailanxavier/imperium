@@ -29,6 +29,11 @@ IMP_COMPILE_SHADERS(
 		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/sky.frag
 		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/gizmo.vert
 		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/gizmo.frag
+		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/depth_normal_prepass.vert
+		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/depth_normal_prepass.frag
+		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/gtao.frag
+		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/bilateral_blur.frag
+		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/fullscreen.vert
 )
 
 IMP_COPY_ASSETS(sandbox)

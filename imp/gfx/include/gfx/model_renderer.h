@@ -43,6 +43,10 @@ namespace imp::gfx
 		gfx::IBuffer* cascadeBuffer = nullptr;
 		gfx::ISampler* shadowSampler = nullptr;
 
+		gfx::ITexture* aoTexture = nullptr;
+		gfx::IBuffer* screenParamsBuffer = nullptr;
+		bool alphaTestOnly = false;
+
 		math::Mat4f viewProj;
 
 		const CullVolume* cullVolume = nullptr;

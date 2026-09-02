@@ -83,7 +83,7 @@ namespace imp::fs
 
         for (auto entryIt = m_knownMTimes.begin(); entryIt != m_knownMTimes.end();)
         {
-            if (!seenThisPoll.contains(entryIt->first))
+            if (!seenThisPoll.contains(entryIt->first.generic_string()))
                 entryIt = m_knownMTimes.erase(entryIt);
             else
                 ++entryIt;
