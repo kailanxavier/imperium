@@ -36,7 +36,7 @@ namespace imp::gfx
 	struct LightUBO
 	{
 		math::Vec4f cameraPositionWS{ 0.f, 0.f, 0.f, 0.f };
-		math::Vec4f ambientColour{ 0.08f, 0.08f, 0.1f, 0.f };
+		math::Vec4f ambientColour{ 0.1f, 0.1f, 0.15f, 0.f };
 		float specularStrength = 0.5f;
 		float shininess = 32.f;
 		u32 lightCount = 0;
