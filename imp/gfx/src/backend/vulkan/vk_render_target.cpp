@@ -74,7 +74,7 @@ namespace imp::gfx::vulkan
 		return gfx::SampleCount::One;
 	}
 
-	bool VulkanRenderTarget::isSampledOwnedDepth() const
+	bool VulkanRenderTarget::isSampledOwned() const
 	{
 		return m_kind == VulkanRenderTargetKind::OwnedTexture && m_ownedTexture->isSampled();
 	}

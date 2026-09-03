@@ -121,7 +121,7 @@ namespace imp::gfx::vulkan
 			depthAttachment.imageView = depthTarget->imageView();
 			depthAttachment.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
 			depthAttachment.loadOp = desc.clearDepth ? VK_ATTACHMENT_LOAD_OP_CLEAR : VK_ATTACHMENT_LOAD_OP_LOAD;
-			const bool depthWillBeSampled = depthTarget->isSampledOwnedDepth();
+			const bool depthWillBeSampled = depthTarget->isSampledOwned();
 			depthAttachment.storeOp = depthWillBeSampled ? VK_ATTACHMENT_STORE_OP_STORE : VK_ATTACHMENT_STORE_OP_DONT_CARE;
 			depthAttachment.clearValue.depthStencil.depth = desc.clearDepthValue;
 		}
@@ -182,7 +182,18 @@ namespace imp::gfx::vulkan
 				VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT);
 		}
 
-		if (m_depthTarget && m_depthTarget->isSampledOwnedDepth())
+		for (u32 i = 0; i < m_colourTargetCount; ++i)
+		{
+			VulkanRenderTarget* colourTarget = m_colourTargets[i];
+			if (colourTarget && colourTarget->isSampledOwned())
+			{
+				transitionImage(colourTarget->image(), VK_IMAGE_ASPECT_COLOR_BIT,
+					VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+					VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT);
+			}
+		}
+
+		if (m_depthTarget && m_depthTarget->isSampledOwned())
 		{
 			transitionImage(m_depthTarget->image(), VK_IMAGE_ASPECT_DEPTH_BIT,
 				VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
