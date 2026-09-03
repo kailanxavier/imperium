@@ -12,9 +12,9 @@ namespace imp::gfx
     // Default clear colour is (42, 3, 14, 255) RGBA
     struct ClearColour
     {
-        float r = 0.023153f;
-        float g = 0.000911f;
-        float b = 0.004391f;
+        float r = 42.f / 255.f;
+        float g = 3.f / 255.f;
+        float b = 14.f / 255.f;
         float a = 1.f;
     };
 

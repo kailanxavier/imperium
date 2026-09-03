@@ -6,11 +6,11 @@ layout(location = 0) out vec4 outColour;
 
 const float PI = 3.14159265359;
 
-const vec3  kRayleighCoeff = vec3(5.8, 13.5, 33.1);
-const float kMieCoeff = 21.0;
-const float kMieG = 0.76;
-const float kSunAngularRadius = radians(3.0);
-const vec3  kGroundColour = vec3(0.0245, 0.0002, 0.0025);
+const vec3  kRayleighCoeff = vec3(12.0, 8.0, 22.0);
+const float kMieCoeff = 55.0;
+const float kMieG = 0.82;
+const float kSunAngularRadius = radians(2.13);
+const vec3  kGroundColour = vec3(0.055, 0.004, 0.003);
 
 vec3 computeSky(vec3 viewDir, vec3 sunDir, float sunIntensity)
 {
@@ -18,7 +18,7 @@ vec3 computeSky(vec3 viewDir, vec3 sunDir, float sunIntensity)
 	sunDir = normalize(sunDir);
 
 	float cosTheta = dot(viewDir, sunDir);
-	float elevation = max(viewDir.y, 0.02); // avoid divide blowup right at the horizon
+	float elevation = max(viewDir.y, 0.001); // avoid divide blowup right at the horizon
 
 	float phaseR = (3.0 / (16.0 * PI)) * (1.0 + cosTheta * cosTheta);
 	float phaseM = (1.0 - kMieG * kMieG)

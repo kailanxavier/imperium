@@ -161,7 +161,7 @@ namespace imp::app
 				resolveDesc.usage = gfx::TextureUsage::RenderTarget | gfx::TextureUsage::Sampled;
 				d.hdrResolve = b.createTexture("HdrResolve", resolveDesc);
 
-				d.hdrColour = b.writeColour(d.hdrColour, gfx::RGLoadOp::Clear, { 0.023153f, 0.000911f, 0.004391f, 1.f });
+				d.hdrColour = b.writeColour(d.hdrColour, gfx::RGLoadOp::Clear, { /* default ClearColour */ });
 				d.hdrDepth = b.writeDepth(d.hdrDepth, gfx::RGLoadOp::Clear);
 				d.hdrResolve = b.writeResolve(d.hdrResolve, d.hdrColour);
 
