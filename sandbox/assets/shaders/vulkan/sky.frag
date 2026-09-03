@@ -6,6 +6,7 @@ layout(location = 0) out vec4 outColour;
 
 const float PI = 3.14159265359;
 
+const vec3 kSunColour = vec3(1.0, 0.82, 0.55);
 const vec3  kRayleighCoeff = vec3(12.0, 8.0, 22.0);
 const float kMieCoeff = 55.0;
 const float kMieG = 0.82;
@@ -30,7 +31,7 @@ vec3 computeSky(vec3 viewDir, vec3 sunDir, float sunIntensity)
 	vec3 rayleigh = kRayleighCoeff * phaseR * opticalDepth;
 	float mie = kMieCoeff * phaseM * opticalDepth;
 
-	vec3 sunColour = vec3(1.0, 0.95, 0.85) * sunIntensity;
+	vec3 sunColour = kSunColour * sunIntensity;
 	vec3 scattered = (rayleigh + vec3(mie)) * sunColour * 0.0008;
 
 	// sun disc, additive, bright enough to bloom later
