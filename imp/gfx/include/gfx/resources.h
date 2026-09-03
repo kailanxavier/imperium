@@ -9,6 +9,7 @@ namespace imp::gfx
         Index = 1u << 1,
         Uniform = 1u << 2,
         Storage = 1u << 3,
+        AccelStructBuildInput = 1u << 4,
     };
 
     inline BufferUsage operator|(BufferUsage a, BufferUsage b)
@@ -49,6 +50,27 @@ namespace imp::gfx
         [[nodiscard]] virtual IndexFormat indexFormat() const = 0;
 
         virtual bool update(const void* data, u64 size, u64 offset) = 0;
+        [[nodiscard]] virtual u64 deviceAddress() const { return 0; }
+    };
+
+    class IBlas
+    {
+    public:
+        virtual ~IBlas() = default;
+        [[nodiscard]] virtual u64 deviceAddress() const = 0;
+    };
+
+    struct BlasBuildDesc
+    {
+        IBuffer* vertexBuffer = nullptr;
+        u32 vertexCount = 0;
+        u32 vertexStride = 0;
+
+        IBuffer* indexBuffer = nullptr;
+        u32 indexCount = 0;
+        IndexFormat indexFormat = IndexFormat::Uint16;
+
+        const char* debugName = nullptr;
     };
 
     enum class TextureFormat

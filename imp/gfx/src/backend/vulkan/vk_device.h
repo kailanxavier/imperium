@@ -44,6 +44,7 @@ namespace imp::gfx::vulkan
 		void shutdown() override;
 
 		[[nodiscard]] std::unique_ptr<gfx::IBuffer> createBuffer(const gfx::BufferDesc& desc) override;
+		[[nodiscard]] std::unique_ptr<gfx::IBlas> createBlas(const gfx::BlasBuildDesc& desc) override;
 
 		[[nodiscard]] std::unique_ptr<gfx::ITexture> createTexture(const gfx::TextureDesc& desc) override;
 		[[nodiscard]] std::vector<std::unique_ptr<ITexture>> createTextures(const std::vector<gfx::TextureDesc>& descs) override;

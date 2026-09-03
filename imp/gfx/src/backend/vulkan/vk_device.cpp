@@ -14,6 +14,8 @@
 #include "vk_allocator.h"
 
 #include "vk_debug_utils.h"
+#include "vk_accel_structure.h"
+#include "vk_accel_structure_functions.h"
 
 #include <imgui.h>
 #include <backends/imgui_impl_vulkan.h>
@@ -183,6 +185,10 @@ namespace imp::gfx::vulkan
 			if (gfx::hasFlag(usage, gfx::BufferUsage::Index)) flags |= VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
 			if (gfx::hasFlag(usage, gfx::BufferUsage::Uniform)) flags |= VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
 			if (gfx::hasFlag(usage, gfx::BufferUsage::Storage)) flags |= VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+
+			if (gfx::hasFlag(usage, gfx::BufferUsage::AccelStructBuildInput))
+				flags |= VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR
+				| VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
 			return flags;
 		}
 
@@ -350,15 +356,134 @@ namespace imp::gfx::vulkan
 		info.usage = toVkBufferUsage(desc.usage);
 		info.hostVisible = ( desc.memoryAccess == gfx::MemoryAccess::HostVisible );
 		info.indexFormat = desc.indexFormat;
+		if (gfx::hasFlag(desc.usage, gfx::BufferUsage::AccelStructBuildInput))
+			info.deviceForAddressQueries = m_device;
 
 		auto buffer = std::make_unique<VulkanBuffer>();
 		if (!buffer->create(info))
 		{
-			LOG_ERROR("Vulkan", "creatBuffer failed");
+			LOG_ERROR("Vulkan", "createBuffer(): failed");
 			return nullptr;
 		}
 
 		return buffer;
+	}
+
+	std::unique_ptr<gfx::IBlas> VulkanDevice::createBlas(const gfx::BlasBuildDesc& desc)
+	{
+		if (!m_rayQuerySupported)
+			return nullptr;
+
+		if (!desc.vertexBuffer || !desc.indexBuffer || desc.vertexCount == 0 || desc.indexCount == 0)
+		{
+			LOG_ERROR("Vulkan", "createBlas(): missing or empty vertex/index buffer");
+			return nullptr;
+		}
+
+		const auto vertexAddress = static_cast<VkDeviceAddress>( desc.vertexBuffer->deviceAddress() );
+		const auto indexAddress = static_cast<VkDeviceAddress>( desc.indexBuffer->deviceAddress() );
+		if (vertexAddress == 0 || indexAddress == 0)
+		{
+			LOG_ERROR("Vulkan", "createBlas(): vertex/index buffer has no device address. Did you create it without BufferUsage::AccelStructureBuildInput?");
+			return nullptr;
+		}
+
+		VkAccelerationStructureGeometryTrianglesDataKHR triangles{};
+		triangles.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR;
+		triangles.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;
+		triangles.vertexData.deviceAddress = vertexAddress;
+		triangles.vertexStride = desc.vertexStride;
+		triangles.maxVertex = desc.vertexCount - 1;
+		triangles.indexType = ( desc.indexFormat == gfx::IndexFormat::Uint32 ) ? VK_INDEX_TYPE_UINT32 : VK_INDEX_TYPE_UINT16;
+		triangles.indexData.deviceAddress = indexAddress;
+
+		VkAccelerationStructureGeometryKHR geometry{};
+		geometry.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
+		geometry.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
+		geometry.geometry.triangles = triangles;
+		geometry.flags = VK_GEOMETRY_OPAQUE_BIT_KHR;
+
+		const u32 primitiveCount = desc.indexCount / 3;
+
+		VkAccelerationStructureBuildGeometryInfoKHR buildInfo{};
+		buildInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
+		buildInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
+		buildInfo.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
+		buildInfo.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
+		buildInfo.geometryCount = 1;
+		buildInfo.pGeometries = &geometry;
+
+		VkAccelerationStructureBuildSizesInfoKHR sizeInfo{};
+		sizeInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR;
+		vkGetAccelerationStructureBuildSizesKHR_(m_device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR,
+			&buildInfo, &primitiveCount, &sizeInfo);
+
+		auto blas = std::make_unique<VulkanBlas>();
+		VulkanBufferCreateInfo backingInfo{};
+		backingInfo.allocator = m_vmaAllocator;
+		backingInfo.size = sizeInfo.accelerationStructureSize;
+		backingInfo.usage = VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+		backingInfo.hostVisible = false;
+
+		if (!blas->m_backingBuffer.create(backingInfo))
+		{
+			LOG_ERROR("Vulkan", "createBlas(): backing buffer allocation failed ({} bytes)",
+				static_cast<u64>( sizeInfo.accelerationStructureSize ));
+			return nullptr;
+		}
+
+		VkAccelerationStructureCreateInfoKHR createInfo{};
+		createInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR;
+		createInfo.buffer = blas->m_backingBuffer.handle();
+		createInfo.size = sizeInfo.accelerationStructureSize;
+		createInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
+
+		if (vkCreateAccelerationStructureKHR_(m_device, &createInfo, allocationCallbacks(), &blas->m_handle) != VK_SUCCESS)
+		{
+			LOG_ERROR("Vulkan", "createBlas(): vkCreateAccelerationStructureKHR failed");
+			return nullptr;
+		}
+
+		blas->m_device = m_device;
+		buildInfo.dstAccelerationStructure = blas->m_handle;
+
+		VulkanBufferCreateInfo scratchInfo{};
+		scratchInfo.allocator = m_vmaAllocator;
+		scratchInfo.size = sizeInfo.buildScratchSize;
+		scratchInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+		scratchInfo.hostVisible = false;
+		scratchInfo.deviceForAddressQueries = m_device;
+
+		VulkanBuffer scratch;
+		if (!scratch.create(scratchInfo))
+		{
+			LOG_ERROR("Vulkan", "createBlas(): scratch buffer allocation failed ({} bytes)",
+				static_cast<u64>( sizeInfo.buildScratchSize ));
+			return nullptr;
+		}
+		buildInfo.scratchData.deviceAddress = scratch.deviceAddress();
+
+		VkAccelerationStructureBuildRangeInfoKHR rangeInfo{};
+		rangeInfo.primitiveCount = primitiveCount;
+		const VkAccelerationStructureBuildRangeInfoKHR* pRangeInfo = &rangeInfo;
+
+		submitOneTimeCommands([&buildInfo, &pRangeInfo](VkCommandBuffer cmd)
+			{
+				vkCmdBuildAccelerationStructuresKHR_(cmd, 1, &buildInfo, &pRangeInfo);
+			});
+
+		VkAccelerationStructureDeviceAddressInfoKHR addrInfo{};
+		addrInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR;
+		addrInfo.accelerationStructure = blas->m_handle;
+		blas->m_address = vkGetAccelerationStructureDeviceAddressKHR_(m_device, &addrInfo);
+
+		if (desc.debugName)
+		{
+			setDebugObjectName(m_device, VK_OBJECT_TYPE_ACCELERATION_STRUCTURE_KHR,
+				reinterpret_cast<u64>( blas->m_handle ), desc.debugName);
+		}
+
+		return blas;
 	}
 
 	std::unique_ptr<gfx::ITexture> VulkanDevice::createTexture(const gfx::TextureDesc& desc)
@@ -1215,10 +1340,15 @@ namespace imp::gfx::vulkan
 		rayQueryFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR;
 		rayQueryFeatures.rayQuery = VK_TRUE;
 
+		VkPhysicalDeviceVulkan12Features features12{};
+		features12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+		features12.bufferDeviceAddress = VK_TRUE;
+		features12.pNext = &rayQueryFeatures;
+
 		VkPhysicalDeviceAccelerationStructureFeaturesKHR accelFeatures{};
 		accelFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
 		accelFeatures.accelerationStructure = VK_TRUE;
-		accelFeatures.pNext = &rayQueryFeatures;
+		accelFeatures.pNext = &features12;
 
 		VkPhysicalDeviceVulkan13Features features13{};
 		features13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
@@ -1245,6 +1375,13 @@ namespace imp::gfx::vulkan
 
 		vkGetDeviceQueue(m_device, m_queueFamilies.graphics.value(), 0, &m_graphicsQueue);
 		vkGetDeviceQueue(m_device, m_queueFamilies.present.value(), 0, &m_presentQueue);
+
+		if (m_rayQuerySupported && !loadAccelStructFunctions(m_device))
+		{
+			LOG_ERROR("Vulkan", "VK_KHR_acceleration_structure was enabled but its functions failed to resolve");
+			m_rayQuerySupported = false;
+		}
+
 		return true;
 	}
 
@@ -1572,9 +1709,9 @@ namespace imp::gfx::vulkan
 		m_destroyQueue.retire(std::move(deleter));
 	}
 
-	bool VulkanDevice::readbackTexture(IRenderTarget &target, std::vector<u8> &outPixels)
+	bool VulkanDevice::readbackTexture(IRenderTarget& target, std::vector<u8>& outPixels)
 	{
-		auto* vkTarget = dynamic_cast<VulkanRenderTarget*>(&target);
+		auto* vkTarget = dynamic_cast<VulkanRenderTarget*>( &target );
 		if (!vkTarget)
 		{
 			LOG_ERROR("Vulkan", "readbackTexture(): target is not a Vulkan render target");
@@ -1583,7 +1720,7 @@ namespace imp::gfx::vulkan
 
 		const u32 width = vkTarget->width();
 		const u32 height = vkTarget->height();
-		const VkDeviceSize imageSize = static_cast<VkDeviceSize>(width) * height * 4;
+		const VkDeviceSize imageSize = static_cast<VkDeviceSize>( width ) * height * 4;
 
 		VulkanBufferCreateInfo stagingInfo{};
 		stagingInfo.allocator = m_vmaAllocator;
@@ -1600,45 +1737,45 @@ namespace imp::gfx::vulkan
 
 		const VkImage image = vkTarget->image();
 		submitOneTimeCommands([this, image, width, height, &staging](VkCommandBuffer cmd)
-		{
-			VkImageSubresourceRange range{};
-			range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-			range.levelCount = 1;
-			range.layerCount = 1;
+			{
+				VkImageSubresourceRange range{};
+				range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+				range.levelCount = 1;
+				range.layerCount = 1;
 
-			VkImageMemoryBarrier2 toTransferSrc{};
-			toTransferSrc.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
-			toTransferSrc.srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
-			toTransferSrc.srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
-			toTransferSrc.dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
-			toTransferSrc.dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT;
-			toTransferSrc.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-			toTransferSrc.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-			toTransferSrc.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-			toTransferSrc.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-			toTransferSrc.image = image;
-			toTransferSrc.subresourceRange = range;
+				VkImageMemoryBarrier2 toTransferSrc{};
+				toTransferSrc.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+				toTransferSrc.srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+				toTransferSrc.srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+				toTransferSrc.dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+				toTransferSrc.dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT;
+				toTransferSrc.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+				toTransferSrc.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+				toTransferSrc.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+				toTransferSrc.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+				toTransferSrc.image = image;
+				toTransferSrc.subresourceRange = range;
 
-			VkDependencyInfo dep1{};
-			dep1.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-			dep1.imageMemoryBarrierCount = 1;
-			dep1.pImageMemoryBarriers = &toTransferSrc;
-			vkCmdPipelineBarrier2(cmd, &dep1);
+				VkDependencyInfo dep1{};
+				dep1.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+				dep1.imageMemoryBarrierCount = 1;
+				dep1.pImageMemoryBarriers = &toTransferSrc;
+				vkCmdPipelineBarrier2(cmd, &dep1);
 
-			VkBufferImageCopy region{};
-			region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-			region.imageSubresource.layerCount = 1;
-			region.imageExtent = { width, height, 1 };
+				VkBufferImageCopy region{};
+				region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+				region.imageSubresource.layerCount = 1;
+				region.imageExtent = { width, height, 1 };
 
-			vkCmdCopyImageToBuffer(cmd, image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-				staging.handle(), 1, &region);
+				vkCmdCopyImageToBuffer(cmd, image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+					staging.handle(), 1, &region);
 
-			// Leave the image in TRANSFER_SRC_OPTIONAL since it isn't used again
-			// after readback in the smoke test.
-		});
+				// Leave the image in TRANSFER_SRC_OPTIONAL since it isn't used again
+				// after readback in the smoke test.
+			});
 
-		outPixels.resize(static_cast<size_t>(imageSize));
-		std::memcpy(outPixels.data(), staging.mappedData(), static_cast<size_t>(imageSize));
+		outPixels.resize(static_cast<size_t>( imageSize ));
+		std::memcpy(outPixels.data(), staging.mappedData(), static_cast<size_t>( imageSize ));
 
 		return true;
 	}

@@ -14,6 +14,7 @@ namespace imp::gfx::vulkan
 		VkBufferUsageFlags usage = 0;
 		bool hostVisible = true;
 		gfx::IndexFormat indexFormat = gfx::IndexFormat::Uint16;
+		VkDevice deviceForAddressQueries = VK_NULL_HANDLE;
 	};
 
 	class VulkanBuffer final : public gfx::IBuffer
@@ -41,6 +42,7 @@ namespace imp::gfx::vulkan
 		[[nodiscard]] gfx::IndexFormat indexFormat() const override { return m_indexFormat; }
 
 		bool update(const void* data, u64 size, u64 offset) override;
+		[[nodiscard]] u64 deviceAddress() const override;
 
 	private:
 		VmaAllocator m_allocator = VK_NULL_HANDLE;
@@ -49,5 +51,6 @@ namespace imp::gfx::vulkan
 		void* m_mappedData = nullptr;
 		gfx::IndexFormat m_indexFormat = gfx::IndexFormat::Uint16;
 		VkDeviceSize m_size = 0;
+		VkDevice m_device = VK_NULL_HANDLE;
 	};
 }
