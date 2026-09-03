@@ -740,6 +740,7 @@ namespace imp::gfx::vulkan
 		info.depthWriteEnable = desc.depthStencilState.depthWriteEnable;
 		info.depthCompareOp = toVkCompareOp(desc.depthStencilState.depthCompareOp);
 		info.colourAttachmentFormat = toVkFormat(desc.colourFormat);
+		info.colourAttachmentFormat1 = toVkFormat(desc.colourFormat1);
 		info.depthAttachmentFormat = toVkFormat(desc.depthFormat);
 		info.sampleCount = toVkSampleCount(desc.sampleCount);
 		info.instanceBinding.binding = 1;
@@ -899,9 +900,8 @@ namespace imp::gfx::vulkan
 		auto& vkCmd = static_cast<VulkanCommandList&>( cmd );
 
 		gfx::RenderPassDesc imguiPassDesc{};
-		imguiPassDesc.colourTarget = &backBuffer();
+		imguiPassDesc.setSingleColour(&backBuffer(), false);
 		imguiPassDesc.depthTarget = nullptr;
-		imguiPassDesc.clearColour = false;
 		imguiPassDesc.debugName = "ImGui";
 
 		vkCmd.beginRenderPass(imguiPassDesc);

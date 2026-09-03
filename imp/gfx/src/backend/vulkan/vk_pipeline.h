@@ -37,6 +37,8 @@ namespace imp::gfx::vulkan
 		VkCompareOp depthCompareOp = VK_COMPARE_OP_LESS;
 
 		VkFormat colourAttachmentFormat = VK_FORMAT_UNDEFINED;
+		VkFormat colourAttachmentFormat1 = VK_FORMAT_UNDEFINED;
+
 		VkFormat depthAttachmentFormat = VK_FORMAT_UNDEFINED;
 		VkSampleCountFlagBits sampleCount = VK_SAMPLE_COUNT_1_BIT;
 

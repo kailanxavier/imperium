@@ -69,25 +69,33 @@ namespace imp::gfx::vulkan
 		multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
 		multisampling.rasterizationSamples = info.sampleCount;
 
-		VkPipelineColorBlendAttachmentState blendAttachment{};
-		blendAttachment.colorWriteMask =
-			VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-			VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-		blendAttachment.blendEnable = info.blendEnable ? VK_TRUE : VK_FALSE;
-		if (info.blendEnable)
+		const u32 colourAttachmentCount = info.colourAttachmentFormat == VK_FORMAT_UNDEFINED ? 0u
+			: info.colourAttachmentFormat1 == VK_FORMAT_UNDEFINED ? 1u : 2u;
+
+		VkPipelineColorBlendAttachmentState blendAttachments[2]{};
+		for (u32 i = 0; i < colourAttachmentCount; ++i)
 		{
-			blendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-			blendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-			blendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
-			blendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-			blendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-			blendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
+			VkPipelineColorBlendAttachmentState& blendAttachment = blendAttachments[i];
+
+			blendAttachment.colorWriteMask =
+				VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+				VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+			blendAttachment.blendEnable = info.blendEnable ? VK_TRUE : VK_FALSE;
+			if (info.blendEnable)
+			{
+				blendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+				blendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+				blendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
+				blendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+				blendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+				blendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
+			}
 		}
 
 		VkPipelineColorBlendStateCreateInfo colourBlend{};
 		colourBlend.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-		colourBlend.attachmentCount = 1;
-		colourBlend.pAttachments = &blendAttachment;
+		colourBlend.attachmentCount = colourAttachmentCount;
+		colourBlend.pAttachments = blendAttachments;
 
 		VkPipelineDepthStencilStateCreateInfo depthStencil{};
 		depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
@@ -180,18 +188,14 @@ namespace imp::gfx::vulkan
 
 		VK_CHECK(vkCreatePipelineLayout(m_device, &layoutInfo, m_allocationCallbacks, &m_layout));
 
+		VkFormat colourAttachmentFormats[2] = { info.colourAttachmentFormat, info.colourAttachmentFormat1 };
+
 		VkPipelineRenderingCreateInfo renderingCreateInfo{};
 		renderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
-		if (info.colourAttachmentFormat == VK_FORMAT_UNDEFINED)
-		{
-			renderingCreateInfo.colorAttachmentCount = 0;
-			renderingCreateInfo.pColorAttachmentFormats = nullptr;
-		}
-		else
-		{
-			renderingCreateInfo.colorAttachmentCount = 1;
-			renderingCreateInfo.pColorAttachmentFormats = &info.colourAttachmentFormat;
-		}
+
+		renderingCreateInfo.colorAttachmentCount = colourAttachmentCount;
+		renderingCreateInfo.pColorAttachmentFormats = colourAttachmentCount > 0 ? colourAttachmentFormats : nullptr;
+
 		renderingCreateInfo.depthAttachmentFormat = info.depthAttachmentFormat;
 		renderingCreateInfo.stencilAttachmentFormat = VK_FORMAT_UNDEFINED;
 

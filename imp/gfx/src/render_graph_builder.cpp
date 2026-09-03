@@ -106,10 +106,13 @@ namespace imp::gfx
 		const u32 newVersion = m_graph->recordWrite(m_passIndex, handle.index);
 
 		RGPass& pass = m_graph->m_passes[m_passIndex];
-		pass.colour.role = RGAttachmentRole::Colour;
-		pass.colour.resourceIndex = handle.index;
-		pass.colour.loadOp = loadOp;
-		pass.colour.clearColour = clear;
+
+		RGPassAttachment attachment{};
+		attachment.role = RGAttachmentRole::Colour;
+		attachment.resourceIndex = handle.index;
+		attachment.loadOp = loadOp;
+		attachment.clearColour = clear;
+		pass.colours.push_back(attachment);
 
 		RGTextureHandle out = handle;
 		out.version = newVersion;

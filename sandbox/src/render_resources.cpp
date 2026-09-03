@@ -232,6 +232,7 @@ namespace imp::app
 		prepassPipelineDesc.depthStencilState.depthCompareOp = gfx::CompareOp::Less;
 		prepassPipelineDesc.blendState.blendEnable = false;
 		prepassPipelineDesc.colourFormat = gfx::TextureFormat::RGBA16Float;
+		prepassPipelineDesc.colourFormat1 = gfx::TextureFormat::RGBA8Unorm;
 		prepassPipelineDesc.depthFormat = gfx::TextureFormat::Depth32Float;
 		prepassPipelineDesc.sampleCount = gfx::SampleCount::One;
 		prepassPipelineDesc.hasInstanceBinding = true;

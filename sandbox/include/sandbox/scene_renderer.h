@@ -42,6 +42,7 @@ namespace imp::app
 	{
 		gfx::RGTextureHandle normalTarget;
 		gfx::RGTextureHandle depthTarget;
+		gfx::RGTextureHandle albedoRoughnessTarget;
 	};
 
 	PrepassOutputs addDepthNormalPrepass(gfx::RenderGraph& graph, RenderResources& resources,

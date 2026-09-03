@@ -22,7 +22,10 @@ namespace imp::gfx::vulkan
 		m_currentDescriptorSetLayout = VK_NULL_HANDLE;
 		m_currentDescriptorSet = VK_NULL_HANDLE;
 
-		m_colourTarget = nullptr;
+		for (auto& target : m_colourTargets)
+			target = nullptr;
+		m_colourTargetCount = 0;
+
 		m_depthTarget = nullptr;
 		m_resolveTarget = nullptr;
 
@@ -38,14 +41,25 @@ namespace imp::gfx::vulkan
 
 	void VulkanCommandList::beginRenderPass(const gfx::RenderPassDesc& desc)
 	{
-		auto* colourTarget = dynamic_cast<VulkanRenderTarget*>( desc.colourTarget );
+		VulkanRenderTarget* colourTargets[gfx::RenderPassDesc::kMaxColourAttachments]{};
+		u32 colourTargetCount = 0;
+
+		for (u32 i = 0; i < desc.colourTargetCount; ++i)
+			colourTargets[colourTargetCount++] = dynamic_cast<VulkanRenderTarget*>(
+				desc.colourTargets[i].target);
+
 		auto* depthTarget = dynamic_cast<VulkanRenderTarget*>( desc.depthTarget );
 		auto* resolveTarget = dynamic_cast<VulkanRenderTarget*>( desc.resolveTarget );
 
-		if (colourTarget)
+		for (u32 i = 0; i < colourTargetCount; ++i)
 		{
+			VulkanRenderTarget* colourTarget = colourTargets[i];
+			if (!colourTarget) 
+				continue;
+
 			VkAccessFlags2 dstAccess = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
-			if (!desc.clearColour)
+
+			if (!desc.colourTargets[i].clear)
 				dstAccess |= VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT; // loadOp LOAD
 
 			const bool isSwapchainImage = colourTarget->kind() != VulkanRenderTargetKind::OwnedTexture;
@@ -75,23 +89,28 @@ namespace imp::gfx::vulkan
 				dstAccess, isSwapchainImage, depthTarget->layer());
 		}
 
-		VkRenderingAttachmentInfo colourAttachment{};
-		if (colourTarget)
+		VkRenderingAttachmentInfo colourAttachments[gfx::RenderPassDesc::kMaxColourAttachments]{};
+		for (u32 i = 0; i < colourTargetCount; ++i)
 		{
-			colourAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-			colourAttachment.imageView = colourTarget->imageView();
-			colourAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-			colourAttachment.loadOp = desc.clearColour ? VK_ATTACHMENT_LOAD_OP_CLEAR : VK_ATTACHMENT_LOAD_OP_LOAD;
-			colourAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-			colourAttachment.clearValue.color = {
-				{ desc.clearColourValue.r, desc.clearColourValue.g, desc.clearColourValue.b, desc.clearColourValue.a }
-			};
+			VulkanRenderTarget* colourTarget = colourTargets[i];
+			if (!colourTarget) 
+				continue;
 
-			if (resolveTarget)
+			VkRenderingAttachmentInfo& attachment = colourAttachments[i];
+
+			attachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+			attachment.imageView = colourTarget->imageView();
+			attachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+			attachment.loadOp = desc.colourTargets[i].clear ? VK_ATTACHMENT_LOAD_OP_CLEAR : VK_ATTACHMENT_LOAD_OP_LOAD;
+			attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+			const gfx::ClearColour& clearValue = desc.colourTargets[i].clearValue;
+			attachment.clearValue.color = { { clearValue.r, clearValue.g, clearValue.b, clearValue.a } };
+
+			if (i == 0 && resolveTarget)
 			{
-				colourAttachment.resolveMode = VK_RESOLVE_MODE_AVERAGE_BIT;
-				colourAttachment.resolveImageView = resolveTarget->imageView();
-				colourAttachment.resolveImageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+				attachment.resolveMode = VK_RESOLVE_MODE_AVERAGE_BIT;
+				attachment.resolveImageView = resolveTarget->imageView();
+				attachment.resolveImageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 			}
 		}
 
@@ -107,7 +126,8 @@ namespace imp::gfx::vulkan
 			depthAttachment.clearValue.depthStencil.depth = desc.clearDepthValue;
 		}
 
-		VulkanRenderTarget* extentSource = colourTarget ? colourTarget : depthTarget;
+		VulkanRenderTarget* extentSource = colourTargetCount > 0 ? colourTargets[0] : depthTarget;
+
 		VkExtent2D extent{};
 		if (extentSource)
 		{
@@ -119,9 +139,11 @@ namespace imp::gfx::vulkan
 		renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
 		renderingInfo.renderArea = { {0,0}, extent };
 		renderingInfo.layerCount = 1;
-		renderingInfo.colorAttachmentCount = colourTarget ? 1 : 0;
-		renderingInfo.pColorAttachments = colourTarget ? &colourAttachment : nullptr;
-		if (depthTarget) renderingInfo.pDepthAttachment = &depthAttachment;
+		renderingInfo.colorAttachmentCount = colourTargetCount;
+		renderingInfo.pColorAttachments = colourTargetCount > 0 ? colourAttachments : nullptr;
+
+		if (depthTarget) 
+			renderingInfo.pDepthAttachment = &depthAttachment;
 
 		vkCmdBeginRendering(m_cmd, &renderingInfo);
 
@@ -139,7 +161,10 @@ namespace imp::gfx::vulkan
 		VkRect2D scissor{ { 0, 0 }, extent };
 		vkCmdSetScissor(m_cmd, 0, 1, &scissor);
 
-		m_colourTarget = colourTarget;
+		for (u32 i = 0; i < colourTargetCount; ++i)
+			m_colourTargets[i] = colourTargets[i];
+
+		m_colourTargetCount = colourTargetCount;
 		m_depthTarget = depthTarget;
 		m_resolveTarget = resolveTarget;
 	}
@@ -166,7 +191,11 @@ namespace imp::gfx::vulkan
 		}
 
 		m_depthTarget = nullptr;
-		m_colourTarget = nullptr;
+
+		for (u32 i = 0; i < m_colourTargetCount; ++i)
+			m_colourTargets[i] = nullptr;
+		m_colourTargetCount = 0;
+
 		m_resolveTarget = nullptr;
 	}
 

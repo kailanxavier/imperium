@@ -83,6 +83,12 @@ namespace imp::gfx
         BlendStateDesc blendState;
 
         TextureFormat colourFormat = TextureFormat::Unknown;
+
+        // optional second colour attachment (for multiple render targets)
+        // leaving it as unknown for the current single-target pipelines *shouldn't*
+        // do any harm
+        TextureFormat colourFormat1 = TextureFormat::Unknown;
+
         TextureFormat depthFormat = TextureFormat::Unknown;
 
         SampleCount sampleCount = SampleCount::One;

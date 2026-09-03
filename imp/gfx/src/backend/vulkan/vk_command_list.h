@@ -87,7 +87,9 @@ namespace imp::gfx::vulkan
 
 		const std::unordered_map<u32, PipelineBindingInfo>* m_currentBindingLayout = nullptr;
 
-		VulkanRenderTarget* m_colourTarget = nullptr;
+		VulkanRenderTarget* m_colourTargets[gfx::RenderPassDesc::kMaxColourAttachments]{};
+		u32 m_colourTargetCount = 0;
+
 		VulkanRenderTarget* m_depthTarget = nullptr;
 		VulkanRenderTarget* m_resolveTarget = nullptr;
 

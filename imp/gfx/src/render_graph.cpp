@@ -189,21 +189,27 @@ namespace imp::gfx
 		for (u32 passIndex : m_executionOrder)
 		{
 			RGPass& pass = m_passes[passIndex];
-			const bool hasAttachments = pass.colour.role != RGAttachmentRole::None
+			const bool hasAttachments = !pass.colours.empty()
 				|| pass.depth.role != RGAttachmentRole::None;
 
 			if (hasAttachments)
 			{
 				RenderPassDesc desc{};
 				desc.debugName = pass.name.c_str();
-				desc.clearColour = false;
 				desc.clearDepth = false;
+				
+				assert(pass.colours.size() <= RenderPassDesc::kMaxColourAttachments
+					&& "RenderGraph: pass writes more colour attachments than RenderPassDesc::kMaxColourAttachments supports");
 
-				if (pass.colour.role == RGAttachmentRole::Colour)
+				for (const RGPassAttachment& colourAttachment : pass.colours)
 				{
-					desc.colourTarget = &renderTargetOf(pass.colour.resourceIndex);
-					desc.clearColour = ( pass.colour.loadOp == RGLoadOp::Clear );
-					desc.clearColourValue = pass.colour.clearColour;
+					if (desc.colourTargetCount >= RenderPassDesc::kMaxColourAttachments)
+						break;
+
+					RenderPassColourAttachment& slot = desc.colourTargets[desc.colourTargetCount++];
+					slot.target = &renderTargetOf(colourAttachment.resourceIndex);
+					slot.clear = { colourAttachment.loadOp == RGLoadOp::Clear };
+					slot.clearValue = colourAttachment.clearColour;
 				}
 
 				if (pass.depth.role == RGAttachmentRole::Depth)
@@ -281,5 +287,4 @@ namespace imp::gfx
 
 		return out;
 	}
-
 }

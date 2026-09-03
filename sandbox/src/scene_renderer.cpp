@@ -50,6 +50,7 @@ namespace imp::app
 		struct PrepassData
 		{
 			gfx::RGTextureHandle normalTarget;
+			gfx::RGTextureHandle albedoRoughnessTarget;
 			gfx::RGTextureHandle depthTarget;
 
 			gfx::IBuffer* instanceBuffer = nullptr;
@@ -271,6 +272,10 @@ namespace imp::app
 			normalDesc.usage = gfx::TextureUsage::RenderTarget | gfx::TextureUsage::Sampled;
 			d.normalTarget = b.createTexture("PrepassNormal", normalDesc);
 
+			gfx::TextureDesc albedoDesc = normalDesc;
+			albedoDesc.format = gfx::TextureFormat::RGBA8Unorm;
+			d.albedoRoughnessTarget = b.createTexture("PrepassAlbedoRoughness", albedoDesc);
+
 			gfx::TextureDesc depthDesc{};
 			depthDesc.width = w; depthDesc.height = h;
 			depthDesc.format = gfx::TextureFormat::Depth32Float;
@@ -279,6 +284,7 @@ namespace imp::app
 			d.depthTarget = b.createTexture("PrepassDepth", depthDesc);
 
 			d.normalTarget = b.writeColour(d.normalTarget, gfx::RGLoadOp::Clear, { 1.f, 1.f, 1.f, 1.f });
+			d.albedoRoughnessTarget = b.writeColour(d.albedoRoughnessTarget, gfx::RGLoadOp::Clear, { 0.f, 0.f, 0.f, 0.f });
 			d.depthTarget = b.writeDepth(d.depthTarget, gfx::RGLoadOp::Clear, 1.f);
 
 			d.instanceBuffer = &resources.instanceBuffer(params.currentFrame);
@@ -301,7 +307,7 @@ namespace imp::app
 				drawModelBatches(prepassCtx, d.scene->extraction());
 			});
 
-		return { data.normalTarget, data.depthTarget };
+		return { data.normalTarget, data.depthTarget, data.albedoRoughnessTarget };
 	}
 
 	gfx::RGTextureHandle addGTAOPass(gfx::RenderGraph &graph, RenderResources &resources, AppContext& ctx, const PrepassOutputs &prepass, const SceneRenderParams &params)
