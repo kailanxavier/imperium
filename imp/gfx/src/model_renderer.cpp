@@ -20,6 +20,35 @@ namespace imp::gfx
 				&& centre.z >= boxMin.z - radius && centre.z <= boxMax.z + radius;
 		}
 
+		void gatherNodeTlasInstances(const gfx::Model& model, u32 nodeIdx, const math::Mat4f& parentNodeWorld,
+			const math::Mat4f& instanceWorld, std::vector<TlasInstanceDesc>& out)
+		{
+			const gfx::ModelNode& node = model.nodes[nodeIdx];
+			const math::Mat4f nodeWorld = parentNodeWorld * node.localTransform;
+
+			if (node.meshIndex >= 0)
+			{
+				for (const gfx::MeshPrimitive& prim : model.meshes[node.meshIndex].primitives)
+				{
+					if (!prim.blas)
+						continue;
+
+					const gfx::Material* mat = (prim.materialIndex >= 0 ) ? &model.materials[prim.materialIndex] : nullptr;
+					const gfx::AlphaMode alphaMode = mat ? mat->alphaMode : gfx::AlphaMode::Opaque;
+					if (alphaMode == gfx::AlphaMode::Blend)
+						continue;
+
+					gfx::TlasInstanceDesc instanceDesc{};
+					instanceDesc.blas = prim.blas.get();
+					instanceDesc.transformWS = instanceWorld * nodeWorld;
+					out.push_back(instanceDesc);
+				}
+			}
+
+			for (u32 child : node.children)
+				gatherNodeTlasInstances(model, child, nodeWorld, instanceWorld, out);
+		}
+
 		void drawNodeInstanced(const ModelRenderContext& ctx, const gfx::Model& model, u32 nodeIdx,
 			const math::Mat4f parentNodeWorld, u32 firstInstance, u32 instanceCount,
 			gfx::AlphaModePass passKind, const math::Mat4f* singleInstanceWorld = nullptr)
@@ -233,5 +262,29 @@ namespace imp::gfx
 				drawNodeInstanced(ctx, *model, root, math::Mat4f::identity(),
 					blend.instanceOffset, 1, gfx::AlphaModePass::Blend, instanceWorld);
 		}
+	}
+
+	std::vector<TlasInstanceDesc> gatherTlasInstances(const ModelRegistry &modelRegistry, const RenderExtraction &extraction)
+	{
+		std::vector<gfx::TlasInstanceDesc> instances;
+		for (const ModelBatch& batch : extraction.batches)
+		{
+			const gfx::Model* model = modelRegistry.tryGet(batch.model);
+			if (!model)
+				continue;
+
+			for (u32 i = 0; i < batch.instanceCount; ++i)
+			{
+				const u32 instanceIdx = batch.firstInstance + i;
+				if (instanceIdx >= extraction.instanceData.size())
+					break;
+
+				const math::Mat4f& instanceWorld = extraction.instanceData[instanceIdx];
+				for (u32 root : model->rootNodes)
+					gatherNodeTlasInstances(*model, root, math::Mat4f::identity(), instanceWorld, instances);
+			}
+		}
+
+		return instances;
 	}
 }

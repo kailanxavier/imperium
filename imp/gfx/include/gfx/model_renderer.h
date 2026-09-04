@@ -1,7 +1,10 @@
 #pragma once
 #include <gfx/render_extraction.h>
 #include <core/math/math.h>
+#include <gfx/resources.h>
 #include <array>
+
+#include "model_registry.h"
 
 namespace imp::gfx
 {
@@ -54,4 +57,5 @@ namespace imp::gfx
 
 	void drawModelBatches(const ModelRenderContext& ctx, const RenderExtraction& extraction);
 	void drawBlendInstances(const ModelRenderContext& ctx, const RenderExtraction& extraction);
+	std::vector<TlasInstanceDesc> gatherTlasInstances(const ModelRegistry& modelRegistry, const RenderExtraction& extraction);
 }

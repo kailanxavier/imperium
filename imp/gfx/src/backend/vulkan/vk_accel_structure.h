@@ -6,7 +6,7 @@
 
 namespace imp::gfx::vulkan
 {
-	class VulkanBlas : public gfx::IBlas
+	class VulkanBlas final : public gfx::IBlas
 	{
 	public:
 		VulkanBlas() = default;
@@ -30,5 +30,25 @@ namespace imp::gfx::vulkan
 		// since technically the only thing we're allocating is the backing buffer,
 		// which does not use allocation callbacks.
 		VkAllocationCallbacks* m_allocationCallbacks = nullptr;
+	};
+
+	class VulkanTlas final : public gfx::ITlas
+	{
+	public:
+		VulkanTlas() = default;
+		~VulkanTlas() override;
+
+		VulkanTlas(const VulkanTlas&) = delete;
+		VulkanTlas& operator=(const VulkanTlas&) = delete;
+		VulkanTlas(const VulkanTlas&&) = delete;
+		VulkanTlas& operator=(const VulkanTlas&&) = delete;
+
+		[[nodiscard]] u64 deviceAddress() const override { return m_address; }
+		[[nodiscard]] VkAccelerationStructureKHR handle() const { return m_handle; }
+
+		VkDevice m_device = VK_NULL_HANDLE;
+		VkAccelerationStructureKHR m_handle = VK_NULL_HANDLE;
+		VulkanBuffer m_backingBuffer;
+		VkDeviceAddress m_address = 0;
 	};
 }

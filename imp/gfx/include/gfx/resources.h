@@ -1,5 +1,7 @@
 #pragma once
+#include <vector>
 #include <core/types/int_types.h>
+#include <core/math/math.h>
 
 namespace imp::gfx
 {
@@ -70,6 +72,26 @@ namespace imp::gfx
         u32 indexCount = 0;
         IndexFormat indexFormat = IndexFormat::Uint16;
 
+        const char* debugName = nullptr;
+    };
+
+    class ITlas
+    {
+    public:
+        virtual ~ITlas() = default;
+        [[nodiscard]] virtual u64 deviceAddress() const = 0;
+    };
+
+    struct TlasInstanceDesc
+    {
+        const IBlas* blas = nullptr;
+        math::Mat4f transformWS = math::Mat4f::identity();
+        u32 customIndex = 0;
+    };
+
+    struct TlasBuildDesc
+    {
+        std::vector<TlasInstanceDesc> instances;
         const char* debugName = nullptr;
     };
 

@@ -28,6 +28,7 @@ namespace imp::app
 		const gfx::RenderExtraction& extraction() const { return m_extraction; }
 
 		gfx::ModelRegistry& modelRegistry() { return m_modelRegistry; }
+		const gfx::ITlas* staticTlas() const { return m_staticTlas.get(); }
 
 		const std::array<gfx::CascadeData, gfx::kCascadeCount>& cascades() const { return m_cascades; }
 		void recomputeCascades(const fwk::Camera& camera, float aspect);
@@ -44,6 +45,7 @@ namespace imp::app
 
 	private:
 		void updateSunViewProj();
+		void buildStaticTlasOnce(AppContext& ctx);
 
 		gfx::ModelRegistry m_modelRegistry;
 		ecs::ModelHandle m_environmentHandle{};
@@ -61,5 +63,7 @@ namespace imp::app
 		std::array<gfx::CascadeData, gfx::kCascadeCount> m_cascades{};
 
 		gfx::RenderExtraction m_extraction;
+		std::unique_ptr<gfx::ITlas> m_staticTlas;
+		bool m_staticTlasBuildAttempted = false;
 	};
 }

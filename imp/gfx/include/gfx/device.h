@@ -39,6 +39,7 @@ namespace imp::gfx
         virtual std::unique_ptr<IBuffer> createBuffer(const BufferDesc& desc) = 0;
 
         virtual std::unique_ptr<IBlas> createBlas(const BlasBuildDesc&) { return nullptr; }
+        virtual std::unique_ptr<ITlas> createTlas(const TlasBuildDesc&) { return nullptr; }
 
         virtual std::unique_ptr<ITexture> createTexture(const TextureDesc& desc) = 0;
         virtual std::vector<std::unique_ptr<ITexture>> createTextures(const std::vector<gfx::TextureDesc>& descs) = 0;

@@ -4,6 +4,7 @@
 #include <core/log/log.h>
 #include <cmath>
 #include <gfx/texture_cache.h>
+#include <gfx/model_renderer.h>
 
 namespace imp::app
 {
@@ -92,6 +93,8 @@ namespace imp::app
 
 		m_extraction.lightData.sunViewProj = m_sunViewProj;
 		m_extraction.lightData.shadowMapSize = static_cast<float>( m_cascadeConfig.shadowMapResolution );
+
+		buildStaticTlasOnce(ctx);
 	}
 
 	void SandboxScene::recomputeCascades(const fwk::Camera& camera, float aspect)
@@ -116,5 +119,30 @@ namespace imp::app
 		Mat4f lightProj = makeOrthographicOffcentreLH(-sceneRadius, sceneRadius, -sceneRadius, sceneRadius, 0.1f, sceneRadius * 2.f);
 
 		m_sunViewProj = lightProj * lightView;
+	}
+
+	void SandboxScene::buildStaticTlasOnce(AppContext& ctx)
+	{
+		if (m_staticTlasBuildAttempted)
+			return;
+		m_staticTlasBuildAttempted = true;
+
+		if (!ctx.gfx.supportsRayTracing())
+			return;
+
+		std::vector<gfx::TlasInstanceDesc> instances = gfx::gatherTlasInstances(m_modelRegistry, m_extraction);
+		if (instances.empty())
+		{
+			LOG_WARN("Sandbox", "buildStaticTlasOnce(): no instances with a built BLAS found");
+			return;
+		}
+
+		gfx::TlasBuildDesc tlasDesc{};
+		tlasDesc.instances = std::move(instances);
+		tlasDesc.debugName = "Static Scene TLAS";
+
+		m_staticTlas = ctx.gfx.createTlas(tlasDesc);
+		if (!m_staticTlas)
+			LOG_ERROR("Sandbox", "buildStaticTlasOnce(): createTlas() failed");
 	}
 }

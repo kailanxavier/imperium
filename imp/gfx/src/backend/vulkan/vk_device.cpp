@@ -486,6 +486,161 @@ namespace imp::gfx::vulkan
 		return blas;
 	}
 
+	std::unique_ptr<gfx::ITlas> VulkanDevice::createTlas(const gfx::TlasBuildDesc &desc)
+	{
+		if (!m_rayQuerySupported)
+			return nullptr;
+
+		if (desc.instances.empty())
+		{
+			LOG_WARN("Vulkan", "createTlas(): empty instance list. Nothing to build.");
+			return nullptr;
+		}
+
+		std::vector<VkAccelerationStructureInstanceKHR> vkInstances;
+		vkInstances.reserve(desc.instances.size());
+
+		for (const gfx::TlasInstanceDesc& inst : desc.instances)
+		{
+			if (!inst.blas)
+				continue;
+
+			const auto blasAddress = static_cast<VkDeviceAddress>(inst.blas->deviceAddress());
+			if (blasAddress == 0)
+				continue;
+
+			VkAccelerationStructureInstanceKHR vkInstance{};
+			for (int r = 0; r < 3; ++r)
+				for (int c = 0; c < 4; ++c)
+					vkInstance.transform.matrix[r][c] = inst.transformWS(r, c);
+
+			vkInstance.instanceCustomIndex = inst.customIndex & 0x00FFFFFFu;
+			vkInstance.mask = 0xFF;
+			vkInstance.instanceShaderBindingTableRecordOffset = 0;
+			vkInstance.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
+			vkInstance.accelerationStructureReference = blasAddress;
+
+			vkInstances.push_back(vkInstance);
+		}
+
+		if (vkInstances.empty())
+		{
+			LOG_WARN("Vulkan", "createTlas(): no instance had a usable BLAS");
+			return nullptr;
+		}
+
+		VulkanBufferCreateInfo instanceBufferInfo{};
+		instanceBufferInfo.allocator = m_vmaAllocator;
+		instanceBufferInfo.size = vkInstances.size() * sizeof(VkAccelerationStructureInstanceKHR);
+		instanceBufferInfo.usage = VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+		instanceBufferInfo.hostVisible = true;
+		instanceBufferInfo.deviceForAddressQueries = m_device;
+
+		VulkanBuffer instanceBuffer;
+		if (!instanceBuffer.create(instanceBufferInfo))
+		{
+			LOG_ERROR("Vulkan", "createTlas(): instance buffer allocation failed ({} bytes)",
+				static_cast<u64>(instanceBuffer.size()));
+			return nullptr;
+		}
+
+		instanceBuffer.update(vkInstances.data(), instanceBufferInfo.size, 0);
+
+		VkAccelerationStructureGeometryInstancesDataKHR instancesData{};
+		instancesData.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR;
+		instancesData.arrayOfPointers = VK_FALSE;
+		instancesData.data.deviceAddress = instanceBuffer.deviceAddress();
+
+		VkAccelerationStructureGeometryKHR geometry{};
+		geometry.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
+		geometry.geometryType = VK_GEOMETRY_TYPE_INSTANCES_KHR;
+		geometry.geometry.instances = instancesData;
+
+		const auto primitiveCount = static_cast<u32>(vkInstances.size());
+		VkAccelerationStructureBuildGeometryInfoKHR buildInfo{};
+		buildInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
+		buildInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
+		buildInfo.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
+		buildInfo.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
+		buildInfo.geometryCount = 1;
+		buildInfo.pGeometries = &geometry;
+
+		VkAccelerationStructureBuildSizesInfoKHR sizeInfo{};
+		sizeInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR;
+		vkGetAccelerationStructureBuildSizesKHR_(m_device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR,
+			&buildInfo, &primitiveCount, &sizeInfo);
+
+		auto tlas = std::make_unique<VulkanTlas>();
+
+		VulkanBufferCreateInfo backingInfo{};
+		backingInfo.allocator = m_vmaAllocator;
+		backingInfo.size = sizeInfo.accelerationStructureSize;
+		backingInfo.usage = VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+		backingInfo.hostVisible = false;
+
+		if (!tlas->m_backingBuffer.create(backingInfo))
+		{
+			LOG_ERROR("Vulkan", "createTlas(): backing buffer allocation failed ({} bytes)",
+				static_cast<u64>( sizeInfo.accelerationStructureSize ));
+			return nullptr;
+		}
+
+		VkAccelerationStructureCreateInfoKHR createInfo{};
+		createInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR;
+		createInfo.buffer = tlas->m_backingBuffer.handle();
+		createInfo.size = sizeInfo.accelerationStructureSize;
+		createInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
+
+		if (vkCreateAccelerationStructureKHR_(m_device, &createInfo, allocationCallbacks(), &tlas->m_handle) != VK_SUCCESS)
+		{
+			LOG_ERROR("Vulkan", "createTlas(): vkCreateAccelerationStructureKHR failed");
+				return nullptr;
+		}
+		tlas->m_device = m_device;
+
+		buildInfo.dstAccelerationStructure = tlas->m_handle;
+
+		VulkanBufferCreateInfo scratchInfo{};
+		scratchInfo.allocator = m_vmaAllocator;
+		scratchInfo.size = sizeInfo.buildScratchSize;
+		scratchInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+		scratchInfo.hostVisible = false;
+		scratchInfo.deviceForAddressQueries = m_device;
+
+		VulkanBuffer scratch;
+		if (!scratch.create(scratchInfo))
+		{
+			LOG_ERROR("Vulkan", "createTlas(): scratch buffer allocation failed ({} bytes)",
+				static_cast<u64>(sizeInfo.buildScratchSize));
+			return nullptr;
+		}
+		buildInfo.scratchData.deviceAddress = scratch.deviceAddress();
+
+		VkAccelerationStructureBuildRangeInfoKHR rangeInfo{};
+		rangeInfo.primitiveCount = primitiveCount;
+		const VkAccelerationStructureBuildRangeInfoKHR* pRangeInfo = &rangeInfo;
+
+		submitOneTimeCommands([&buildInfo, &pRangeInfo](VkCommandBuffer cmd)
+		{
+			vkCmdBuildAccelerationStructuresKHR_(cmd, 1, &buildInfo, &pRangeInfo);
+		});
+
+		VkAccelerationStructureDeviceAddressInfoKHR addrInfo{};
+		addrInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR;
+		addrInfo.accelerationStructure = tlas->m_handle;
+		tlas->m_address = vkGetAccelerationStructureDeviceAddressKHR_(m_device, &addrInfo);
+
+		if (desc.debugName)
+		{
+			setDebugObjectName(m_device, VK_OBJECT_TYPE_ACCELERATION_STRUCTURE_KHR,
+				reinterpret_cast<u64>(tlas->m_handle), desc.debugName);
+		}
+
+		LOG_INFO("Vulkan", "Built static TLAS: {} instances(s)", vkInstances.size());
+
+		return tlas;
+	}
+
 	std::unique_ptr<gfx::ITexture> VulkanDevice::createTexture(const gfx::TextureDesc& desc)
 	{
 		const u32 resolvedMipLevels = desc.mipLevels == 0
