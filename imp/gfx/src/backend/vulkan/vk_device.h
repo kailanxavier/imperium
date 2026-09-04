@@ -52,6 +52,7 @@ namespace imp::gfx::vulkan
 		[[nodiscard]] std::unique_ptr<gfx::ISampler> createSampler(const gfx::SamplerDesc& desc) override;
 		[[nodiscard]] std::unique_ptr<gfx::IShader> createShader(const gfx::ShaderDesc& desc) override;
 		[[nodiscard]] std::unique_ptr<gfx::IPipeline> createPipeline(const gfx::PipelineDesc& desc) override;
+		[[nodiscard]] std::unique_ptr<gfx::IPipeline> createComputePipeline(const gfx::ComputePipelineDesc& desc) override;
 
 		[[nodiscard]] std::unique_ptr<gfx::IRenderTarget> createRenderTarget(const gfx::TextureDesc& desc) override;
 		[[nodiscard]] std::vector<std::unique_ptr<IRenderTarget>> createCascadeRenderTargets(

@@ -67,7 +67,13 @@ namespace imp::gfx
         virtual void draw(u32 vertexCount, u32 instanceCount = 1) = 0;
         virtual void drawIndexed(u32 indexCount, u32 instanceCount, u32 firstInstance) = 0;
 
-        // Compute dispatch and explicit resource barriers will go here
-        // but since no backend implements compute yet, I won't do it rn
+        virtual void bindComputePipeline(IPipeline& pipeline) = 0;
+        virtual void bindStorageImage(ITexture& texture, u32 binding) = 0;
+        virtual void dispatch(u32 groupCountX, u32 groupCountY, u32 groupCountZ) = 0;
+
+        // Compute is there. Still need explicit barriers beyond what
+        // beginRenderPass and bindStorageImage already handle. That's phase 3 
+        // stuff and isn't needed right now. Maybe we should start uploading photos 
+        // of the sketchbook as some sort of roadmap.
     };
 }

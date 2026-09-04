@@ -47,6 +47,8 @@ namespace imp::gfx
         virtual std::unique_ptr<IShader> createShader(const ShaderDesc& desc) = 0;
         virtual std::unique_ptr<IPipeline> createPipeline(const PipelineDesc& desc) = 0;
 
+        virtual std::unique_ptr<IPipeline> createComputePipeline(const ComputePipelineDesc&) { return nullptr; }
+
         virtual std::unique_ptr<IRenderTarget> createRenderTarget(const TextureDesc& desc) = 0;
         virtual std::vector<std::unique_ptr<IRenderTarget>> createCascadeRenderTargets(const TextureDesc& desc, ITexture** outArrayTexture) = 0;
 

@@ -188,7 +188,7 @@ namespace imp::gfx::vulkan
 
 			if (gfx::hasFlag(usage, gfx::BufferUsage::AccelStructBuildInput))
 				flags |= VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR
-				| VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+					   | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
 			return flags;
 		}
 
@@ -880,6 +880,29 @@ namespace imp::gfx::vulkan
 		if (!pipeline->create(info))
 		{
 			LOG_ERROR("Vulkan", "createPipeline failed");
+			return nullptr;
+		}
+
+		return pipeline;
+	}
+
+	std::unique_ptr<gfx::IPipeline> VulkanDevice::createComputePipeline(const gfx::ComputePipelineDesc& desc)
+	{
+		if (!desc.computeShader)
+		{
+			LOG_ERROR("Vulkan", "createComputePipeline requires a computeShader");
+			return nullptr;
+		}
+
+		VulkanComputePipelineCreateInfo info{};
+		info.device = m_device;
+		info.computeShader = static_cast<VulkanShaderModule*>( desc.computeShader );
+		info.allocationCallbacks = allocationCallbacks();
+
+		auto pipeline = std::make_unique<VulkanComputePipeline>();
+		if (!pipeline->create(info))
+		{
+			LOG_ERROR("Vulkan", "createComputePipeline failed");
 			return nullptr;
 		}
 

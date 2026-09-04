@@ -81,6 +81,7 @@ namespace imp::gfx
         BGRA8Srgb,
         RGBA16Float,
         Depth32Float,
+        RG16Float,
     };
 
     enum class TextureUsage : u32
@@ -89,6 +90,7 @@ namespace imp::gfx
         RenderTarget = 1u << 1, // writable as a colour attachment
         DepthStencil = 1u << 2, // writable as a depth/stencil attachment
         TransferSrc = 1u << 3, // readable back to CPU
+        Storage = 1u << 4, // writes them directly, no rasterization involved
     };
 
     inline TextureUsage operator|(TextureUsage a, TextureUsage b)

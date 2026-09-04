@@ -123,55 +123,15 @@ namespace imp::gfx::vulkan
 			pushConstantRange.stageFlags |= VK_SHADER_STAGE_FRAGMENT_BIT;
 
 		m_bindingLayout.clear();
-		auto mergeStage = [&](const std::vector<ReflectedBinding>& bindings, VkShaderStageFlagBits stageFlag, const char* stageName) -> bool
-		{
-			for (const ReflectedBinding& b : bindings)
-			{
-				auto it = m_bindingLayout.find(b.binding);
-				if (it == m_bindingLayout.end())
-				{
-					m_bindingLayout[b.binding] = { b.descriptorType, b.descriptorCount, static_cast<VkShaderStageFlags>( stageFlag ), stageName };
-				}
-				else if (it->second.type != b.descriptorType || it->second.count != b.descriptorCount)
-				{
-					LOG_ERROR("Vulkan", "Descriptor binding {} ('{}') disagrees between {} and {} stages. Refusing to create pipeline...",
-						b.binding, b.name, it->second.name, stageName);
-					return false;
-				}
-				else
-				{
-					it->second.stageFlags |= stageFlag;
-				}
-			}
-			return true;
-		};
 
-		if (!mergeStage(info.vertexShader->reflectedBindings(), VK_SHADER_STAGE_VERTEX_BIT, "vertex")
-			|| !mergeStage(info.fragmentShader->reflectedBindings(), VK_SHADER_STAGE_FRAGMENT_BIT, "fragment"))
+		if (!mergeReflectedBindings(m_bindingLayout, info.vertexShader->reflectedBindings(), VK_SHADER_STAGE_VERTEX_BIT, "vertex")
+			|| !mergeReflectedBindings(m_bindingLayout, info.fragmentShader->reflectedBindings(), VK_SHADER_STAGE_FRAGMENT_BIT, "fragment"))
 		{
 			return false;
 		}
 
-		std::vector<VkDescriptorSetLayoutBinding> bindings;
-		bindings.reserve(m_bindingLayout.size());
-		for (const auto& [bindingIndex, mb] : m_bindingLayout)
-		{
-			VkDescriptorSetLayoutBinding b{};
-			b.binding = bindingIndex;
-			b.descriptorType = mb.type;
-			b.descriptorCount = mb.count;
-			b.stageFlags = mb.stageFlags;
-			bindings.push_back(b);
-		}
-		if (!bindings.empty())
-		{
-			VkDescriptorSetLayoutCreateInfo layoutInfo{};
-			layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-			layoutInfo.bindingCount = static_cast<u32>( bindings.size() );
-			layoutInfo.pBindings = bindings.data();
-
-			VK_CHECK(vkCreateDescriptorSetLayout(m_device, &layoutInfo, m_allocationCallbacks, &m_descriptorSetLayout));
-		}
+		if (!createDescriptorSetLayoutFromBindings(m_device, m_allocationCallbacks, m_bindingLayout, m_descriptorSetLayout))
+			return false;
 
 		VkPipelineLayoutCreateInfo layoutInfo{};
 		layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -192,10 +152,8 @@ namespace imp::gfx::vulkan
 
 		VkPipelineRenderingCreateInfo renderingCreateInfo{};
 		renderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
-
 		renderingCreateInfo.colorAttachmentCount = colourAttachmentCount;
 		renderingCreateInfo.pColorAttachmentFormats = colourAttachmentCount > 0 ? colourAttachmentFormats : nullptr;
-
 		renderingCreateInfo.depthAttachmentFormat = info.depthAttachmentFormat;
 		renderingCreateInfo.stencilAttachmentFormat = VK_FORMAT_UNDEFINED;
 
@@ -228,6 +186,140 @@ namespace imp::gfx::vulkan
 	}
 
 	void VulkanGraphicsPipeline::destroy()
+	{
+		if (m_pipeline != VK_NULL_HANDLE)
+		{
+			vkDestroyPipeline(m_device, m_pipeline, m_allocationCallbacks);
+			m_pipeline = VK_NULL_HANDLE;
+		}
+		if (m_layout != VK_NULL_HANDLE)
+		{
+			vkDestroyPipelineLayout(m_device, m_layout, m_allocationCallbacks);
+			m_layout = VK_NULL_HANDLE;
+		}
+		if (m_descriptorSetLayout != VK_NULL_HANDLE)
+		{
+			vkDestroyDescriptorSetLayout(m_device, m_descriptorSetLayout, m_allocationCallbacks);
+			m_descriptorSetLayout = VK_NULL_HANDLE;
+		}
+		m_device = VK_NULL_HANDLE;
+	}
+
+	bool mergeReflectedBindings(std::unordered_map<u32, PipelineBindingInfo>& bindingLayout, const std::vector<ReflectedBinding>& bindings, VkShaderStageFlagBits stageFlag, const char* stageName)
+	{
+		for (const ReflectedBinding& b : bindings)
+		{
+			auto it = bindingLayout.find(b.binding);
+			if (it == bindingLayout.end())
+			{
+				bindingLayout[b.binding] = {
+					b.descriptorType,
+					b.descriptorCount,
+					static_cast<VkShaderStageFlags>( stageFlag ),
+					stageName
+				};
+			}
+			else if (it->second.type != b.descriptorType || it->second.count != b.descriptorCount)
+			{
+				LOG_ERROR("Vulkan", "Descriptor binding {} ('{}') disagrees between {} and {} stages. Refusing to create pipeline...",
+					b.binding, b.name, it->second.name, stageName);
+				return false;
+			}
+			else
+			{
+				it->second.stageFlags |= stageFlag;
+			}
+		}
+		return true;
+	}
+
+	bool createDescriptorSetLayoutFromBindings(VkDevice device, const VkAllocationCallbacks* allocationCallbacks, const std::unordered_map<u32, PipelineBindingInfo>& bindingLayout, VkDescriptorSetLayout& outLayout)
+	{
+		std::vector<VkDescriptorSetLayoutBinding> bindings;
+		bindings.reserve(bindingLayout.size());
+		for (const auto& [bindingIndex, mb] : bindingLayout)
+		{
+			VkDescriptorSetLayoutBinding b{};
+			b.binding = bindingIndex;
+			b.descriptorType = mb.type;
+			b.descriptorCount = mb.count;
+			b.stageFlags = mb.stageFlags;
+			bindings.push_back(b);
+		}
+
+		if (bindings.empty())
+			return true; // outLayout stays VK_NULL_HANDLE, not an error
+
+		VkDescriptorSetLayoutCreateInfo layoutInfo{};
+		layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+		layoutInfo.bindingCount = static_cast<u32>( bindings.size() );
+		layoutInfo.pBindings = bindings.data();
+
+		VK_CHECK(vkCreateDescriptorSetLayout(device, &layoutInfo, allocationCallbacks, &outLayout));
+		return true;
+	}
+
+	VulkanComputePipeline::~VulkanComputePipeline()
+	{
+		destroy();
+	}
+
+	bool VulkanComputePipeline::create(const VulkanComputePipelineCreateInfo& info)
+	{
+		m_device = info.device;
+		m_allocationCallbacks = info.allocationCallbacks;
+
+		m_bindingLayout.clear();
+		if (!mergeReflectedBindings(m_bindingLayout, info.computeShader->reflectedBindings(), VK_SHADER_STAGE_COMPUTE_BIT, "compute"))
+			return false;
+
+		if (!createDescriptorSetLayoutFromBindings(m_device, m_allocationCallbacks, m_bindingLayout, m_descriptorSetLayout))
+			return false;
+
+		const u32 pushConstantSize = info.computeShader->pushConstantSize();
+		VkPushConstantRange pushConstantRange{};
+		pushConstantRange.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+		pushConstantRange.offset = 0;
+		pushConstantRange.size = pushConstantSize;
+
+		VkPipelineLayoutCreateInfo layoutInfo{};
+		layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+		if (pushConstantSize > 0)
+		{
+			layoutInfo.pushConstantRangeCount = 1;
+			layoutInfo.pPushConstantRanges = &pushConstantRange;
+		}
+		if (m_descriptorSetLayout != VK_NULL_HANDLE)
+		{
+			layoutInfo.setLayoutCount = 1;
+			layoutInfo.pSetLayouts = &m_descriptorSetLayout;
+		}
+
+		VK_CHECK(vkCreatePipelineLayout(m_device, &layoutInfo, m_allocationCallbacks, &m_layout));
+
+		VkPipelineShaderStageCreateInfo stage{};
+		stage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+		stage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+		stage.module = info.computeShader->handle();
+		stage.pName = "main";
+
+		VkComputePipelineCreateInfo pipelineInfo{};
+		pipelineInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+		pipelineInfo.stage = stage;
+		pipelineInfo.layout = m_layout;
+
+		if (vkCreateComputePipelines(m_device, VK_NULL_HANDLE, 1, &pipelineInfo, m_allocationCallbacks, &m_pipeline) != VK_SUCCESS)
+		{
+			LOG_ERROR("Vulkan", "vkCreateComputePipelines() failed");
+			vkDestroyPipelineLayout(m_device, m_layout, m_allocationCallbacks);
+			m_layout = VK_NULL_HANDLE;
+			return false;
+		}
+
+		return true;
+	}
+
+	void VulkanComputePipeline::destroy()
 	{
 		if (m_pipeline != VK_NULL_HANDLE)
 		{

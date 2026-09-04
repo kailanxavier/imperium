@@ -8,7 +8,6 @@ const float kExposure = 0.0;
 const float kSaturation = 1.0;
 const vec3 kLuminance = vec3(0.2126, 0.7152, 0.0722);
 
-
 vec3 Saturate(vec3 colour, float saturation)
 {
 	float grey = dot(colour, kLuminance);

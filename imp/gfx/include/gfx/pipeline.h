@@ -84,9 +84,9 @@ namespace imp::gfx
 
         TextureFormat colourFormat = TextureFormat::Unknown;
 
-        // optional second colour attachment (for multiple render targets)
+        // Optional second colour attachment (for multiple render targets),
         // leaving it as unknown for the current single-target pipelines *shouldn't*
-        // do any harm
+        // do any harm.
         TextureFormat colourFormat1 = TextureFormat::Unknown;
 
         TextureFormat depthFormat = TextureFormat::Unknown;
@@ -100,5 +100,10 @@ namespace imp::gfx
     {
     public:
         virtual ~IPipeline() = default;
+    };
+
+    struct ComputePipelineDesc
+    {
+        IShader* computeShader = nullptr;
     };
 }

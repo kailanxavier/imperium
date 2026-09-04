@@ -5,6 +5,8 @@
 #include <vulkan/vulkan.h>
 #include <vector>
 
+#include "vk_shader.h"
+
 namespace imp::fs { class VirtualFileSystem; }
 namespace imp::gfx::vulkan
 {
@@ -63,6 +65,44 @@ namespace imp::gfx::vulkan
 		[[nodiscard]] VkPipelineLayout layout() const { return m_layout; }
 		[[nodiscard]] VkDescriptorSetLayout descriptorSetLayout() const { return m_descriptorSetLayout; }
 		[[nodiscard]] bool isValid() const { return m_pipeline != VK_NULL_HANDLE; }
+		[[nodiscard]] const std::unordered_map<u32, PipelineBindingInfo>& bindingLayout() const { return m_bindingLayout; }
+
+	private:
+		VkDevice m_device = VK_NULL_HANDLE;
+		VkPipelineLayout m_layout = VK_NULL_HANDLE;
+		VkPipeline m_pipeline = VK_NULL_HANDLE;
+		VkDescriptorSetLayout m_descriptorSetLayout = VK_NULL_HANDLE;
+		const VkAllocationCallbacks* m_allocationCallbacks = nullptr;
+		std::unordered_map<u32, PipelineBindingInfo> m_bindingLayout;
+	};
+
+	bool mergeReflectedBindings(std::unordered_map<u32, PipelineBindingInfo>& bindingLayout,
+		const std::vector<ReflectedBinding>& bindings, VkShaderStageFlagBits stageFlag, const char* stageName);
+	bool createDescriptorSetLayoutFromBindings(VkDevice device, const VkAllocationCallbacks* allocationCallbacks,
+		const std::unordered_map<u32, PipelineBindingInfo>& bindingLayout, VkDescriptorSetLayout& outLayout);
+
+	struct VulkanComputePipelineCreateInfo
+	{
+		VkDevice device = VK_NULL_HANDLE;
+		VulkanShaderModule* computeShader = nullptr;
+		const VkAllocationCallbacks* allocationCallbacks = nullptr;
+	};
+
+	class VulkanComputePipeline final : public gfx::IPipeline
+	{
+	public:
+		VulkanComputePipeline() = default;
+		~VulkanComputePipeline() override;
+
+		VulkanComputePipeline(const VulkanComputePipeline&) = delete;
+		VulkanComputePipeline& operator=(const VulkanComputePipeline&) = delete;
+
+		bool create(const VulkanComputePipelineCreateInfo& info);
+		void destroy();
+
+		[[nodiscard]] VkPipeline pipeline() const { return m_pipeline; }
+		[[nodiscard]] VkPipelineLayout layout() const { return m_layout; }
+		[[nodiscard]] VkDescriptorSetLayout descriptorSetLayout() const { return m_descriptorSetLayout; }
 		[[nodiscard]] const std::unordered_map<u32, PipelineBindingInfo>& bindingLayout() const { return m_bindingLayout; }
 
 	private:
