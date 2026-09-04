@@ -267,6 +267,12 @@ namespace imp::gfx::vulkan
 
 	void VulkanCommandList::pushConstants(const void* data, u32 size, u32 offset)
 	{
+		if (m_currentBindPoint == VK_PIPELINE_BIND_POINT_COMPUTE)
+		{
+			vkCmdPushConstants(m_cmd, m_currentPipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, offset, size, data);
+			return;
+		}
+
 		// TODO: Always VK_SHADER_STAGE_VERTEX_BIT
 		// My simpleton mind was not aware of the implications when I wrote it
 		vkCmdPushConstants(m_cmd, m_currentPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, offset, size, data);
@@ -282,6 +288,40 @@ namespace imp::gfx::vulkan
 	{
 		flushDescriptorBindings();
 		vkCmdDrawIndexed(m_cmd, indexCount, instanceCount, 0, 0, firstInstance);
+	}
+
+	void VulkanCommandList::bindComputePipeline(gfx::IPipeline& pipeline)
+	{
+		const auto& vkPipeline = dynamic_cast<VulkanComputePipeline&>( pipeline );
+		vkCmdBindPipeline(m_cmd, VK_PIPELINE_BIND_POINT_COMPUTE, vkPipeline.pipeline());
+		m_currentBindPoint = VK_PIPELINE_BIND_POINT_COMPUTE;
+		m_currentPipelineLayout = vkPipeline.layout();
+		m_currentDescriptorSetLayout = vkPipeline.descriptorSetLayout();
+		m_currentBindingLayout = &vkPipeline.bindingLayout();
+		m_currentDescriptorSet = VK_NULL_HANDLE;
+		m_pendingBindings.clear();
+	}
+
+	void VulkanCommandList::bindStorageImage(gfx::ITexture& texture, u32 binding)
+	{
+		const auto& vkTexture = dynamic_cast<VulkanTexture&>( texture );
+		transitionImage(vkTexture.image(), VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_GENERAL,
+			VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+			VK_ACCESS_2_SHADER_STORAGE_READ_BIT | VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT);
+
+		PendingBinding pb{};
+		pb.type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+		pb.binding = binding;
+		pb.imageView = vkTexture.imageView();
+		pb.sampler = VK_NULL_HANDLE;
+		pb.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+		setPendingBinding(pb);
+	}
+
+	void VulkanCommandList::dispatch(u32 groupCountX, u32 groupCountY, u32 groupCountZ)
+	{
+		flushDescriptorBindings();
+		vkCmdDispatch(m_cmd, groupCountX, groupCountY, groupCountZ);
 	}
 
 	void VulkanCommandList::transitionToPresent(gfx::IRenderTarget& target)
@@ -365,7 +405,7 @@ namespace imp::gfx::vulkan
 				}
 				else
 				{
-					imageInfos.push_back({ pb.sampler, pb.imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
+					imageInfos.push_back({ pb.sampler, pb.imageView, pb.imageLayout });
 					write.pImageInfo = &imageInfos.back();
 				}
 
@@ -378,7 +418,7 @@ namespace imp::gfx::vulkan
 
 		if (set != m_currentDescriptorSet)
 		{
-			vkCmdBindDescriptorSets(m_cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
+			vkCmdBindDescriptorSets(m_cmd, m_currentBindPoint,
 				m_currentPipelineLayout, 0, 1, &set, 0, nullptr);
 			m_currentDescriptorSet = set;
 		}

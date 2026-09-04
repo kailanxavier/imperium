@@ -67,9 +67,9 @@ namespace imp::gfx
         virtual void draw(u32 vertexCount, u32 instanceCount = 1) = 0;
         virtual void drawIndexed(u32 indexCount, u32 instanceCount, u32 firstInstance) = 0;
 
-        virtual void bindComputePipeline(IPipeline& pipeline) {};
-        virtual void bindStorageImage(ITexture& texture, u32 binding) {};
-        virtual void dispatch(u32 groupCountX, u32 groupCountY, u32 groupCountZ) {};
+        virtual void bindComputePipeline(IPipeline& pipeline) = 0;
+        virtual void bindStorageImage(ITexture& texture, u32 binding) = 0;
+        virtual void dispatch(u32 groupCountX, u32 groupCountY, u32 groupCountZ) = 0;
 
         // Compute is there. Still need explicit barriers beyond what
         // beginRenderPass and bindStorageImage already handle. That's phase 3 

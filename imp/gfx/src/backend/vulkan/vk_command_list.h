@@ -30,6 +30,10 @@ namespace imp::gfx::vulkan
 		void draw(u32 vertexCount, u32 instanceCount) override;
 		void drawIndexed(u32 indexCount, u32 instanceCount, u32 firstInstance) override;
 
+		void bindComputePipeline(gfx::IPipeline& pipeline) override;
+		void bindStorageImage(gfx::ITexture& texture, u32 binding) override;
+		void dispatch(u32 groupCountX, u32 groupCountY, u32 groupCountZ) override;
+
 		[[nodiscard]] VkCommandBuffer commandBuffer() const { return m_cmd; }
 
 		void transitionToPresent(gfx::IRenderTarget& target);
@@ -67,6 +71,7 @@ namespace imp::gfx::vulkan
 			VkDeviceSize range = 0;
 			VkImageView imageView = VK_NULL_HANDLE;
 			VkSampler sampler = VK_NULL_HANDLE;
+			VkImageLayout imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 		};
 
 		void setPendingBinding(const PendingBinding& pb);
@@ -84,6 +89,7 @@ namespace imp::gfx::vulkan
 		VkDevice m_device = VK_NULL_HANDLE;
 		VkPipelineLayout m_currentPipelineLayout = VK_NULL_HANDLE;
 		VkDescriptorSetLayout m_currentDescriptorSetLayout = VK_NULL_HANDLE;
+		VkPipelineBindPoint m_currentBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
 
 		const std::unordered_map<u32, PipelineBindingInfo>* m_currentBindingLayout = nullptr;
 
