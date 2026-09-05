@@ -54,5 +54,5 @@ namespace imp::app
 	gfx::RGTextureHandle addBilateralBlurPass(gfx::RenderGraph& graph, RenderResources& resources,
 		AppContext& ctx, const PrepassOutputs& prepass, gfx::RGTextureHandle rawAO);
 
-	void addDDGIProbeUpdatePass(gfx::RenderGraph& graph, RenderResources& resources, AppContext& ctx);
+	void addDDGIProbeUpdatePass(gfx::RenderGraph& graph, RenderResources& resources, SandboxScene& scene, AppContext& ctx, const SceneRenderParams& params);
 }

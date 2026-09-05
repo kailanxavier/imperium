@@ -1,10 +1,11 @@
 #include <sandbox/sandbox_scene.h>
 #include <gfx/render_extraction.h>
+#include <gfx/model_renderer.h>
+#include <gfx/ddgi_volume.h>
 #include <core/config/cvar.h>
 #include <core/log/log.h>
 #include <cmath>
 #include <gfx/texture_cache.h>
-#include <gfx/model_renderer.h>
 
 namespace imp::app
 {
@@ -123,14 +124,14 @@ namespace imp::app
 
 	void SandboxScene::buildStaticTlasOnce(AppContext& ctx)
 	{
-		if (m_staticTlasBuildAttempted)
-			return;
+		if (m_staticTlasBuildAttempted) return;
 		m_staticTlasBuildAttempted = true;
 
 		if (!ctx.gfx.supportsRayTracing())
 			return;
 
-		std::vector<gfx::TlasInstanceDesc> instances = gfx::gatherTlasInstances(m_modelRegistry, m_extraction);
+		std::vector<gfx::DDGIInstanceMaterial> materials;
+		std::vector<gfx::TlasInstanceDesc> instances = gfx::gatherTlasInstances(m_modelRegistry, m_extraction, &materials);
 		if (instances.empty())
 		{
 			LOG_WARN("Sandbox", "buildStaticTlasOnce(): no instances with a built BLAS found");
@@ -143,6 +144,19 @@ namespace imp::app
 
 		m_staticTlas = ctx.gfx.createTlas(tlasDesc);
 		if (!m_staticTlas)
+		{
 			LOG_ERROR("Sandbox", "buildStaticTlasOnce(): createTlas() failed");
+			return;
+		}
+
+		gfx::BufferDesc materialsDesc{};
+		materialsDesc.size = materials.size() * sizeof(gfx::DDGIInstanceMaterial);
+		materialsDesc.usage = gfx::BufferUsage::Storage;
+		materialsDesc.memoryAccess = gfx::MemoryAccess::HostVisible;
+		m_ddgiInstanceMaterials = ctx.gfx.createBuffer(materialsDesc);
+		if (m_ddgiInstanceMaterials)
+			m_ddgiInstanceMaterials->update(materials.data(), materialsDesc.size, 0);
+		else
+			LOG_ERROR("Sandbox", "buildStaticTlasOnce(): instance material buffer allocation failed");
 	}
 }

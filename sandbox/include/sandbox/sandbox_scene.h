@@ -28,7 +28,9 @@ namespace imp::app
 		const gfx::RenderExtraction& extraction() const { return m_extraction; }
 
 		gfx::ModelRegistry& modelRegistry() { return m_modelRegistry; }
+
 		const gfx::ITlas* staticTlas() const { return m_staticTlas.get(); }
+		gfx::IBuffer* ddgiInstanceMaterials() const { return m_ddgiInstanceMaterials.get(); }
 
 		const std::array<gfx::CascadeData, gfx::kCascadeCount>& cascades() const { return m_cascades; }
 		void recomputeCascades(const fwk::Camera& camera, float aspect);
@@ -65,5 +67,7 @@ namespace imp::app
 		gfx::RenderExtraction m_extraction;
 		std::unique_ptr<gfx::ITlas> m_staticTlas;
 		bool m_staticTlasBuildAttempted = false;
+
+		std::unique_ptr<gfx::IBuffer> m_ddgiInstanceMaterials;
 	};
 }

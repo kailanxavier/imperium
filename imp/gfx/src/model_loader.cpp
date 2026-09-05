@@ -320,11 +320,15 @@ namespace imp::gfx
 			BufferDesc vbDesc;
 			vbDesc.size = vertices.size() * sizeof(ModelVertex);
 			vbDesc.usage = BufferUsage::Vertex;
+			if (device.supportsRayTracing())
+				vbDesc.usage = vbDesc.usage | BufferUsage::AccelStructBuildInput;
 			vbDesc.memoryAccess = MemoryAccess::HostVisible;
 			out.vertexBuffer = device.createBuffer(vbDesc);
 
 			BufferDesc ibDesc;
 			ibDesc.usage = BufferUsage::Index;
+			if (device.supportsRayTracing())
+				ibDesc.usage = ibDesc.usage | BufferUsage::AccelStructBuildInput;
 			ibDesc.memoryAccess = MemoryAccess::HostVisible;
 			ibDesc.indexFormat = indexFormat;
 
@@ -361,6 +365,22 @@ namespace imp::gfx
 
 			out.indexCount = static_cast<u32>( indices.size() );
 			out.materialIndex = prim.material ? static_cast<i32>( prim.material - data->materials ) : -1;
+
+			if (device.supportsRayTracing())
+			{
+				BlasBuildDesc blasDesc{};
+				blasDesc.vertexBuffer = out.vertexBuffer.get();
+				blasDesc.vertexCount = static_cast<u32>( vertices.size() );
+				blasDesc.vertexStride = sizeof(ModelVertex);
+				blasDesc.indexBuffer = out.indexBuffer.get();
+				blasDesc.indexCount = out.indexCount;
+				blasDesc.indexFormat = indexFormat;
+				blasDesc.debugName = "MeshPrimitive BLAS";
+
+				out.blas = device.createBlas(blasDesc);
+				if (!out.blas)
+					LOG_WARN("Model Loader", "BLAS build failed for a primitive");
+			}
 
 			return true;
 		}

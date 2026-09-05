@@ -1570,6 +1570,7 @@ namespace imp::gfx::vulkan
 		info.physicalDevice = m_physicalDevice;
 		info.device = m_device;
 		info.vulkanApiVersion = VK_API_VERSION_1_3;
+		info.flags |= VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
 		info.pAllocationCallbacks = allocationCallbacks();
 
 		if (vmaCreateAllocator(&info, &m_vmaAllocator) != VK_SUCCESS)

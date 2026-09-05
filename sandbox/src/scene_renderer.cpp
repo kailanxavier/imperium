@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <gfx/ao.h>
 #include <gfx/ao_cvars.h>
+#include <gfx/gi_cvars.h>
 
 namespace imp::app
 {
@@ -86,18 +87,22 @@ namespace imp::app
 		{
 			gfx::RGTextureHandle irradianceAtlas;
 			gfx::RGTextureHandle depthAtlas;
+			gfx::RGBufferHandle lightUBO;
 			RenderResources* resources = nullptr;
+			const SandboxScene* scene = nullptr;
 		};
 	}
 
-	void addDDGIProbeUpdatePass(gfx::RenderGraph& graph, RenderResources& resources, AppContext& ctx)
+	void addDDGIProbeUpdatePass(gfx::RenderGraph& graph, RenderResources& resources, SandboxScene& scene, AppContext& ctx, const SceneRenderParams& params)
 	{
 		if (!ctx.gfx.supportsRayTracing())
 			return;
 
 		gfx::DDGIVolume& volume = resources.ddgiVolume();
 		gfx::IPipeline* pipeline = resources.ddgiProbeUpdatePipeline();
-		if (!volume.irradianceAtlas() || !volume.depthAtlas() || !pipeline)
+		const gfx::ITlas* tlas = scene.staticTlas();
+		const gfx::IBuffer* materials = scene.ddgiInstanceMaterials();
+		if (!volume.irradianceAtlas() || !volume.depthAtlas() || !pipeline || !tlas || !materials)
 			return;
 
 		graph.addPass<DDGIProbeUpdatePassData>("DDGIProbeUpdate",
@@ -105,16 +110,22 @@ namespace imp::app
 			{
 				d.irradianceAtlas = b.writeStorageTexture(b.importTexture("DDGIIrradianceAtlas", volume.irradianceAtlas()));
 				d.depthAtlas = b.writeStorageTexture(b.importTexture("DDGIDepthAtlas", volume.depthAtlas()));
+				d.lightUBO = b.readBuffer(b.importBuffer("LightUBO", &resources.lightUBO(params.currentFrame)));
 				d.resources = &resources;
-				b.hasSideEffect();
+				d.scene = &scene;
 			},
 			[](const DDGIProbeUpdatePassData& d, gfx::RenderGraphContext& rgCtx)
 			{
 				gfx::DDGIVolume& volume = d.resources->ddgiVolume();
+				const gfx::ITlas& tlas = *d.scene->staticTlas();
+				gfx::IBuffer& materials = *d.scene->ddgiInstanceMaterials();
 
 				rgCtx.cmd().bindComputePipeline(*d.resources->ddgiProbeUpdatePipeline());
 				rgCtx.cmd().bindStorageImage(rgCtx.texture(d.irradianceAtlas), 0);
 				rgCtx.cmd().bindStorageImage(rgCtx.texture(d.depthAtlas), 1);
+				rgCtx.cmd().bindAccelerationStructure(tlas, 2);
+				rgCtx.cmd().bindStorageBuffer(materials, 3);
+				rgCtx.cmd().bindUniformBuffer(rgCtx.buffer(d.lightUBO), 4);
 
 				gfx::DDGIProbeUpdatePushConstants pc{};
 				pc.probeCountX = volume.probeCountX();
@@ -122,12 +133,30 @@ namespace imp::app
 				pc.probeCountZ = volume.probeCountZ();
 				pc.irradianceTileTexels = gfx::DDGIVolume::kIrradianceTileTexels;
 				pc.depthTileTexels = gfx::DDGIVolume::kDepthTileTexels;
-				rgCtx.cmd().pushConstants(&pc, sizeof(pc), 0);
+				pc.maxRayDistance = gfx::gi::cvarMaxRayDistance;
+				pc.hysteresis = gfx::gi::cvarHysteresis;
+				pc.probeSpacing = volume.desc().probeSpacing;
+				const math::Vec3f minCorner = volume.desc().origin - volume.desc().extents;
+				pc.minCornerX = minCorner.x;
+				pc.minCornerY = minCorner.y;
+				pc.minCornerZ = minCorner.z;
+				pc.normalBias = gfx::gi::cvarNormalBias;
+				pc.viewBias = gfx::gi::cvarViewBias;
+				const u32 irrInterior = gfx::DDGIVolume::kIrradianceInteriorTexels;
+				const u32 irrWidth = volume.probeCountX() * volume.probeCountY() * irrInterior;
+				const u32 irrHeight = volume.probeCountZ() * irrInterior;
 
-				const u32 groupsX = ( volume.probeCountX() + 7 ) / 8;
-				const u32 groupsY = ( volume.probeCountY() + 7 ) / 8;
-				const u32 groupsZ = volume.probeCountZ();
-				rgCtx.cmd().dispatch(groupsX, groupsY, groupsZ);
+				pc.isDepthPass = 0;
+				rgCtx.cmd().pushConstants(&pc, sizeof(pc), 0);
+				rgCtx.cmd().dispatch(( irrWidth + 7 ) / 8, ( irrHeight + 7 ) / 8, 1);
+
+				const u32 depthInterior = gfx::DDGIVolume::kDepthInteriorTexels;
+				const u32 depthWidth = volume.probeCountX() * volume.probeCountY() * depthInterior;
+				const u32 depthHeight = volume.probeCountZ() * depthInterior;
+
+				pc.isDepthPass = 1;
+				rgCtx.cmd().pushConstants(&pc, sizeof(pc), 0);
+				rgCtx.cmd().dispatch(( depthWidth + 7 ) / 8, ( depthHeight + 7 ) / 8, 1);
 			});
 	}
 

@@ -21,7 +21,7 @@ namespace imp::gfx
 		}
 
 		void gatherNodeTlasInstances(const gfx::Model& model, u32 nodeIdx, const math::Mat4f& parentNodeWorld,
-			const math::Mat4f& instanceWorld, std::vector<TlasInstanceDesc>& out)
+			const math::Mat4f& instanceWorld, std::vector<TlasInstanceDesc>& out, std::vector<DDGIInstanceMaterial>* outMaterials)
 		{
 			const gfx::ModelNode& node = model.nodes[nodeIdx];
 			const math::Mat4f nodeWorld = parentNodeWorld * node.localTransform;
@@ -31,7 +31,10 @@ namespace imp::gfx
 				for (const gfx::MeshPrimitive& prim : model.meshes[node.meshIndex].primitives)
 				{
 					if (!prim.blas)
+					{
+						LOG_WARN("Model Renderer", "BLAS not built for {}", model.meshes[node.meshIndex].name.c_str());
 						continue;
+					}
 
 					const gfx::Material* mat = (prim.materialIndex >= 0 ) ? &model.materials[prim.materialIndex] : nullptr;
 					const gfx::AlphaMode alphaMode = mat ? mat->alphaMode : gfx::AlphaMode::Opaque;
@@ -41,12 +44,25 @@ namespace imp::gfx
 					gfx::TlasInstanceDesc instanceDesc{};
 					instanceDesc.blas = prim.blas.get();
 					instanceDesc.transformWS = instanceWorld * nodeWorld;
+
+					if (outMaterials)
+					{
+						instanceDesc.customIndex = static_cast<u32>( outMaterials->size() );
+						gfx::DDGIInstanceMaterial material{};
+						if (mat)
+						{
+							material.baseColour = mat->baseColourFactor;
+							material.metallicRoughness = math::Vec4f(mat->metallicFactor, mat->roughnessFactor, 0.f, 0.f);
+						}
+						outMaterials->push_back(material);
+					}
+
 					out.push_back(instanceDesc);
 				}
 			}
 
 			for (u32 child : node.children)
-				gatherNodeTlasInstances(model, child, nodeWorld, instanceWorld, out);
+				gatherNodeTlasInstances(model, child, nodeWorld, instanceWorld, out, outMaterials);
 		}
 
 		void drawNodeInstanced(const ModelRenderContext& ctx, const gfx::Model& model, u32 nodeIdx,
@@ -264,9 +280,12 @@ namespace imp::gfx
 		}
 	}
 
-	std::vector<TlasInstanceDesc> gatherTlasInstances(const ModelRegistry &modelRegistry, const RenderExtraction &extraction)
+	std::vector<TlasInstanceDesc> gatherTlasInstances(const ModelRegistry &modelRegistry, const RenderExtraction &extraction, std::vector<DDGIInstanceMaterial>* outMaterials)
 	{
 		std::vector<gfx::TlasInstanceDesc> instances;
+		if (outMaterials)
+			outMaterials->clear();
+
 		for (const ModelBatch& batch : extraction.batches)
 		{
 			const gfx::Model* model = modelRegistry.tryGet(batch.model);
@@ -281,7 +300,7 @@ namespace imp::gfx
 
 				const math::Mat4f& instanceWorld = extraction.instanceData[instanceIdx];
 				for (u32 root : model->rootNodes)
-					gatherNodeTlasInstances(*model, root, math::Mat4f::identity(), instanceWorld, instances);
+					gatherNodeTlasInstances(*model, root, math::Mat4f::identity(), instanceWorld, instances, outMaterials);
 			}
 		}
 

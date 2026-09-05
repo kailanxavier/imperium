@@ -126,6 +126,8 @@ namespace imp::app
 		const ShadowCascadePasses shadowPasses = addShadowCascadePasses(graph, m_resources, m_scene, params);
 		const gfx::RGTextureHandle hdrResolve = addHdrPass(graph, m_resources, m_scene, ctx, params, shadowPasses, aoTexture);
 
+		addDDGIProbeUpdatePass(graph, m_resources, m_scene, ctx, params);
+
 		addTonemapPass(graph, m_resources, hdrResolve, ctx.gfx.backBuffer(), "Tonemap");
 		if (m_readbackTarget)
 			addTonemapPass(graph, m_resources, hdrResolve, *m_readbackTarget, "Tonemap Readback");

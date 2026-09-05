@@ -55,5 +55,21 @@ namespace imp::gfx
 		u32 probeCountZ{ 0 };
 		u32 irradianceTileTexels{ 0 };
 		u32 depthTileTexels{ 0 };
+		u32 isDepthPass{ 0 };
+		float maxRayDistance{ 0.f };
+		float hysteresis{ 0.f };
+		float probeSpacing{ 0.f };
+		float minCornerX{ 0.f };
+		float minCornerY{ 0.f };
+		float minCornerZ{ 0.f };
+		float normalBias{ 0.f };
+		float viewBias{ 0.f };
 	};
+
+	struct DDGIInstanceMaterial
+	{
+		math::Vec4f baseColour{ 1.f, 1.f, 1.f, 1.f }; // rgb = albedo. .a unused
+		math::Vec4f metallicRoughness{ 0.f, 1.f, 0.f, 0.f }; // x = metallic, y = roughness. .z,.w unused
+	};
+	static_assert( sizeof(DDGIInstanceMaterial) == 32 && "DDGIInstanceMaterial must stay std430 array friendly" );
 }

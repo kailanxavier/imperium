@@ -32,6 +32,8 @@ namespace imp::gfx::vulkan
 
 		void bindComputePipeline(gfx::IPipeline& pipeline) override;
 		void bindStorageImage(gfx::ITexture& texture, u32 binding) override;
+		void bindStorageBuffer(gfx::IBuffer& buffer, u32 binding) override;
+		void bindAccelerationStructure(const gfx::ITlas& tlas, u32 binding) override;
 		void dispatch(u32 groupCountX, u32 groupCountY, u32 groupCountZ) override;
 
 		[[nodiscard]] VkCommandBuffer commandBuffer() const { return m_cmd; }
@@ -72,6 +74,7 @@ namespace imp::gfx::vulkan
 			VkImageView imageView = VK_NULL_HANDLE;
 			VkSampler sampler = VK_NULL_HANDLE;
 			VkImageLayout imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			VkAccelerationStructureKHR accelStruct = VK_NULL_HANDLE;
 		};
 
 		void setPendingBinding(const PendingBinding& pb);

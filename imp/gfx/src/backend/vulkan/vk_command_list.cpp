@@ -8,6 +8,7 @@
 #include "vk_texture.h"
 #include "vk_sampler.h"
 #include "vk_debug_utils.h"
+#include "vk_accel_structure.h"
 #include <core/log/log.h>
 
 #include <algorithm>
@@ -319,6 +320,29 @@ namespace imp::gfx::vulkan
 		setPendingBinding(pb);
 	}
 
+	void VulkanCommandList::bindStorageBuffer(gfx::IBuffer& buffer, u32 binding)
+	{
+		const auto& vkBuffer = dynamic_cast<VulkanBuffer&>( buffer );
+
+		PendingBinding pb{};
+		pb.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		pb.binding = binding;
+		pb.buffer = vkBuffer.handle();
+		pb.range = vkBuffer.size();
+		setPendingBinding(pb);
+	}
+
+	void VulkanCommandList::bindAccelerationStructure(const gfx::ITlas& tlas, u32 binding)
+	{
+		const auto& vkTlas = dynamic_cast<const VulkanTlas&>( tlas );
+
+		PendingBinding pb{};
+		pb.type = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
+		pb.binding = binding;
+		pb.accelStruct = vkTlas.handle();
+		setPendingBinding(pb);
+	}
+
 	void VulkanCommandList::dispatch(u32 groupCountX, u32 groupCountY, u32 groupCountZ)
 	{
 		flushDescriptorBindings();
@@ -387,6 +411,11 @@ namespace imp::gfx::vulkan
 			bufferInfos.reserve(m_pendingBindings.size());
 			imageInfos.reserve(m_pendingBindings.size());
 
+			std::vector<VkAccelerationStructureKHR> accelHandles;
+			std::vector<VkWriteDescriptorSetAccelerationStructureKHR> accelInfos;
+			accelHandles.reserve(m_pendingBindings.size());
+			accelInfos.reserve(m_pendingBindings.size());
+
 			std::vector<VkWriteDescriptorSet> writes;
 			writes.reserve(m_pendingBindings.size());
 
@@ -399,10 +428,21 @@ namespace imp::gfx::vulkan
 				write.descriptorCount = 1;
 				write.descriptorType = pb.type;
 
-				if (pb.type == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER)
+				if (pb.type == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER || pb.type == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
 				{
 					bufferInfos.push_back({ pb.buffer, 0, pb.range });
 					write.pBufferInfo = &bufferInfos.back();
+				}
+				else if (pb.type == VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR)
+				{
+					accelHandles.push_back(pb.accelStruct);
+					VkWriteDescriptorSetAccelerationStructureKHR accelWrite{};
+					accelWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR;
+					accelWrite.accelerationStructureCount = 1;
+					accelWrite.pAccelerationStructures = &accelHandles.back();
+					accelInfos.push_back(accelWrite);
+
+					write.pNext = &accelInfos.back();
 				}
 				else
 				{
@@ -444,6 +484,7 @@ namespace imp::gfx::vulkan
 			mix(reinterpret_cast<u64>( pb.buffer ));
 			mix(reinterpret_cast<u64>( pb.imageView ));
 			mix(reinterpret_cast<u64>( pb.sampler ));
+			mix(reinterpret_cast<u64>( pb.accelStruct ));
 		}
 		return hash;
 	}

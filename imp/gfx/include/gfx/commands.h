@@ -8,6 +8,7 @@ namespace imp::gfx
     class ITexture;
     class ISampler;
     class IRenderTarget;
+    class ITlas;
 
     struct ClearColour
     {
@@ -69,6 +70,9 @@ namespace imp::gfx
 
         virtual void bindComputePipeline(IPipeline& pipeline) = 0;
         virtual void bindStorageImage(ITexture& texture, u32 binding) = 0;
+        virtual void bindStorageBuffer(IBuffer& buffer, u32 binding) = 0;
+        virtual void bindAccelerationStructure(const ITlas& tlas, u32 binding) = 0;
+
         virtual void dispatch(u32 groupCountX, u32 groupCountY, u32 groupCountZ) = 0;
 
         // Compute is there. Still need explicit barriers beyond what

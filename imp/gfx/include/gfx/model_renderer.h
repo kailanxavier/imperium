@@ -5,6 +5,7 @@
 #include <array>
 
 #include "model_registry.h"
+#include "ddgi_volume.h"
 
 namespace imp::gfx
 {
@@ -57,5 +58,5 @@ namespace imp::gfx
 
 	void drawModelBatches(const ModelRenderContext& ctx, const RenderExtraction& extraction);
 	void drawBlendInstances(const ModelRenderContext& ctx, const RenderExtraction& extraction);
-	std::vector<TlasInstanceDesc> gatherTlasInstances(const ModelRegistry& modelRegistry, const RenderExtraction& extraction);
+	std::vector<TlasInstanceDesc> gatherTlasInstances(const ModelRegistry& modelRegistry, const RenderExtraction& extraction, std::vector<DDGIInstanceMaterial>* outMaterials = nullptr);
 }
