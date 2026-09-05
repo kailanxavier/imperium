@@ -2,6 +2,7 @@
 #include <app/iapp.h>
 #include <sandbox/asset_manifest.h>
 #include <gfx/cascade_shadow.h>
+#include <gfx/ddgi_volume.h>
 #include <core/types/int_types.h>
 #include <memory>
 #include <vector>
@@ -61,6 +62,9 @@ namespace imp::app
 		[[nodiscard]] gfx::IBuffer& blurParamsUBO(u32 frame) const { return *m_blurParamsUBOs[frame]; }
 
 		[[nodiscard]] gfx::RenderGraphResourcePool& graphPool() const { return *m_graphPool; }
+
+		[[nodiscard]] gfx::DDGIVolume& ddgiVolume() { return m_ddgiVolume; }
+		[[nodiscard]] gfx::IPipeline* ddgiProbeUpdatePipeline() { return m_ddgiProbeUpdatePipeline.get(); }
 
 	private:
 		struct ShaderPipelineSet
@@ -123,5 +127,9 @@ namespace imp::app
 		u32 m_instanceCapacity = 16;
 
 		std::unique_ptr<gfx::RenderGraphResourcePool> m_graphPool;
+
+		gfx::DDGIVolume m_ddgiVolume;
+		std::unique_ptr<gfx::IShader> m_ddgiProbeUpdateShader;
+		std::unique_ptr<gfx::IPipeline> m_ddgiProbeUpdatePipeline;
 	};
 }

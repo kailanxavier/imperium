@@ -9,6 +9,9 @@
 #include <core/config/cvar.h>
 #include <gfx/ao.h>
 
+#include <gfx/ddgi_volume.h>
+#include <gfx/gi_cvars.h>
+
 namespace imp::app
 {
 	RenderResources::RenderResources() = default;
@@ -381,6 +384,32 @@ namespace imp::app
 		for (auto& buf : m_blurParamsUBOs)
 			buf = ctx.gfx.createBuffer(blurParamsDesc);
 
+		if (ctx.gfx.supportsRayTracing())
+		{
+			gfx::DDGIVolumeDesc volumeDesc{};
+			volumeDesc.origin = math::Vec3f(gfx::gi::cvarVolumeOriginX, gfx::gi::cvarVolumeOriginY, gfx::gi::cvarVolumeOriginZ);
+			volumeDesc.extents = math::Vec3f(gfx::gi::cvarVolumeExtentX, gfx::gi::cvarVolumeExtentY, gfx::gi::cvarVolumeExtentZ);
+			volumeDesc.probeSpacing = gfx::gi::cvarProbeSpacing;
+
+			if (!m_ddgiVolume.create(ctx.gfx, volumeDesc))
+				LOG_ERROR("Sandbox", "Failed to create DDGI volume");
+
+			gfx::ShaderDesc ddgiComputeDesc{};
+			ddgiComputeDesc.stage = gfx::ShaderStage::Compute;
+			ddgiComputeDesc.path = assets.ddgiProbeUpdateShader;
+			m_ddgiProbeUpdateShader = ctx.gfx.createShader(ddgiComputeDesc);
+
+			if (m_ddgiProbeUpdateShader)
+			{
+				gfx::ComputePipelineDesc ddgiPipelineDesc{};
+				ddgiPipelineDesc.computeShader = m_ddgiProbeUpdateShader.get();
+				m_ddgiProbeUpdatePipeline = ctx.gfx.createComputePipeline(ddgiPipelineDesc);
+			}
+
+			if (!m_ddgiProbeUpdateShader || !m_ddgiProbeUpdatePipeline)
+				LOG_ERROR("Sandbox", "DDGI probe update compute pipeline failed to build");
+		}
+
 		if (!m_pipeline || !m_blendPipeline || !m_tonemapPipeline || !m_sampler
 			|| !m_shadowPipeline || !m_shadowSampler)
 		{
@@ -417,6 +446,8 @@ namespace imp::app
 		m_fullscreenVertShader.reset();
 		m_gtaoFragShader.reset();
 		m_blurFragShader.reset();
+		m_ddgiProbeUpdatePipeline.reset();
+		m_ddgiProbeUpdateShader.reset();
 
 		for (auto& buf : m_cascadeUBOs) buf.reset();
 		for (auto& buf : m_lightUBOs) buf.reset();

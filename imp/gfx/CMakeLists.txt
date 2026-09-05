@@ -71,6 +71,7 @@ target_sources(imp_gfx PRIVATE
 	src/render_graph_resource_pool.cpp
 	src/shader_compiler.cpp
 	src/shader_hot_reload.cpp
+	src/ddgi_volume.cpp
 )
 
 if(IMP_VULKAN_MEM_TEST)

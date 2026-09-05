@@ -1,0 +1,43 @@
+#version 450
+
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+layout(binding = 0, rgba16f) uniform image2D irradianceAtlas;
+layout(binding = 1, rg16f) uniform image2D depthAtlas;
+
+layout(push_constant) uniform PushConstants
+{
+	uint probeCountX;
+	uint probeCountY;
+	uint probeCountZ;
+	uint irradianceTileTexels;
+	uint depthTileTexels;
+} pc;
+
+void main()
+{
+	uvec3 probeCoord = gl_GlobalInvocationID;
+	if (probeCoord.x >= pc.probeCountX || probeCoord.y >= pc.probeCountY || probeCoord.z >= pc.probeCountZ)
+		return;
+
+	uint tileCol = probeCoord.x + probeCoord.y * pc.probeCountX;
+	uint tileRow = probeCoord.z;
+
+	uint probeIndex = probeCoord.x + probeCoord.y * pc.probeCountX + probeCoord.z * pc.probeCountX * pc.probeCountY;
+
+	// placeholder
+	vec3 debugColour = fract(vec3(probeIndex) * vec3(0.69, 0.67, 0.69));
+
+	ivec2 irrBase = ivec2(tileCol * pc.irradianceTileTexels, tileRow * pc.irradianceTileTexels);
+	for (uint y = 0; y < pc.irradianceTileTexels; ++y)
+	{
+		for (uint x = 0; x < pc.irradianceTileTexels; ++x)
+			imageStore(irradianceAtlas, irrBase + ivec2(x, y), vec4(debugColour, 1.0));
+	}
+
+	ivec2 depthBase = ivec2(tileCol * pc.depthTileTexels, tileRow * pc.depthTileTexels);
+	for (uint y = 0; y < pc.depthTileTexels; ++y)
+	{
+		for (uint x = 0; x < pc.depthTileTexels; ++x)
+			imageStore(depthAtlas, depthBase + ivec2(x, y), vec4(debugColour.r, debugColour.r * debugColour.r, 0.0, 0.0));
+	}
+}

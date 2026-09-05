@@ -81,6 +81,54 @@ namespace imp::app
 			float texelSizeX = 0.f, texelSizeY = 0.f;
 			RenderResources* resources = nullptr;
 		};
+
+		struct DDGIProbeUpdatePassData
+		{
+			gfx::RGTextureHandle irradianceAtlas;
+			gfx::RGTextureHandle depthAtlas;
+			RenderResources* resources = nullptr;
+		};
+	}
+
+	void addDDGIProbeUpdatePass(gfx::RenderGraph& graph, RenderResources& resources, AppContext& ctx)
+	{
+		if (!ctx.gfx.supportsRayTracing())
+			return;
+
+		gfx::DDGIVolume& volume = resources.ddgiVolume();
+		gfx::IPipeline* pipeline = resources.ddgiProbeUpdatePipeline();
+		if (!volume.irradianceAtlas() || !volume.depthAtlas() || !pipeline)
+			return;
+
+		graph.addPass<DDGIProbeUpdatePassData>("DDGIProbeUpdate",
+			[&](gfx::RenderGraphBuilder& b, DDGIProbeUpdatePassData& d)
+			{
+				d.irradianceAtlas = b.writeStorageTexture(b.importTexture("DDGIIrradianceAtlas", volume.irradianceAtlas()));
+				d.depthAtlas = b.writeStorageTexture(b.importTexture("DDGIDepthAtlas", volume.depthAtlas()));
+				d.resources = &resources;
+				b.hasSideEffect();
+			},
+			[](const DDGIProbeUpdatePassData& d, gfx::RenderGraphContext& rgCtx)
+			{
+				gfx::DDGIVolume& volume = d.resources->ddgiVolume();
+
+				rgCtx.cmd().bindComputePipeline(*d.resources->ddgiProbeUpdatePipeline());
+				rgCtx.cmd().bindStorageImage(rgCtx.texture(d.irradianceAtlas), 0);
+				rgCtx.cmd().bindStorageImage(rgCtx.texture(d.depthAtlas), 1);
+
+				gfx::DDGIProbeUpdatePushConstants pc{};
+				pc.probeCountX = volume.probeCountX();
+				pc.probeCountY = volume.probeCountY();
+				pc.probeCountZ = volume.probeCountZ();
+				pc.irradianceTileTexels = gfx::DDGIVolume::kIrradianceTileTexels;
+				pc.depthTileTexels = gfx::DDGIVolume::kDepthTileTexels;
+				rgCtx.cmd().pushConstants(&pc, sizeof(pc), 0);
+
+				const u32 groupsX = ( volume.probeCountX() + 7 ) / 8;
+				const u32 groupsY = ( volume.probeCountY() + 7 ) / 8;
+				const u32 groupsZ = volume.probeCountZ();
+				rgCtx.cmd().dispatch(groupsX, groupsY, groupsZ);
+			});
 	}
 
 	ShadowCascadePasses addShadowCascadePasses(gfx::RenderGraph &graph, RenderResources &resources, SandboxScene &scene, const SceneRenderParams &params)

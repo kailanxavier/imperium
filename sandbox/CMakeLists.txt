@@ -33,6 +33,7 @@ IMP_COMPILE_SHADERS(
 		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/depth_normal_prepass.frag
 		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/gtao.frag
 		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/bilateral_blur.frag
+		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/ddgi_probe_update.comp
 		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/fullscreen.vert
 )
 

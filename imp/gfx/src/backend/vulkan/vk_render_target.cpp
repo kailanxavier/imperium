@@ -15,6 +15,7 @@ namespace imp::gfx::vulkan
 		case VK_FORMAT_R8G8B8A8_UNORM: return gfx::TextureFormat::RGBA8Unorm;
 		case VK_FORMAT_R16G16B16A16_SFLOAT: return gfx::TextureFormat::RGBA16Float;
 		case VK_FORMAT_D32_SFLOAT: return gfx::TextureFormat::Depth32Float;
+		case VK_FORMAT_R16G16_SFLOAT: return gfx::TextureFormat::RG16Float;
 		default: return gfx::TextureFormat::Unknown;
 		}
 	}
@@ -28,6 +29,7 @@ namespace imp::gfx::vulkan
 		case gfx::TextureFormat::RGBA8Unorm: return VK_FORMAT_R8G8B8A8_UNORM;
 		case gfx::TextureFormat::RGBA16Float: return VK_FORMAT_R16G16B16A16_SFLOAT;
 		case gfx::TextureFormat::Depth32Float: return VK_FORMAT_D32_SFLOAT;
+		case gfx::TextureFormat::RG16Float: return VK_FORMAT_R16G16_SFLOAT;
 		default: return VK_FORMAT_UNDEFINED;
 		}
 	}

@@ -214,6 +214,19 @@ namespace imp::gfx::vulkan
 	{
 		const auto& vkPipeline = dynamic_cast<VulkanGraphicsPipeline&>( pipeline );
 		vkCmdBindPipeline(m_cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, vkPipeline.pipeline());
+		m_currentBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+		m_currentPipelineLayout = vkPipeline.layout();
+		m_currentDescriptorSetLayout = vkPipeline.descriptorSetLayout();
+		m_currentBindingLayout = &vkPipeline.bindingLayout();
+		m_currentDescriptorSet = VK_NULL_HANDLE;
+		m_pendingBindings.clear();
+	}
+
+	void VulkanCommandList::bindComputePipeline(gfx::IPipeline& pipeline)
+	{
+		const auto& vkPipeline = dynamic_cast<VulkanComputePipeline&>( pipeline );
+		vkCmdBindPipeline(m_cmd, VK_PIPELINE_BIND_POINT_COMPUTE, vkPipeline.pipeline());
+		m_currentBindPoint = VK_PIPELINE_BIND_POINT_COMPUTE;
 		m_currentPipelineLayout = vkPipeline.layout();
 		m_currentDescriptorSetLayout = vkPipeline.descriptorSetLayout();
 		m_currentBindingLayout = &vkPipeline.bindingLayout();
@@ -288,18 +301,6 @@ namespace imp::gfx::vulkan
 	{
 		flushDescriptorBindings();
 		vkCmdDrawIndexed(m_cmd, indexCount, instanceCount, 0, 0, firstInstance);
-	}
-
-	void VulkanCommandList::bindComputePipeline(gfx::IPipeline& pipeline)
-	{
-		const auto& vkPipeline = dynamic_cast<VulkanComputePipeline&>( pipeline );
-		vkCmdBindPipeline(m_cmd, VK_PIPELINE_BIND_POINT_COMPUTE, vkPipeline.pipeline());
-		m_currentBindPoint = VK_PIPELINE_BIND_POINT_COMPUTE;
-		m_currentPipelineLayout = vkPipeline.layout();
-		m_currentDescriptorSetLayout = vkPipeline.descriptorSetLayout();
-		m_currentBindingLayout = &vkPipeline.bindingLayout();
-		m_currentDescriptorSet = VK_NULL_HANDLE;
-		m_pendingBindings.clear();
 	}
 
 	void VulkanCommandList::bindStorageImage(gfx::ITexture& texture, u32 binding)
