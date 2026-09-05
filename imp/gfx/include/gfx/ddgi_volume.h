@@ -72,4 +72,14 @@ namespace imp::gfx
 		math::Vec4f metallicRoughness{ 0.f, 1.f, 0.f, 0.f }; // x = metallic, y = roughness. .z,.w unused
 	};
 	static_assert( sizeof(DDGIInstanceMaterial) == 32 && "DDGIInstanceMaterial must stay std430 array friendly" );
+
+	struct DDGIVolumeUBO
+	{
+		math::Vec4f minCornerAndSpacing{ 0.f, 0.f, 0.f, 0.f };
+		u32 probeCountX{ 0 };
+		u32 probeCountY{ 0 };
+		u32 probeCountZ{ 0 };
+		u32 enabled{ 0 };
+	};
+	static_assert( sizeof(DDGIVolumeUBO) == 32 && "DDGIVolumeUBO must match the std140 layout in mesh.frag" );
 }

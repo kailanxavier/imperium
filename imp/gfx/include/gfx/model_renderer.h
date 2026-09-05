@@ -51,6 +51,10 @@ namespace imp::gfx
 		gfx::IBuffer* screenParamsBuffer = nullptr;
 		bool alphaTestOnly = false;
 
+		gfx::ITexture* ddgiIrradianceTexture = nullptr;
+		gfx::ITexture* ddgiDepthTexture = nullptr;
+		gfx::IBuffer* ddgiVolumeBuffer = nullptr;
+
 		math::Mat4f viewProj;
 
 		const CullVolume* cullVolume = nullptr;

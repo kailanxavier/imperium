@@ -65,6 +65,14 @@ layout(binding = 9) uniform ScreenParamsUBO
     vec4 flags;
 } screen;
 
+layout(binding = 10) uniform sampler2D ddgiIrradianceAtlas;
+layout(binding = 11) uniform sampler2D ddgiDepthAtlas;
+layout(binding = 12) uniform DDGIVolumeUBO
+{
+    vec4 minCornerAndSpacing;
+    uvec4 probeCounts;
+} ddgi;
+
 int selectCascade(float viewSpaceDepth, out float blend, out int nextCascade)
 {
     float nearPlane = cascades.blendParams.x;
@@ -121,6 +129,79 @@ vec3 fresnelSchlick(float cosTheta, vec3 F0)
     return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
 }
 
+// NOTE: This MUST stay the same as the constants in ddgi_volume.h, if you fail
+//       to do so, you WILL explode.
+const uint kDDGIIrradianceInteriorTexels = 6u;
+const uint kDDGIIrradianceTileTexels = kDDGIIrradianceInteriorTexels + 2u;
+const uint kDDGIDepthInteriorTexels = 14u;
+const uint kDDGIDepthTileTexels = kDDGIDepthInteriorTexels + 2u;
+
+vec2 octEncode(vec3 n)
+{
+    vec2 p = n.xy * (1.0 / (abs(n.x) + abs(n.y) + abs(n.z)));
+    return (n.z <= 0.0) ? ((1.0 - abs(p.yx)) * vec2(p.x >= 0.0 ? 1.0 : -1.0, p.y >= 0.0 ? 1.0 : -1.0)) : p;
+}
+
+vec3 sampleProbeTile(sampler2D atlas, uvec2 atlasProbeCoord, uint tileTexels, uint interiorTexels, vec3 dir)
+{
+    vec2 oct = octEncode(dir) * 0.5 + 0.5;
+    oct = clamp(oct, vec2(0.5 / float(interiorTexels)), vec2(1.0 - 0.5 / float(interiorTexels)));
+
+    vec2 texel = vec2(atlasProbeCoord) * float(tileTexels) + 1.0 + oct * float(interiorTexels);
+    vec2 atlasSize = vec2(textureSize(atlas, 0));
+    return texture(atlas, texel / atlasSize).rgb;
+}
+
+vec3 sampleDDGIIrradiance(vec3 posWS, vec3 N)
+{
+    vec3 minCorner = ddgi.minCornerAndSpacing.xyz;
+    float spacing = max(ddgi.minCornerAndSpacing.w, 0.0001);
+    uvec3 probeCounts = ddgi.probeCounts.xyz;
+
+    vec3 gridSpace = (posWS - minCorner) / spacing;
+    vec3 baseCoord = floor(gridSpace);
+    vec3 frac = clamp(gridSpace - baseCoord, 0.0, 1.0);
+
+    vec3 irradiance = vec3(0.0);
+    float totalWeight = 0.0;
+
+    for (uint i = 0u; i < 8u; ++i)
+    {
+        uvec3 offset = uvec3(i & 1u, (i >> 1u) & 1u, (i >> 2u) & 1u);
+        ivec3 probeCoord = ivec3(baseCoord) + ivec3(offset);
+        if (any(lessThan(probeCoord, ivec3(0))) || any(greaterThanEqual(probeCoord, ivec3(probeCounts))))
+            continue;
+
+        vec3 probePosWS = minCorner + vec3(probeCoord) * spacing;
+        vec3 toProbe = probePosWS - posWS;
+        float distToProbe = max(length(toProbe), 0.0001);
+        vec3 dirToProbe = toProbe / distToProbe;
+
+        vec3 trilinear = mix(1.0 - frac, frac, vec3(offset));
+        float weight = trilinear.x * trilinear.y * trilinear.z;
+        weight *= max(0.05, dot(N, dirToProbe)); // fade out probes behind the surface
+
+        // Inverse of DDGIVolume::probeAtlasColumn(x, y) = x + y * probeCountX.
+        uint tileCol = uint(probeCoord.x) + uint(probeCoord.y) * probeCounts.x;
+        uint tileRow = uint(probeCoord.z);
+        uvec2 atlasProbeCoord = uvec2(tileCol, tileRow);
+
+        vec2 moments = sampleProbeTile(ddgiDepthAtlas, atlasProbeCoord, kDDGIDepthTileTexels, kDDGIDepthInteriorTexels, -dirToProbe).rg;
+        float mean = moments.x;
+        float variance = max(moments.y - mean * mean, 0.0001);
+        float diff = distToProbe - mean;
+        float chebyshev = (diff <= 0.0) ? 1.0 : clamp(variance / (variance + diff * diff), 0.0, 1.0);
+        weight *= max(chebyshev, 0.05); // never fully zero, avoids hard seams between probes
+
+        weight = max(weight, 0.000001);
+
+        irradiance += sampleProbeTile(ddgiIrradianceAtlas, atlasProbeCoord, kDDGIIrradianceTileTexels, kDDGIIrradianceInteriorTexels, N) * weight;
+        totalWeight += weight;
+    }
+
+    return (totalWeight > 0.0) ? (irradiance / totalWeight) : vec3(0.0);
+}
+
 void main()
 {
     vec4 albedoSample = texture(diffuseTexture, inUV);
@@ -152,7 +233,9 @@ void main()
 
     vec3 F0 = mix(vec3(0.04), albedo, metallic);
 
-    vec3 result = lightData.ambientColour.rgb * albedo * occlusion;
+    vec3 indirectDiffuse = (ddgi.probeCounts.w != 0u) ? sampleDDGIIrradiance(inPositionWS, N) : lightData.ambientColour.rgb;
+
+    vec3 result = indirectDiffuse * albedo * occlusion;
     vec3 sunL = normalize(-lightData.sunDirection);
     float sunBias = max(0.0025 * (1.0 - dot(N, sunL)), 0.00005);
     float viewSpaceDepth = length(lightData.cameraPositionWS.xyz - inPositionWS);

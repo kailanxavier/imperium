@@ -64,7 +64,10 @@ namespace imp::app
 		[[nodiscard]] gfx::RenderGraphResourcePool& graphPool() const { return *m_graphPool; }
 
 		[[nodiscard]] gfx::DDGIVolume& ddgiVolume() { return m_ddgiVolume; }
-		[[nodiscard]] gfx::IPipeline* ddgiProbeUpdatePipeline() { return m_ddgiProbeUpdatePipeline.get(); }
+		[[nodiscard]] gfx::IPipeline* ddgiProbeUpdatePipeline() const { return m_ddgiProbeUpdatePipeline.get(); }
+
+		[[nodiscard]] gfx::ITexture& ddgiFallbackTexture() const { return *m_ddgiFallbackTexture; }
+		[[nodiscard]] gfx::IBuffer& ddgiVolumeUBO(u32 frame) const { return *m_ddgiVolumeUBOs[frame]; }
 
 	private:
 		struct ShaderPipelineSet
@@ -131,5 +134,8 @@ namespace imp::app
 		gfx::DDGIVolume m_ddgiVolume;
 		std::unique_ptr<gfx::IShader> m_ddgiProbeUpdateShader;
 		std::unique_ptr<gfx::IPipeline> m_ddgiProbeUpdatePipeline;
+
+		std::unique_ptr<gfx::ITexture> m_ddgiFallbackTexture;
+		std::vector<std::unique_ptr<gfx::IBuffer>> m_ddgiVolumeUBOs;
 	};
 }

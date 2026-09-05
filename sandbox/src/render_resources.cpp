@@ -384,6 +384,29 @@ namespace imp::app
 		for (auto& buf : m_blurParamsUBOs)
 			buf = ctx.gfx.createBuffer(blurParamsDesc);
 
+		{
+			const u8 kBlackTexel[4] = { 0, 0, 0, 0 };
+			gfx::TextureDesc fallbackDesc{};
+			fallbackDesc.width = 1;
+			fallbackDesc.height = 1;
+			fallbackDesc.format = gfx::TextureFormat::RGBA8Unorm;
+			fallbackDesc.usage = gfx::TextureUsage::Sampled;
+			fallbackDesc.debugName = "DDGIFallback";
+			fallbackDesc.initialData = kBlackTexel;
+			m_ddgiFallbackTexture = ctx.gfx.createTexture(fallbackDesc);
+
+			gfx::BufferDesc volumeUBODesc{};
+			volumeUBODesc.size = sizeof(gfx::DDGIVolumeUBO);
+			volumeUBODesc.usage = gfx::BufferUsage::Uniform;
+			volumeUBODesc.memoryAccess = gfx::MemoryAccess::HostVisible;
+			m_ddgiVolumeUBOs.resize(gfx::kMaxFramesInFlight);
+			for (auto& buf : m_ddgiVolumeUBOs)
+				buf = ctx.gfx.createBuffer(volumeUBODesc);
+
+			if (!m_ddgiFallbackTexture)
+				LOG_ERROR("Sandbox", "Failed to create DDGI fallback texture");
+		}
+
 		if (ctx.gfx.supportsRayTracing())
 		{
 			gfx::DDGIVolumeDesc volumeDesc{};
