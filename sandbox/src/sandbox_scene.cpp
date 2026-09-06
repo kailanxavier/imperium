@@ -40,7 +40,7 @@ namespace imp::app
 		pointTransform.position = math::Vec3f{ 0.f, 5.f, 0.f };
 		ctx.ecs.transforms.create(m_localLight, pointTransform);
 		ctx.ecs.colliders.createAABB(m_localLight, math::Vec3f{ -1.f, -1.f, -1.f }, math::Vec3f{ 1.f, 1.f, 1.f });
-		ctx.ecs.lights.create(m_localLight, ecs::LightType::Point, math::Vec3f{ 1.f, 0.6f, 0.3f }, 1.5f);
+		ctx.ecs.lights.create(m_localLight, ecs::LightType::Point, math::Vec3f{ 1.f, 0.6f, 0.3f }, 0.f);
 		m_instances.push_back(m_localLight);
 
 		{

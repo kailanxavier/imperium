@@ -32,7 +32,7 @@ namespace imp::gfx
 		TextureDesc irrandianceDesc{};
 		irrandianceDesc.width = irrWidth;
 		irrandianceDesc.height = irrHeight;
-		irrandianceDesc.format = TextureFormat::RG16Float;
+		irrandianceDesc.format = TextureFormat::RGBA16Float;
 		irrandianceDesc.usage = TextureUsage::Storage | TextureUsage::Sampled;
 		irrandianceDesc.debugName = "DDGI Irradiance Atlas";
 
@@ -74,7 +74,7 @@ namespace imp::gfx
 		return minCorner + math::Vec3f(
 			static_cast<float>( x ) * m_desc.probeSpacing,
 			static_cast<float>( y ) * m_desc.probeSpacing,
-			static_cast<float>( y ) * m_desc.probeSpacing);
+			static_cast<float>( z ) * m_desc.probeSpacing);
 	}
 
 	bool DDGIVolume::ensureRayBufferCapacity(IDevice& device, u32 requiredRayCount)

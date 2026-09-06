@@ -124,10 +124,15 @@ namespace imp::app
 			: rawAO;
 
 		const ShadowCascadePasses shadowPasses = addShadowCascadePasses(graph, m_resources, m_scene, params);
-		const gfx::RGTextureHandle hdrResolve = addHdrPass(graph, m_resources, m_scene, ctx, params, shadowPasses, aoTexture);
+
+		gfx::RGTextureHandle ddgiIrradianceHandle{};
+		gfx::RGTextureHandle ddgiDepthHandle{};
 
 		const gfx::RGBufferHandle ddgiRayBuffer = addDDGIRayTracePass(graph, m_resources, m_scene, ctx, params);
-		addDDGIProbeUpdatePass(graph, m_resources, m_scene, ctx, params, ddgiRayBuffer);
+		addDDGIProbeUpdatePass(graph, m_resources, m_scene, ctx, params, ddgiRayBuffer, ddgiIrradianceHandle, ddgiDepthHandle);
+
+		const gfx::RGTextureHandle hdrResolve = addHdrPass(graph, m_resources, m_scene, ctx, params, shadowPasses, 
+			aoTexture, ddgiIrradianceHandle, ddgiDepthHandle);
 
 		addTonemapPass(graph, m_resources, hdrResolve, ctx.gfx.backBuffer(), "Tonemap");
 		if (m_readbackTarget)

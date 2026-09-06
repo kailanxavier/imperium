@@ -172,6 +172,7 @@ namespace imp::app
 				d.viewBias = gfx::gi::cvarViewBias;
 				d.minCorner = volume.desc().origin - volume.desc().extents;
 				d.randomRotation = randomRayRotationQuaternion();
+				//b.hasSideEffect();
 			},
 			[](const DDGIRayTracePassData& d, gfx::RenderGraphContext& rgCtx)
 			{
@@ -202,7 +203,7 @@ namespace imp::app
 		return data.rayBuffer;
 	}
 
-	void addDDGIProbeUpdatePass(gfx::RenderGraph& graph, RenderResources& resources, SandboxScene& scene, AppContext& ctx, const SceneRenderParams& params, gfx::RGBufferHandle rayBuffer)
+	void addDDGIProbeUpdatePass(gfx::RenderGraph& graph, RenderResources& resources, SandboxScene& scene, AppContext& ctx, const SceneRenderParams& params, gfx::RGBufferHandle rayBuffer, gfx::RGTextureHandle& outIrradiance, gfx::RGTextureHandle& outDepth)
 	{
 		if (!ctx.gfx.supportsRayTracing())
 			return;
@@ -214,7 +215,7 @@ namespace imp::app
 
 		const u32 raysPerProbe = static_cast<u32>( std::max<i32>(1, gfx::gi::cvarRaysPerProbe) );
 
-		graph.addPass<DDGIProbeUpdatePassData>("DDGIProbeUpdate",
+		const auto& data = graph.addPass<DDGIProbeUpdatePassData>("DDGIProbeUpdate",
 			[&](gfx::RenderGraphBuilder& b, DDGIProbeUpdatePassData& d)
 			{
 				d.irradianceAtlas = b.writeStorageTexture(b.importTexture("DDGIIrradianceAtlas", volume.irradianceAtlas()));
@@ -222,6 +223,7 @@ namespace imp::app
 				d.rayBuffer = b.readBuffer(rayBuffer);
 				d.resources = &resources;
 				d.raysPerProbe = raysPerProbe;
+				//b.hasSideEffect();
 			},
 			[](const DDGIProbeUpdatePassData& d, gfx::RenderGraphContext& rgCtx)
 			{
@@ -258,6 +260,9 @@ namespace imp::app
 				rgCtx.cmd().pushConstants(&pc, sizeof(pc), 0);
 				rgCtx.cmd().dispatch(( depthWidth + 7 ) / 8, ( depthHeight + 7 ) / 8, 1);
 			});
+
+		outIrradiance = data.irradianceAtlas;
+		outDepth = data.depthAtlas;
 	}
 
 	ShadowCascadePasses addShadowCascadePasses(gfx::RenderGraph& graph, RenderResources& resources, SandboxScene& scene, const SceneRenderParams& params)
@@ -314,7 +319,7 @@ namespace imp::app
 		return out;
 	}
 
-	gfx::RGTextureHandle addHdrPass(gfx::RenderGraph& graph, RenderResources& resources, SandboxScene& scene, AppContext& ctx, const SceneRenderParams& params, const ShadowCascadePasses& shadowPasses, gfx::RGTextureHandle aoTexture)
+	gfx::RGTextureHandle addHdrPass(gfx::RenderGraph& graph, RenderResources& resources, SandboxScene& scene, AppContext& ctx, const SceneRenderParams& params, const ShadowCascadePasses& shadowPasses, gfx::RGTextureHandle aoTexture, gfx::RGTextureHandle ddgiIrradianceHandle, gfx::RGTextureHandle ddgiDepthHandle)
 	{
 		const auto& data = graph.addPass<HdrPassData>("HDR",
 			[&](gfx::RenderGraphBuilder& b, HdrPassData& d)
@@ -361,7 +366,8 @@ namespace imp::app
 
 				gfx::DDGIVolume& ddgiVolume = resources.ddgiVolume();
 				d.ddgiActive = ctx.gfx.supportsRayTracing() && gfx::gi::cvarEnabled
-					&& ddgiVolume.irradianceAtlas() && ddgiVolume.depthAtlas();
+					&& ddgiVolume.irradianceAtlas() && ddgiVolume.depthAtlas()
+					&& ddgiIrradianceHandle.isValid() && ddgiDepthHandle.isValid();
 
 				gfx::DDGIVolumeUBO ddgiParams{};
 				if (d.ddgiActive)
@@ -373,8 +379,8 @@ namespace imp::app
 					ddgiParams.probeCountZ = ddgiVolume.probeCountZ();
 					ddgiParams.enabled = 1u;
 
-					d.ddgiIrradianceAtlas = b.readTexture(b.importTexture("DDGIIrradianceAtlas", ddgiVolume.irradianceAtlas()));
-					d.ddgiDepthAtlas = b.readTexture(b.importTexture("DDGIDepthAtlas", ddgiVolume.depthAtlas()));
+					d.ddgiIrradianceAtlas = b.readTexture(ddgiIrradianceHandle);
+					d.ddgiDepthAtlas = b.readTexture(ddgiDepthHandle);
 				}
 				resources.ddgiVolumeUBO(params.currentFrame).update(&ddgiParams, sizeof(ddgiParams), 0);
 				d.ddgiVolumeUBO = b.readBuffer(b.importBuffer("DDGIVolumeUBO", &resources.ddgiVolumeUBO(params.currentFrame)));
