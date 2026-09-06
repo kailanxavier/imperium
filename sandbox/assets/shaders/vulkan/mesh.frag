@@ -149,7 +149,7 @@ vec3 sampleProbeTile(sampler2D atlas, uvec2 atlasProbeCoord, uint tileTexels, ui
 
     vec2 texel = vec2(atlasProbeCoord) * float(tileTexels) + 1.0 + oct * float(interiorTexels);
     vec2 atlasSize = vec2(textureSize(atlas, 0));
-    return texture(atlas, texel / atlasSize).rgb;
+    return textureLod(atlas, texel / atlasSize, 0.0).rgb;
 }
 
 vec3 sampleDDGIIrradiance(vec3 posWS, vec3 N)

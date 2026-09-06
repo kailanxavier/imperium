@@ -160,10 +160,12 @@ namespace imp::gfx
 							ctx.cmd->bindTexture(*ctx.aoTexture, *ctx.sampler, 8);
 						if (ctx.screenParamsBuffer)
 							ctx.cmd->bindUniformBuffer(*ctx.screenParamsBuffer, 9);
+
+						gfx::ISampler& ddgiSampler = ctx.ddgiSampler ? *ctx.ddgiSampler : *ctx.sampler;
 						if (ctx.ddgiIrradianceTexture)
-							ctx.cmd->bindTexture(*ctx.ddgiIrradianceTexture, *ctx.sampler, 10);
+							ctx.cmd->bindTexture(*ctx.ddgiIrradianceTexture, ddgiSampler, 10);
 						if (ctx.ddgiDepthTexture)
-							ctx.cmd->bindTexture(*ctx.ddgiDepthTexture, *ctx.sampler, 11);
+							ctx.cmd->bindTexture(*ctx.ddgiDepthTexture, ddgiSampler, 11);
 						if (ctx.ddgiVolumeBuffer)
 							ctx.cmd->bindUniformBuffer(*ctx.ddgiVolumeBuffer, 12);
 					}

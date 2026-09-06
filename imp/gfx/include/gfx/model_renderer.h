@@ -54,6 +54,7 @@ namespace imp::gfx
 		gfx::ITexture* ddgiIrradianceTexture = nullptr;
 		gfx::ITexture* ddgiDepthTexture = nullptr;
 		gfx::IBuffer* ddgiVolumeBuffer = nullptr;
+		gfx::ISampler* ddgiSampler = nullptr;
 
 		math::Mat4f viewProj;
 

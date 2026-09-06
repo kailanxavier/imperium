@@ -34,13 +34,15 @@ namespace imp::app
 
 		static constexpr gfx::SampleCount kMsaaSampleCount = gfx::SampleCount::Four;
 
-		gfx::IPipeline& meshPipeline() { return *m_pipeline; }
-		gfx::IPipeline& blendPipeline() { return *m_blendPipeline; }
-		gfx::IPipeline& shadowPipeline() { return *m_shadowPipeline; }
-		gfx::IPipeline& skyPipeline() { return *m_skyPipeline; }
-		gfx::IPipeline& tonemapPipeline() { return *m_tonemapPipeline; }
-		gfx::ISampler& sampler() { return *m_sampler; }
-		gfx::ISampler& shadowSampler() { return *m_shadowSampler; }
+		gfx::IPipeline& meshPipeline() const { return *m_pipeline; }
+		gfx::IPipeline& blendPipeline() const { return *m_blendPipeline; }
+		gfx::IPipeline& shadowPipeline() const { return *m_shadowPipeline; }
+		gfx::IPipeline& skyPipeline() const { return *m_skyPipeline; }
+		gfx::IPipeline& tonemapPipeline() const { return *m_tonemapPipeline; }
+
+		gfx::ISampler& sampler() const { return *m_sampler; }
+		gfx::ISampler& shadowSampler() const { return *m_shadowSampler; }
+		gfx::ISampler& ddgiSampler() const { return *m_ddgiSampler; }
 
 		[[nodiscard]] gfx::TextureFormat hdrColourFormat() const { return m_hdrColourFormat; }
 		[[nodiscard]] gfx::TextureFormat hdrDepthFormat() const { return m_hdrDepthFormat; }
@@ -115,6 +117,7 @@ namespace imp::app
 
 		std::unique_ptr<gfx::ISampler> m_sampler;
 		std::unique_ptr<gfx::ISampler> m_shadowSampler;
+		std::unique_ptr<gfx::ISampler> m_ddgiSampler;
 
 		gfx::TextureFormat m_hdrColourFormat = gfx::TextureFormat::RGBA16Float;
 		gfx::TextureFormat m_hdrDepthFormat = gfx::TextureFormat::Depth32Float;

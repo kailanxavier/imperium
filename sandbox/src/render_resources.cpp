@@ -17,7 +17,7 @@ namespace imp::app
 	RenderResources::RenderResources() = default;
 	RenderResources::~RenderResources() = default;
 
-	bool RenderResources::buildShaderPipelineSet(AppContext &ctx, const AssetManifest &assets, ShaderPipelineSet &out) const
+	bool RenderResources::buildShaderPipelineSet(AppContext& ctx, const AssetManifest& assets, ShaderPipelineSet& out) const
 	{
 		gfx::ShaderDesc meshVertDesc;
 		meshVertDesc.stage = gfx::ShaderStage::Vertex;
@@ -219,7 +219,7 @@ namespace imp::app
 		gfx::VertexAttribute prepassAttrs[3] = {
 			{ 0, static_cast<u32>( offsetof(gfx::ModelVertex, position) ), 3, true },
 			{ 1, static_cast<u32>( offsetof(gfx::ModelVertex, normal) ), 3, true },
-			{ 2, static_cast<u32>(offsetof(gfx::ModelVertex, uv)), 2, true },
+			{ 2, static_cast<u32>( offsetof(gfx::ModelVertex, uv) ), 2, true },
 		};
 
 		gfx::PipelineDesc prepassPipelineDesc{};
@@ -289,7 +289,7 @@ namespace imp::app
 		m_blurPipeline = std::move(set.blurPipeline);
 	}
 
-	bool RenderResources::reloadShaders(AppContext &ctx, const AssetManifest &assets)
+	bool RenderResources::reloadShaders(AppContext& ctx, const AssetManifest& assets)
 	{
 		ShaderPipelineSet fresh;
 		if (!buildShaderPipelineSet(ctx, assets, fresh))
@@ -343,6 +343,13 @@ namespace imp::app
 		shadowSamplerDesc.addressModeU = gfx::AddressMode::ClampToEdge;
 		shadowSamplerDesc.addressModeV = gfx::AddressMode::ClampToEdge;
 		m_shadowSampler = ctx.gfx.createSampler(shadowSamplerDesc);
+
+		gfx::SamplerDesc ddgiSamplerDesc{};
+		ddgiSamplerDesc.minFilter = gfx::FilterMode::Linear;
+		ddgiSamplerDesc.magFilter = gfx::FilterMode::Linear;
+		ddgiSamplerDesc.addressModeU = gfx::AddressMode::ClampToEdge;
+		ddgiSamplerDesc.addressModeV = gfx::AddressMode::ClampToEdge;
+		m_ddgiSampler = ctx.gfx.createSampler(ddgiSamplerDesc);
 
 		gfx::BufferDesc cascadeUboDesc{};
 		cascadeUboDesc.size = sizeof(gfx::CascadeUBO);

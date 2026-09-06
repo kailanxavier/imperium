@@ -253,6 +253,8 @@ namespace imp::app
 				const u32 depthWidth = volume.probeCountX() * volume.probeCountY() * depthTile;
 				const u32 depthHeight = volume.probeCountZ() * depthTile;
 
+				pc.isBorderPass = 0;
+
 				pc.isDepthPass = 0;
 				rgCtx.cmd().pushConstants(&pc, sizeof(pc), 0);
 				rgCtx.cmd().dispatch(( irrWidth + 7 ) / 8, ( irrHeight + 7 ) / 8, 1);
@@ -429,6 +431,7 @@ namespace imp::app
 					renderCtx.ddgiDepthTexture = &d.resources->ddgiFallbackTexture();
 				}
 				renderCtx.ddgiVolumeBuffer = &rgCtx.buffer(d.ddgiVolumeUBO);
+				renderCtx.ddgiSampler = &d.resources->ddgiSampler();
 
 				if (d.params.enableFrustumCulling)
 				{
