@@ -47,7 +47,7 @@ namespace imp::app
 
 	private:
 		void updateSunViewProj();
-		void buildStaticTlasOnce(AppContext& ctx);
+		void updateDynamicTlas(AppContext& ctx);
 
 		gfx::ModelRegistry m_modelRegistry;
 		ecs::ModelHandle m_environmentHandle{};
@@ -65,9 +65,9 @@ namespace imp::app
 		std::array<gfx::CascadeData, gfx::kCascadeCount> m_cascades{};
 
 		gfx::RenderExtraction m_extraction;
-		std::unique_ptr<gfx::ITlas> m_staticTlas;
-		bool m_staticTlasBuildAttempted = false;
+		std::shared_ptr<gfx::ITlas> m_staticTlas;
+		//bool m_staticTlasBuildAttempted = false;
 
-		std::unique_ptr<gfx::IBuffer> m_ddgiInstanceMaterials;
+		std::shared_ptr<gfx::IBuffer> m_ddgiInstanceMaterials;
 	};
 }

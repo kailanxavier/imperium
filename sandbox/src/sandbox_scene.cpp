@@ -95,7 +95,7 @@ namespace imp::app
 		m_extraction.lightData.sunViewProj = m_sunViewProj;
 		m_extraction.lightData.shadowMapSize = static_cast<float>( m_cascadeConfig.shadowMapResolution );
 
-		buildStaticTlasOnce(ctx);
+		updateDynamicTlas(ctx);
 	}
 
 	void SandboxScene::recomputeCascades(const fwk::Camera& camera, float aspect)
@@ -122,15 +122,10 @@ namespace imp::app
 		m_sunViewProj = lightProj * lightView;
 	}
 
-	void SandboxScene::buildStaticTlasOnce(AppContext& ctx)
+	void SandboxScene::updateDynamicTlas(AppContext& ctx)
 	{
-		if (m_staticTlasBuildAttempted) return;
-
 		if (!ctx.gfx.supportsRayTracing())
-		{
-			m_staticTlasBuildAttempted = true;
 			return;
-		}
 
 		std::vector<gfx::DDGIInstanceMaterial> materials;
 		std::vector<gfx::TlasInstanceDesc> instances = gfx::gatherTlasInstances(m_modelRegistry, m_extraction, &materials);
@@ -140,16 +135,14 @@ namespace imp::app
 			return;
 		}
 
-		m_staticTlasBuildAttempted = true;
-
 		gfx::TlasBuildDesc tlasDesc{};
 		tlasDesc.instances = std::move(instances);
-		tlasDesc.debugName = "Static Scene TLAS";
+		tlasDesc.debugName = "Dynamic Scene TLAS";
 
-		m_staticTlas = ctx.gfx.createTlas(tlasDesc);
-		if (!m_staticTlas)
+		auto newTlas = ctx.gfx.createTlas(tlasDesc);
+		if (!newTlas)
 		{
-			LOG_ERROR("Sandbox", "buildStaticTlasOnce(): createTlas() failed");
+			LOG_ERROR("Sandbox", "updateDynamicTlas(): createTlas() failed");
 			return;
 		}
 
@@ -157,10 +150,24 @@ namespace imp::app
 		materialsDesc.size = materials.size() * sizeof(gfx::DDGIInstanceMaterial);
 		materialsDesc.usage = gfx::BufferUsage::Storage;
 		materialsDesc.memoryAccess = gfx::MemoryAccess::HostVisible;
-		m_ddgiInstanceMaterials = ctx.gfx.createBuffer(materialsDesc);
-		if (m_ddgiInstanceMaterials)
-			m_ddgiInstanceMaterials->update(materials.data(), materialsDesc.size, 0);
+		auto newMaterials = ctx.gfx.createBuffer(materialsDesc);
+		if (newMaterials)
+			newMaterials->update(materials.data(), materialsDesc.size, 0);
 		else
 			LOG_ERROR("Sandbox", "buildStaticTlasOnce(): instance material buffer allocation failed");
+
+		if (m_staticTlas || m_ddgiInstanceMaterials)
+		{
+			auto oldTlas = std::shared_ptr<gfx::ITlas>(std::move(m_staticTlas));
+			auto oldMats = std::shared_ptr<gfx::IBuffer>(std::move(m_ddgiInstanceMaterials));
+
+			ctx.gfx.deferredDestroy([oldTlas, oldMats]()
+				{
+
+				});
+		}
+
+		m_staticTlas = std::move(newTlas);
+		m_ddgiInstanceMaterials = std::move(newMaterials);
 	}
 }

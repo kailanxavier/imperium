@@ -34,6 +34,7 @@ namespace imp::gfx
 		irrandianceDesc.height = irrHeight;
 		irrandianceDesc.format = TextureFormat::RGBA16Float;
 		irrandianceDesc.usage = TextureUsage::Storage | TextureUsage::Sampled;
+		irrandianceDesc.mipLevels = 1;
 		irrandianceDesc.debugName = "DDGI Irradiance Atlas";
 
 		m_irradianceAtlas = device.createTexture(irrandianceDesc);

@@ -24,8 +24,8 @@ int main()
 #else
 	desc.window.title = "Velvet";
 #endif
-	desc.window.width = 1280;
-	desc.window.height = 720;
+	desc.window.width = 1920;
+	desc.window.height = 1080;
 	desc.enableValidation = true;
 	desc.vsync = true;
 

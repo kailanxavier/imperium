@@ -636,7 +636,7 @@ namespace imp::gfx::vulkan
 				reinterpret_cast<u64>(tlas->m_handle), desc.debugName);
 		}
 
-		LOG_INFO("Vulkan", "Built static TLAS: {} instances(s)", vkInstances.size());
+		//LOG_INFO("Vulkan", "Built static TLAS: {} instances(s)", vkInstances.size());
 
 		return tlas;
 	}

@@ -244,17 +244,17 @@ namespace imp::app
 				pc.hysteresis = gfx::gi::cvarHysteresis;
 				pc.depthSharpness = gfx::gi::cvarDepthSharpness;
 
-				const u32 irrInterior = gfx::DDGIVolume::kIrradianceInteriorTexels;
-				const u32 irrWidth = volume.probeCountX() * volume.probeCountY() * irrInterior;
-				const u32 irrHeight = volume.probeCountZ() * irrInterior;
+				const u32 irrTile = gfx::DDGIVolume::kIrradianceTileTexels;
+				const u32 irrWidth = volume.probeCountX() * volume.probeCountY() * irrTile;
+				const u32 irrHeight = volume.probeCountZ() * irrTile;
 
 				pc.isDepthPass = 0;
 				rgCtx.cmd().pushConstants(&pc, sizeof(pc), 0);
 				rgCtx.cmd().dispatch(( irrWidth + 7 ) / 8, ( irrHeight + 7 ) / 8, 1);
 
-				const u32 depthInterior = gfx::DDGIVolume::kDepthInteriorTexels;
-				const u32 depthWidth = volume.probeCountX() * volume.probeCountY() * depthInterior;
-				const u32 depthHeight = volume.probeCountZ() * depthInterior;
+				const u32 depthTile = gfx::DDGIVolume::kDepthTileTexels;
+				const u32 depthWidth = volume.probeCountX() * volume.probeCountY() * depthTile;
+				const u32 depthHeight = volume.probeCountZ() * depthTile;
 
 				pc.isDepthPass = 1;
 				rgCtx.cmd().pushConstants(&pc, sizeof(pc), 0);

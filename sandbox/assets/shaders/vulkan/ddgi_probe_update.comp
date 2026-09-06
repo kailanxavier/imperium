@@ -34,7 +34,6 @@ vec3 octDecode(vec2 f)
 	float t = clamp(-n.z, 0.0, 1.0);
 	n.x += n.x >= 0.0 ? -t : t;
 	n.y += n.y >= 0.0 ? -t : t;
-
 	return normalize(n);
 }
 
@@ -46,21 +45,24 @@ void main()
 	const uint globalX = gl_GlobalInvocationID.x;
 	const uint globalY = gl_GlobalInvocationID.y;
 
-	uint tileCol = globalX / interiorTexels;
-	uint tileRow = globalY / interiorTexels;
-	const uint localX = globalX % interiorTexels;
-	const uint localY = globalY % interiorTexels;
+	uint tileCol = globalX / tileTexels;
+	uint tileRow = globalY / tileTexels;
+	const uint localX = globalX % tileTexels;
+	const uint localY = globalY % tileTexels;
 
 	if (tileCol >= pc.probeCountX * pc.probeCountY || tileRow >= pc.probeCountZ)
 		return;
 
-	// Inverse of DDGIVolume::probeAtlasColumn(x, y) = x + y * probeCountX.
 	const uint probeX = tileCol % pc.probeCountX;
 	const uint probeY = tileCol / pc.probeCountX;
 	const uint probeZ = tileRow;
 	const uint probeIndex = probeX + probeY * pc.probeCountX + probeZ * pc.probeCountX * pc.probeCountY;
 
-	const vec2 octUV = (vec2(localX, localY) + 0.5) / float(interiorTexels) * 2.0 - 1.0;
+	bool isBorder = (localX == 0u || localX == tileTexels - 1u || localY == 0u || localY == tileTexels - 1u);
+	uint interiorX = clamp(localX, 1u, tileTexels - 2u) - 1u;
+	uint interiorY = clamp(localY, 1u, tileTexels - 2u) - 1u;
+
+	const vec2 octUV = (vec2(interiorX, interiorY) + 0.5) / float(interiorTexels) * 2.0 - 1.0;
 	const vec3 texelDir = octDecode(octUV);
 
 	vec3 weightedRadiance = vec3(0.0);
@@ -93,20 +95,23 @@ void main()
 		}
 	}
 
-	const ivec2 texelCoord = ivec2(int(tileCol * tileTexels + 1u + localX), int(tileRow * tileTexels + 1u + localY));
+	const ivec2 texelCoord = ivec2(int(tileCol * tileTexels + localX), int(tileRow * tileTexels + localY));
+	const ivec2 interiorCoord = ivec2(int(tileCol * tileTexels + interiorX + 1u), int(tileRow * tileTexels + interiorY + 1u));
 
 	if (pc.isDepthPass != 0u)
 	{
-		const vec2 oldMoments = imageLoad(depthAtlas, texelCoord).rg;
-		const vec2 newMoments = (totalWeight > 0.0) ? vec2(weightedDistance, weightedDistanceSq) / totalWeight : oldMoments;
-		const vec2 blended = mix(newMoments, oldMoments, pc.hysteresis);
+		const vec2 newMoments = (totalWeight > 0.0) ? vec2(weightedDistance, weightedDistanceSq) / totalWeight : vec2(0.0);		
+		vec2 oldMoments = imageLoad(depthAtlas, isBorder ? interiorCoord : texelCoord).rg;
+		const vec2 resolved = (totalWeight > 0.0) ? newMoments : oldMoments;
+		const vec2 blended = mix(resolved, oldMoments, pc.hysteresis);
 		imageStore(depthAtlas, texelCoord, vec4(blended, 0.0, 0.0));
 	}
 	else
 	{
-		const vec3 oldRadiance = imageLoad(irradianceAtlas, texelCoord).rgb;
-		const vec3 newRadiance = (totalWeight > 0.0) ? (weightedRadiance / totalWeight) : oldRadiance;
-		const vec3 blended = mix(newRadiance, oldRadiance, pc.hysteresis);
+		const vec3 newRadiance = (totalWeight > 0.0) ? (weightedRadiance / totalWeight) : vec3(0.0);
+		vec3 oldRadiance = imageLoad(irradianceAtlas, isBorder ? interiorCoord : texelCoord).rgb;
+		const vec3 resolved = (totalWeight > 0.0) ? newRadiance : oldRadiance;
+		const vec3 blended = mix(resolved, oldRadiance, pc.hysteresis);
 		imageStore(irradianceAtlas, texelCoord, vec4(blended, 1.0));
 	}
 }
