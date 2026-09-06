@@ -1,0 +1,169 @@
+#version 460
+#extension GL_EXT_ray_query : require
+
+layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+
+layout(binding = 0) uniform accelerationStructureEXT tlas;
+
+struct InstanceMaterial
+{
+	vec4 baseColour;
+	vec4 metallicRoughness;
+};
+
+layout(std430, binding = 1) readonly buffer InstanceMaterials
+{
+	InstanceMaterial materials[];
+};
+
+#define MAX_LIGHTS 16
+struct GPULight
+{
+	vec4 positionOrDirWS;
+	vec4 colourIntensity;
+};
+
+layout(binding = 2) uniform LightDataUBO
+{
+	vec4 cameraPositionWS;
+	vec4 ambientColour;
+	float specularStrength;
+	float shininess;
+	uint lightCount;
+	uint _pad0;
+	mat4 sunViewProj;
+	vec3 sunDirection;
+	float shadowMapSize;
+	GPULight lights[MAX_LIGHTS];
+} lightData;
+
+struct RayResult
+{
+	vec4 directionAndDistance;
+	vec4 radiance;
+};
+
+layout(std430, binding = 3) writeonly buffer RayResults
+{
+	RayResult rays[];
+};
+
+layout(push_constant) uniform PushConstants
+{
+	uint probeCountX;
+	uint probeCountY;
+	uint probeCountZ;
+	uint raysPerProbe;
+	float maxRayDistance;
+	float probeSpacing;
+	float minCornerX;
+	float minCornerY;
+	float minCornerZ;
+	float viewBias;
+	vec4 randomRotation;
+} pc;
+
+const float PI = 3.14159265359;
+
+mat3 quatToMat3(vec4 q)
+{
+	float x = q.x, y = q.y, z = q.z, w = q.w;
+	float x2 = x + x, y2 = y + y, z2 = z + z;
+	float xx = x * x2, xy = x * y2, xz = x * z2;
+	float yy = y * y2, yz = y * z2, zz = z * z2;
+	float wx = w * x2, wy = w * y2, wz = w * z2;
+
+	return mat3(
+		1.0 - (yy + zz), xy + wz,         xz - wy,
+		xy - wz,         1.0 - (xx + zz), yz + wx,
+		xz + wy,         yz - wx,         1.0 - (xx + yy)
+	);
+}
+
+vec3 sphericalFibonacci(uint i, uint n)
+{
+	const float goldenRatio = 1.6180339887498948482;
+	float fi = float(i);
+	float fn = float(n);
+
+	float phi = 2.0 * PI * fract(fi / goldenRatio);
+	float cosTheta = 1.0 - (2.0 * fi + 1.0) / fn;
+	float sinTheta = sqrt(clamp(1.0 - cosTheta * cosTheta, 0.0, 1.0));
+
+	return vec3(cos(phi) * sinTheta, sin(phi) * sinTheta, cosTheta);
+}
+
+bool isOccluded(vec3 origin, vec3 dir, float tMax)
+{
+	rayQueryEXT rq;
+	rayQueryInitializeEXT(rq, tlas, gl_RayFlagsOpaqueEXT | gl_RayFlagsTerminateOnFirstHitEXT, 0xFF, origin, 0.0, dir, tMax);
+	while (rayQueryProceedEXT(rq)) {}
+	return rayQueryGetIntersectionTypeEXT(rq, true) == gl_RayQueryCommittedIntersectionTriangleEXT;
+}
+
+void main()
+{
+	const uint globalIndex = gl_GlobalInvocationID.x;
+	const uint probeCount = pc.probeCountX * pc.probeCountY * pc.probeCountZ;
+	const uint totalRays = probeCount * pc.raysPerProbe;
+	if (globalIndex >= totalRays)
+		return;
+
+	const uint probeIndex = globalIndex / pc.raysPerProbe;
+	const uint rayIndex = globalIndex % pc.raysPerProbe;
+
+	const uint probeX = probeIndex % pc.probeCountX;
+	const uint probeY = (probeIndex / pc.probeCountX) % pc.probeCountY;
+	const uint probeZ = probeIndex / (pc.probeCountX * pc.probeCountY);
+
+	const vec3 probePos = vec3(pc.minCornerX, pc.minCornerY, pc.minCornerZ)
+						+ vec3(probeX, probeY, probeZ) * pc.probeSpacing;
+
+	const vec3 localDir = sphericalFibonacci(rayIndex, pc.raysPerProbe);
+	const vec3 rayDir = normalize(quatToMat3(pc.randomRotation) * localDir);
+
+	rayQueryEXT rq;
+	rayQueryInitializeEXT(rq, tlas, gl_RayFlagsOpaqueEXT, 0xFF, probePos, 0.0, rayDir, pc.maxRayDistance);
+	while (rayQueryProceedEXT(rq)) {}
+
+	float hitDistance = pc.maxRayDistance;
+	vec3 radiance = vec3(0.0);
+
+	if (rayQueryGetIntersectionTypeEXT(rq, true) == gl_RayQueryCommittedIntersectionTriangleEXT)
+	{
+		hitDistance = rayQueryGetIntersectionTEXT(rq, true);
+		const uint instanceIndex = uint(rayQueryGetIntersectionInstanceCustomIndexEXT(rq, true));
+		const vec3 hitPos = probePos + rayDir * hitDistance;
+
+		const vec3 hitNormal = -rayDir;
+		const InstanceMaterial material = materials[instanceIndex];
+		const vec3 albedo = material.baseColour.rgb;
+
+		vec3 direct = lightData.ambientColour.rgb * albedo;
+
+		for (uint i = 0u; i < lightData.lightCount; ++i)
+		{
+			const GPULight light = lightData.lights[i];
+			const bool isPoint = light.positionOrDirWS.w > 0.5;
+
+			const vec3 toLight = isPoint ? light.positionOrDirWS.xyz - hitPos : -light.positionOrDirWS.xyz;
+			const vec3 L = normalize(toLight);
+
+			const float NdotL = max(dot(hitNormal, L), 0.0);
+			if (NdotL <= 0.0)
+				continue;
+
+			const float shadowTMax = isPoint ? length(toLight) : pc.maxRayDistance;
+			if (isOccluded(hitPos + hitNormal * pc.viewBias, L, shadowTMax))
+				continue;
+
+			const vec3 lightRadiance = light.colourIntensity.rgb * light.colourIntensity.w;
+			direct += albedo * lightRadiance * NdotL;
+		}
+
+		radiance = direct;
+	}
+
+	rays[globalIndex].directionAndDistance = vec4(rayDir, hitDistance);
+	rays[globalIndex].radiance = vec4(radiance, 0.0);
+}

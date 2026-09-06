@@ -431,6 +431,21 @@ namespace imp::app
 
 			if (!m_ddgiProbeUpdateShader || !m_ddgiProbeUpdatePipeline)
 				LOG_ERROR("Sandbox", "DDGI probe update compute pipeline failed to build");
+
+			gfx::ShaderDesc ddgiRayTraceDesc{};
+			ddgiRayTraceDesc.stage = gfx::ShaderStage::Compute;
+			ddgiRayTraceDesc.path = assets.ddgiRayTraceShader;
+			m_ddgiRayTraceShader = ctx.gfx.createShader(ddgiRayTraceDesc);
+
+			if (m_ddgiRayTraceShader)
+			{
+				gfx::ComputePipelineDesc ddgiRayTracePipelineDesc{};
+				ddgiRayTracePipelineDesc.computeShader = m_ddgiRayTraceShader.get();
+				m_ddgiRayTracePipeline = ctx.gfx.createComputePipeline(ddgiRayTracePipelineDesc);
+			}
+
+			if (!m_ddgiRayTraceShader || !m_ddgiRayTracePipeline)
+				LOG_ERROR("Sandbox", "DDGI ray trace compute pipeline failed to build");
 		}
 
 		if (!m_pipeline || !m_blendPipeline || !m_tonemapPipeline || !m_sampler
@@ -471,6 +486,8 @@ namespace imp::app
 		m_blurFragShader.reset();
 		m_ddgiProbeUpdatePipeline.reset();
 		m_ddgiProbeUpdateShader.reset();
+		m_ddgiRayTracePipeline.reset();
+		m_ddgiRayTraceShader.reset();
 
 		for (auto& buf : m_cascadeUBOs) buf.reset();
 		for (auto& buf : m_lightUBOs) buf.reset();

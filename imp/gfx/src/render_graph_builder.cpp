@@ -164,6 +164,16 @@ namespace imp::gfx
 		return out;
 	}
 
+	RGBufferHandle RenderGraphBuilder::writeStorageBuffer(RGBufferHandle handle)
+	{
+		m_graph->recordRead(m_passIndex, handle.index);
+		const u32 newVersion = m_graph->recordWrite(m_passIndex, handle.index);
+
+		RGBufferHandle out = handle;
+		out.version = newVersion;
+		return out;
+	}
+
 	void RenderGraphBuilder::hasSideEffect()
 	{
 		m_graph->m_passes[m_passIndex].hasSideEffect = true;

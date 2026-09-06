@@ -24,6 +24,7 @@ namespace imp::gfx
 		RGTextureHandle writeDepth(RGTextureHandle handle, RGLoadOp loadOp, float clearDepth = 1.f);
 		RGTextureHandle writeResolve(RGTextureHandle handle, RGTextureHandle msaaColourSource);
 		RGTextureHandle writeStorageTexture(RGTextureHandle handle);
+		RGBufferHandle writeStorageBuffer(RGBufferHandle handle);
 
 		void hasSideEffect();
 

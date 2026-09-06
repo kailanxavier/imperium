@@ -9,6 +9,7 @@ namespace imp::gfx::gi
 	inline CVarInt cvarRaysPerProbe{ "gi.rays_per_probe", 128 };
 	inline CVarFloat cvarHysteresis{ "gi.hysteresis", 0.95f };
 	inline CVarFloat cvarMaxRayDistance{ "gi.max_ray_distance", 100.f };
+	inline CVarFloat cvarDepthSharpness{ "gi.depth_sharpness", 50.f };
 
 	inline CVarFloat cvarVolumeOriginX{ "gi.volume_origin_x", 0.f };
 	inline CVarFloat cvarVolumeOriginY{ "gi.volume_origin_y", 2.f };

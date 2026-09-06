@@ -1,62 +1,32 @@
 #version 460
-#extension GL_EXT_ray_query : require
 
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 layout(binding = 0, rgba16f) uniform image2D irradianceAtlas;
 layout(binding = 1, rg16f) uniform image2D depthAtlas;
-layout(binding = 2) uniform accelerationStructureEXT tlas;
 
-struct InstanceMaterial
+struct RayResult
 {
-	vec4 baseColour;
-	vec4 metallicRoughness;
+	vec4 directionAndDistance;
+	vec4 radiance;
 };
 
-layout(std430, binding = 3) readonly buffer InstanceMaterials
+layout(std430, binding = 2) readonly buffer RayResults
 {
-	InstanceMaterial materials[];
+	RayResult rays[];
 };
-
-#define MAX_LIGHTS 16
-struct GPULight
-{
-	vec4 positionOrDirWS;
-	vec4 colourIntensity;
-};
-
-layout(binding = 4) uniform LightDataUBO
-{
-	vec4 cameraPositionWS;
-	vec4 ambientColour;
-	float specularStrength;
-	float shininess;
-	uint lightCount;
-	uint _pad0;
-	mat4 sunViewProj;
-	vec3 sunDirection;
-	float shadowMapSize;
-	GPULight lights[MAX_LIGHTS];
-} lightData;
 
 layout(push_constant) uniform PushConstants
 {
 	uint probeCountX;
 	uint probeCountY;
 	uint probeCountZ;
+	uint raysPerProbe;
 	uint irradianceTileTexels;
 	uint depthTileTexels;
 	uint isDepthPass;
-	float maxRayDistance;
 	float hysteresis;
-	float probeSpacing;
-	float minCornerX;
-	float minCornerY;
-	float minCornerZ;
-	float normalBias;
-	float viewBias;
+	float depthSharpness;
 } pc;
-
-const float PI = 3.14159265359;
 
 vec3 octDecode(vec2 f)
 {
@@ -66,13 +36,6 @@ vec3 octDecode(vec2 f)
 	n.y += n.y >= 0.0 ? -t : t;
 
 	return normalize(n);
-}
-bool isOccluded(vec3 origin, vec3 dir, float tMax)
-{
-	rayQueryEXT rq;
-	rayQueryInitializeEXT(rq, tlas, gl_RayFlagsOpaqueEXT | gl_RayFlagsTerminateOnFirstHitEXT, 0xFF, origin, 0.0, dir, tMax);
-	while (rayQueryProceedEXT(rq)) {}
-	return rayQueryGetIntersectionTypeEXT(rq, true) == gl_RayQueryCommittedIntersectionTriangleEXT;
 }
 
 void main()
@@ -95,68 +58,55 @@ void main()
 	const uint probeX = tileCol % pc.probeCountX;
 	const uint probeY = tileCol / pc.probeCountX;
 	const uint probeZ = tileRow;
-
-	const vec3 probePos = vec3(pc.minCornerX, pc.minCornerY, pc.minCornerZ)
-						+ vec3(probeX, probeY, probeZ);
+	const uint probeIndex = probeX + probeY * pc.probeCountX + probeZ * pc.probeCountX * pc.probeCountY;
 
 	const vec2 octUV = (vec2(localX, localY) + 0.5) / float(interiorTexels) * 2.0 - 1.0;
-	const vec3 rayDir = octDecode(octUV);
+	const vec3 texelDir = octDecode(octUV);
 
-	rayQueryEXT rq;
-	rayQueryInitializeEXT(rq, tlas, gl_RayFlagsOpaqueEXT, 0xFF, probePos, pc.normalBias, rayDir, pc.maxRayDistance);
-	while (rayQueryProceedEXT(rq)) {}
+	vec3 weightedRadiance = vec3(0.0);
+	float weightedDistance = 0.0;
+	float weightedDistanceSq = 0.0;
+	float totalWeight = 0.0;
 
-	float hitDistance = pc.maxRayDistance;
-	vec3 radiance = vec3(0.0);
-
-	if (rayQueryGetIntersectionTypeEXT(rq, true) == gl_RayQueryCommittedIntersectionTriangleEXT)
+	const uint rayBase = probeIndex * pc.raysPerProbe;
+	for (uint i = 0u; i < pc.raysPerProbe; ++i)
 	{
-		hitDistance = rayQueryGetIntersectionTEXT(rq, true);
-		const uint instanceIndex = uint(rayQueryGetIntersectionInstanceCustomIndexEXT(rq, true));
-		const vec3 hitPos = probePos + rayDir * hitDistance;
+		RayResult r = rays[rayBase + i];
+		const vec3 rayDir = r.directionAndDistance.xyz;
+		const float hitDistance = r.directionAndDistance.w;
 
-		const vec3 hitNormal = -rayDir;
-		const InstanceMaterial material = materials[instanceIndex];
-		const vec3 albedo = material.baseColour.rgb;
+		const float cosWeight = dot(texelDir, rayDir);
+		if (cosWeight <= 0.0)
+			continue;
 
-		vec3 direct = lightData.ambientColour.rgb * albedo;
-
-		for (uint i = 0u; i < lightData.lightCount; ++i)
+		if (pc.isDepthPass != 0u)
 		{
-			const GPULight light = lightData.lights[i];
-			const bool isPoint = light.positionOrDirWS.w > 0.5;
-
-			const vec3 toLight = isPoint ? light.positionOrDirWS.xyz - hitPos : -light.positionOrDirWS.xyz;
-			const vec3 L = normalize(toLight);
-
-			const float NdotL = max(dot(hitNormal, L), 0.0);
-			if (NdotL <= 0.0)
-				continue;
-
-			const float shadowTMax = isPoint ? length(toLight) : pc.maxRayDistance;
-			if (isOccluded(hitPos + hitNormal * pc.viewBias, L, shadowTMax))
-				continue;
-
-			const vec3 lightRadiance = light.colourIntensity.rgb * light.colourIntensity.w;
-			direct += albedo * lightRadiance * NdotL;
+			const float depthWeight = pow(cosWeight, pc.depthSharpness);
+			weightedDistance += hitDistance * depthWeight;
+			weightedDistanceSq += hitDistance * hitDistance * depthWeight;
+			totalWeight += depthWeight;
 		}
-
-		radiance = direct;
+		else
+		{
+			weightedRadiance += r.radiance.rgb * cosWeight;
+			totalWeight += cosWeight;
+		}
 	}
 
 	const ivec2 texelCoord = ivec2(int(tileCol * tileTexels + 1u + localX), int(tileRow * tileTexels + 1u + localY));
 
 	if (pc.isDepthPass != 0u)
 	{
-		const vec2 newMoments = vec2(hitDistance, hitDistance * hitDistance);
 		const vec2 oldMoments = imageLoad(depthAtlas, texelCoord).rg;
+		const vec2 newMoments = (totalWeight > 0.0) ? vec2(weightedDistance, weightedDistanceSq) / totalWeight : oldMoments;
 		const vec2 blended = mix(newMoments, oldMoments, pc.hysteresis);
 		imageStore(depthAtlas, texelCoord, vec4(blended, 0.0, 0.0));
 	}
 	else
 	{
 		const vec3 oldRadiance = imageLoad(irradianceAtlas, texelCoord).rgb;
-		const vec3 blended = mix(radiance, oldRadiance, pc.hysteresis);
+		const vec3 newRadiance = (totalWeight > 0.0) ? (weightedRadiance / totalWeight) : oldRadiance;
+		const vec3 blended = mix(newRadiance, oldRadiance, pc.hysteresis);
 		imageStore(irradianceAtlas, texelCoord, vec4(blended, 1.0));
 	}
 }

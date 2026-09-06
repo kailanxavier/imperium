@@ -18,7 +18,9 @@ namespace imp::app
 		std::string fullscreenVertShader = "assets/shaders/fullscreen.vert.spv";
 		std::string gtaoFragShader = "assets/shaders/gtao.frag.spv";
 		std::string blurFragShader = "assets/shaders/bilateral_blur.frag.spv";
+
 		std::string ddgiProbeUpdateShader = "assets/shaders/ddgi_probe_update.comp.spv";
+		std::string ddgiRayTraceShader = "assets/shaders/ddgi_ray_trace.comp.spv";
 
 		std::string environmentModel = "assets/models/khr-sponza.glb";
 		std::string environmentTestModel = "assets/models/environment_test.glb";

@@ -76,4 +76,27 @@ namespace imp::gfx
 			static_cast<float>( y ) * m_desc.probeSpacing,
 			static_cast<float>( y ) * m_desc.probeSpacing);
 	}
+
+	bool DDGIVolume::ensureRayBufferCapacity(IDevice& device, u32 requiredRayCount)
+	{
+		if (m_rayBuffer && requiredRayCount <= m_rayBufferCapacity)
+			return true;
+
+		if (requiredRayCount == 0)
+			return true;
+
+		BufferDesc desc{};
+		desc.size = static_cast<u64>( requiredRayCount ) * sizeof(DDGIRayResult);
+		desc.usage = BufferUsage::Storage;
+		desc.memoryAccess = MemoryAccess::DeviceOnly;
+		desc.debugName = "DDGI ray results";
+
+		auto newBuffer = device.createBuffer(desc);
+		if (!newBuffer)
+			return false;
+
+		m_rayBuffer = std::move(newBuffer);
+		m_rayBufferCapacity = requiredRayCount;
+		return true;
+	}
 }

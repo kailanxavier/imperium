@@ -125,18 +125,22 @@ namespace imp::app
 	void SandboxScene::buildStaticTlasOnce(AppContext& ctx)
 	{
 		if (m_staticTlasBuildAttempted) return;
-		m_staticTlasBuildAttempted = true;
 
 		if (!ctx.gfx.supportsRayTracing())
+		{
+			m_staticTlasBuildAttempted = true;
 			return;
+		}
 
 		std::vector<gfx::DDGIInstanceMaterial> materials;
 		std::vector<gfx::TlasInstanceDesc> instances = gfx::gatherTlasInstances(m_modelRegistry, m_extraction, &materials);
 		if (instances.empty())
 		{
-			LOG_WARN("Sandbox", "buildStaticTlasOnce(): no instances with a built BLAS found");
+			//LOG_WARN("Sandbox", "buildStaticTlasOnce(): no instances with a built BLAS found");
 			return;
 		}
+
+		m_staticTlasBuildAttempted = true;
 
 		gfx::TlasBuildDesc tlasDesc{};
 		tlasDesc.instances = std::move(instances);

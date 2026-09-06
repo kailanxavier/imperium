@@ -38,6 +38,10 @@ namespace imp::gfx
 		[[nodiscard]] ITexture* irradianceAtlas() const { return m_irradianceAtlas.get(); }
 		[[nodiscard]] ITexture* depthAtlas() const { return m_depthAtlas.get(); }
 
+		[[nodiscard]] IBuffer* rayBuffer() const { return m_rayBuffer.get(); }
+		[[nodiscard]] u32 rayBufferCapacity() const { return m_rayBufferCapacity; }
+		bool ensureRayBufferCapacity(IDevice& device, u32 requiredRayCount);
+
 	private:
 		DDGIVolumeDesc m_desc;
 		u32 m_probeCountX{ 0 };
@@ -46,6 +50,24 @@ namespace imp::gfx
 
 		std::unique_ptr<ITexture> m_irradianceAtlas;
 		std::unique_ptr<ITexture> m_depthAtlas;
+
+		std::unique_ptr<IBuffer> m_rayBuffer;
+		u32 m_rayBufferCapacity{ 0 };
+	};
+
+	struct DDGIRayTracePushConstants
+	{
+		u32 probeCountX{ 0 };
+		u32 probeCountY{ 0 };
+		u32 probeCountZ{ 0 };
+		u32 raysPerProbe{ 0 };
+		float maxRayDistance{ 0.f };
+		float probeSpacing{ 0.f };
+		float minCornerX{ 0.f };
+		float minCornerY{ 0.f };
+		float minCornerZ{ 0.f };
+		float viewBias{ 0.f };
+		math::Vec4f randomRotation{ 0.f, 0.f, 0.f, 1.f };
 	};
 
 	struct DDGIProbeUpdatePushConstants
@@ -53,17 +75,12 @@ namespace imp::gfx
 		u32 probeCountX{ 0 };
 		u32 probeCountY{ 0 };
 		u32 probeCountZ{ 0 };
+		u32 raysPerProbe{ 0 };
 		u32 irradianceTileTexels{ 0 };
 		u32 depthTileTexels{ 0 };
 		u32 isDepthPass{ 0 };
-		float maxRayDistance{ 0.f };
 		float hysteresis{ 0.f };
-		float probeSpacing{ 0.f };
-		float minCornerX{ 0.f };
-		float minCornerY{ 0.f };
-		float minCornerZ{ 0.f };
-		float normalBias{ 0.f };
-		float viewBias{ 0.f };
+		float depthSharpness{ 0.f };
 	};
 
 	struct DDGIInstanceMaterial
@@ -72,6 +89,13 @@ namespace imp::gfx
 		math::Vec4f metallicRoughness{ 0.f, 1.f, 0.f, 0.f }; // x = metallic, y = roughness. .z,.w unused
 	};
 	static_assert( sizeof(DDGIInstanceMaterial) == 32 && "DDGIInstanceMaterial must stay std430 array friendly" );
+
+	struct DDGIRayResult
+	{
+		math::Vec4f directionAndDistance{ 0.f, 0.f, 0.f, 0.f };
+		math::Vec4f radiance{ 0.f, 0.f, 0.f, 0.f };
+	};
+	static_assert( sizeof(DDGIRayResult) == 32 && "DDGIRayResult must stay std430 array friendly" );
 
 	struct DDGIVolumeUBO
 	{

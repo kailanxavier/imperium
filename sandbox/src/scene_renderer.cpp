@@ -8,6 +8,9 @@
 #include <gfx/ao_cvars.h>
 #include <gfx/gi_cvars.h>
 
+#include <core/math/math.h>
+#include <random>
+
 namespace imp::app
 {
 	namespace
@@ -92,61 +95,153 @@ namespace imp::app
 		{
 			gfx::RGTextureHandle irradianceAtlas;
 			gfx::RGTextureHandle depthAtlas;
-			gfx::RGBufferHandle lightUBO;
+			gfx::RGBufferHandle rayBuffer;
 			RenderResources* resources = nullptr;
-			const SandboxScene* scene = nullptr;
+			u32 raysPerProbe = 0;
 		};
+
+		struct DDGIRayTracePassData
+		{
+			gfx::RGBufferHandle rayBuffer;
+			gfx::RGBufferHandle lightUBO;
+
+			gfx::IPipeline* pipeline = nullptr;
+			const gfx::ITlas* tlas = nullptr;
+			gfx::IBuffer* materials = nullptr;
+
+			u32 probeCountX = 0, probeCountY = 0, probeCountZ = 0, raysPerProbe = 0;
+			float maxRayDistance = 0.f, probeSpacing = 0.f, viewBias = 0.f;
+			math::Vec3f minCorner;
+			math::Vec4f randomRotation;
+		};
+
+		math::Vec4f randomRayRotationQuaternion()
+		{
+			static std::mt19937 rng{ std::random_device{}( ) };
+			static std::uniform_real_distribution<float> dist(0.f, 1.f);
+
+			const float u1 = dist(rng);
+			const float u2 = dist(rng);
+			const float u3 = dist(rng);
+
+			const float z = 1.f - 2.f * u1;
+			const float r = std::sqrt(std::max(0.f, 1.f - z * z));
+			const float phi = 2.f * math::kPif * u2;
+			const math::Vec3f axis{ r * std::cos(phi), r * std::sin(phi), z };
+
+			const float angle = u3 * 2.f * math::kPif;
+			const float halfAngle = angle * 0.5f;
+			const float s = std::sin(halfAngle);
+
+			return math::Vec4f{ axis.x * s, axis.y * s, axis.z * s, std::cos(halfAngle) };
+		}
 	}
 
-	void addDDGIProbeUpdatePass(gfx::RenderGraph& graph, RenderResources& resources, SandboxScene& scene, AppContext& ctx, const SceneRenderParams& params)
+	gfx::RGBufferHandle addDDGIRayTracePass(gfx::RenderGraph& graph, RenderResources& resources, SandboxScene& scene, AppContext& ctx, const SceneRenderParams& params)
+	{
+		if (!ctx.gfx.supportsRayTracing())
+			return {};
+
+		gfx::DDGIVolume& volume = resources.ddgiVolume();
+		gfx::IPipeline* pipeline = resources.ddgiRayTracePipeline();
+		const gfx::ITlas* tlas = scene.staticTlas();
+		gfx::IBuffer* materials = scene.ddgiInstanceMaterials();
+		if (!pipeline || !tlas || !materials)
+			return {};
+
+		const u32 raysPerProbe = static_cast<u32>( std::max<i32>(1, gfx::gi::cvarRaysPerProbe) );
+		const u32 requiredRays = volume.probeCount() * raysPerProbe;
+		if (!volume.ensureRayBufferCapacity(ctx.gfx, requiredRays) || !volume.rayBuffer())
+			return {};
+
+		const auto& data = graph.addPass<DDGIRayTracePassData>("DDGIRayTrace",
+			[&](gfx::RenderGraphBuilder& b, DDGIRayTracePassData& d)
+			{
+				d.rayBuffer = b.writeStorageBuffer(b.importBuffer("DDGIRayResults", volume.rayBuffer()));
+				d.lightUBO = b.readBuffer(b.importBuffer("LightUBO", &resources.lightUBO(params.currentFrame)));
+
+				d.pipeline = pipeline;
+				d.tlas = tlas;
+				d.materials = materials;
+				d.probeCountX = volume.probeCountX();
+				d.probeCountY = volume.probeCountY();
+				d.probeCountZ = volume.probeCountZ();
+				d.raysPerProbe = raysPerProbe;
+				d.maxRayDistance = gfx::gi::cvarMaxRayDistance;
+				d.probeSpacing = volume.desc().probeSpacing;
+				d.viewBias = gfx::gi::cvarViewBias;
+				d.minCorner = volume.desc().origin - volume.desc().extents;
+				d.randomRotation = randomRayRotationQuaternion();
+			},
+			[](const DDGIRayTracePassData& d, gfx::RenderGraphContext& rgCtx)
+			{
+				rgCtx.cmd().bindComputePipeline(*d.pipeline);
+				rgCtx.cmd().bindAccelerationStructure(*d.tlas, 0);
+				rgCtx.cmd().bindStorageBuffer(*d.materials, 1);
+				rgCtx.cmd().bindUniformBuffer(rgCtx.buffer(d.lightUBO), 2);
+				rgCtx.cmd().bindStorageBuffer(rgCtx.buffer(d.rayBuffer), 3);
+
+				gfx::DDGIRayTracePushConstants pc{};
+				pc.probeCountX = d.probeCountX;
+				pc.probeCountY = d.probeCountY;
+				pc.probeCountZ = d.probeCountZ;
+				pc.raysPerProbe = d.raysPerProbe;
+				pc.maxRayDistance = d.maxRayDistance;
+				pc.probeSpacing = d.probeSpacing;
+				pc.minCornerX = d.minCorner.x;
+				pc.minCornerY = d.minCorner.y;
+				pc.minCornerZ = d.minCorner.z;
+				pc.viewBias = d.viewBias;
+				pc.randomRotation = d.randomRotation;
+				rgCtx.cmd().pushConstants(&pc, sizeof(pc), 0);
+
+				const u32 totalRays = d.probeCountX * d.probeCountY * d.probeCountZ * d.raysPerProbe;
+				rgCtx.cmd().dispatch(( totalRays + 63 ) / 64, 1, 1);
+			});
+
+		return data.rayBuffer;
+	}
+
+	void addDDGIProbeUpdatePass(gfx::RenderGraph& graph, RenderResources& resources, SandboxScene& scene, AppContext& ctx, const SceneRenderParams& params, gfx::RGBufferHandle rayBuffer)
 	{
 		if (!ctx.gfx.supportsRayTracing())
 			return;
 
 		gfx::DDGIVolume& volume = resources.ddgiVolume();
 		gfx::IPipeline* pipeline = resources.ddgiProbeUpdatePipeline();
-		const gfx::ITlas* tlas = scene.staticTlas();
-		const gfx::IBuffer* materials = scene.ddgiInstanceMaterials();
-		if (!volume.irradianceAtlas() || !volume.depthAtlas() || !pipeline || !tlas || !materials)
+		if (!volume.irradianceAtlas() || !volume.depthAtlas() || !pipeline || !volume.rayBuffer())
 			return;
+
+		const u32 raysPerProbe = static_cast<u32>( std::max<i32>(1, gfx::gi::cvarRaysPerProbe) );
 
 		graph.addPass<DDGIProbeUpdatePassData>("DDGIProbeUpdate",
 			[&](gfx::RenderGraphBuilder& b, DDGIProbeUpdatePassData& d)
 			{
 				d.irradianceAtlas = b.writeStorageTexture(b.importTexture("DDGIIrradianceAtlas", volume.irradianceAtlas()));
 				d.depthAtlas = b.writeStorageTexture(b.importTexture("DDGIDepthAtlas", volume.depthAtlas()));
-				d.lightUBO = b.readBuffer(b.importBuffer("LightUBO", &resources.lightUBO(params.currentFrame)));
+				d.rayBuffer = b.readBuffer(rayBuffer);
 				d.resources = &resources;
-				d.scene = &scene;
+				d.raysPerProbe = raysPerProbe;
 			},
 			[](const DDGIProbeUpdatePassData& d, gfx::RenderGraphContext& rgCtx)
 			{
 				gfx::DDGIVolume& volume = d.resources->ddgiVolume();
-				const gfx::ITlas& tlas = *d.scene->staticTlas();
-				gfx::IBuffer& materials = *d.scene->ddgiInstanceMaterials();
 
 				rgCtx.cmd().bindComputePipeline(*d.resources->ddgiProbeUpdatePipeline());
 				rgCtx.cmd().bindStorageImage(rgCtx.texture(d.irradianceAtlas), 0);
 				rgCtx.cmd().bindStorageImage(rgCtx.texture(d.depthAtlas), 1);
-				rgCtx.cmd().bindAccelerationStructure(tlas, 2);
-				rgCtx.cmd().bindStorageBuffer(materials, 3);
-				rgCtx.cmd().bindUniformBuffer(rgCtx.buffer(d.lightUBO), 4);
+				rgCtx.cmd().bindStorageBuffer(rgCtx.buffer(d.rayBuffer), 2);
 
 				gfx::DDGIProbeUpdatePushConstants pc{};
 				pc.probeCountX = volume.probeCountX();
 				pc.probeCountY = volume.probeCountY();
 				pc.probeCountZ = volume.probeCountZ();
+				pc.raysPerProbe = d.raysPerProbe;
 				pc.irradianceTileTexels = gfx::DDGIVolume::kIrradianceTileTexels;
 				pc.depthTileTexels = gfx::DDGIVolume::kDepthTileTexels;
-				pc.maxRayDistance = gfx::gi::cvarMaxRayDistance;
 				pc.hysteresis = gfx::gi::cvarHysteresis;
-				pc.probeSpacing = volume.desc().probeSpacing;
-				const math::Vec3f minCorner = volume.desc().origin - volume.desc().extents;
-				pc.minCornerX = minCorner.x;
-				pc.minCornerY = minCorner.y;
-				pc.minCornerZ = minCorner.z;
-				pc.normalBias = gfx::gi::cvarNormalBias;
-				pc.viewBias = gfx::gi::cvarViewBias;
+				pc.depthSharpness = gfx::gi::cvarDepthSharpness;
+
 				const u32 irrInterior = gfx::DDGIVolume::kIrradianceInteriorTexels;
 				const u32 irrWidth = volume.probeCountX() * volume.probeCountY() * irrInterior;
 				const u32 irrHeight = volume.probeCountZ() * irrInterior;
