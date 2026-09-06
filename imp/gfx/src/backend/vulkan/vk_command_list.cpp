@@ -268,8 +268,10 @@ namespace imp::gfx::vulkan
 
 	void VulkanCommandList::bindTexture(gfx::ITexture& texture, gfx::ISampler& sampler, u32 binding)
 	{
-		const auto& vkTexture = dynamic_cast<VulkanTexture&>( texture );
+		auto& vkTexture = dynamic_cast<VulkanTexture&>( texture );
 		const auto& vkSampler = dynamic_cast<VulkanSampler&>( sampler );
+
+		ensureReadableForSampling(vkTexture);
 
 		PendingBinding pb{};
 		pb.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -355,6 +357,22 @@ namespace imp::gfx::vulkan
 		transitionImage(vkTarget.image(), VK_IMAGE_ASPECT_COLOR_BIT,
 			VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
 			VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT, VK_ACCESS_2_NONE);
+	}
+
+	void VulkanCommandList::computeToComputeBarrier()
+	{
+		VkMemoryBarrier2 barrier{};
+		barrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2;
+		barrier.srcStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+		barrier.srcAccessMask = VK_ACCESS_2_SHADER_WRITE_BIT;
+		barrier.dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+		barrier.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT;
+
+		VkDependencyInfo dep{};
+		dep.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+		dep.memoryBarrierCount = 1;
+		dep.pMemoryBarriers = &barrier;
+		vkCmdPipelineBarrier2(m_cmd, &dep);
 	}
 
 	void VulkanCommandList::setPendingBinding(const PendingBinding& pb)
@@ -489,9 +507,10 @@ namespace imp::gfx::vulkan
 		return hash;
 	}
 
-#ifndef NDEBUG
 	bool VulkanCommandList::validatePendingBindings() const
 	{
+#ifndef NDEBUG
+
 		if (!m_currentBindingLayout)
 			return true;
 
@@ -533,8 +552,28 @@ namespace imp::gfx::vulkan
 		}
 
 		return ok;
-	}
+#else
+		return true; // probably fine
 #endif
+	}
+
+	void VulkanCommandList::ensureReadableForSampling(VulkanTexture& texture)
+	{
+		const bool isDepth = ( texture.format() == gfx::TextureFormat::Depth32Float );
+		const VkImageAspectFlags aspect = isDepth ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+		const u32 layerCount = texture.arrayLayers() > 0 ? texture.arrayLayers() : 1;
+
+		for (u32 layer = 0; layer < layerCount; ++layer)
+		{
+			ImageSyncState& state = m_imageStates[{texture.image(), layer}];
+			if (state.layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+				continue;
+
+			transitionImage(texture.image(), aspect, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+				VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+				VK_ACCESS_2_SHADER_READ_BIT, false, layer);
+		}
+	}
 
 	void VulkanCommandList::transitionImage(VkImage image, VkImageAspectFlags aspect, VkImageLayout newLayout,
 	                                        VkPipelineStageFlags2 dstStage, VkAccessFlags2 dstAccess, bool crossesPresentationEngine, u32 baseArrayLayer /* = 0*/)

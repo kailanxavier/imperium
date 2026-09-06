@@ -74,10 +74,6 @@ namespace imp::gfx
         virtual void bindAccelerationStructure(const ITlas& tlas, u32 binding) = 0;
 
         virtual void dispatch(u32 groupCountX, u32 groupCountY, u32 groupCountZ) = 0;
-
-        // Compute is there. Still need explicit barriers beyond what
-        // beginRenderPass and bindStorageImage already handle. That's phase 3 
-        // stuff and isn't needed right now. Maybe we should start uploading photos 
-        // of the sketchbook as some sort of roadmap.
+        virtual void computeToComputeBarrier() = 0;
     };
 }

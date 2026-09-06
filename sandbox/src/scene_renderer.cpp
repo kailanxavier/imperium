@@ -229,6 +229,7 @@ namespace imp::app
 			{
 				gfx::DDGIVolume& volume = d.resources->ddgiVolume();
 
+				rgCtx.cmd().computeToComputeBarrier();
 				rgCtx.cmd().bindComputePipeline(*d.resources->ddgiProbeUpdatePipeline());
 				rgCtx.cmd().bindStorageImage(rgCtx.texture(d.irradianceAtlas), 0);
 				rgCtx.cmd().bindStorageImage(rgCtx.texture(d.depthAtlas), 1);

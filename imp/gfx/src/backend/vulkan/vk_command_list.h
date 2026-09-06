@@ -10,6 +10,7 @@ namespace imp::gfx::vulkan
 {
 	class VulkanRenderTarget;
 	class VulkanDescriptorAllocator;
+	class VulkanTexture;
 
 	class VulkanCommandList final : public gfx::ICommandList
 	{
@@ -40,6 +41,8 @@ namespace imp::gfx::vulkan
 
 		void transitionToPresent(gfx::IRenderTarget& target);
 		void resetImageTracking() { m_imageStates.clear(); }
+
+		void computeToComputeBarrier() override;
 
 	private:
 		struct ImageStateKey
@@ -81,6 +84,8 @@ namespace imp::gfx::vulkan
 		void flushDescriptorBindings();
 		[[nodiscard]] u64 hashPendingBindings() const;
 		[[nodiscard]] bool validatePendingBindings() const;
+
+		void ensureReadableForSampling(VulkanTexture& texture);
 
 		std::unordered_map<ImageStateKey, ImageSyncState, ImageStateKeyHash> m_imageStates;
 
