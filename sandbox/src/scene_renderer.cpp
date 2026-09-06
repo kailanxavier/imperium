@@ -249,13 +249,23 @@ namespace imp::app
 				const u32 irrWidth = volume.probeCountX() * volume.probeCountY() * irrTile;
 				const u32 irrHeight = volume.probeCountZ() * irrTile;
 
+				const u32 depthTile = gfx::DDGIVolume::kDepthTileTexels;
+				const u32 depthWidth = volume.probeCountX() * volume.probeCountY() * depthTile;
+				const u32 depthHeight = volume.probeCountZ() * depthTile;
+
 				pc.isDepthPass = 0;
 				rgCtx.cmd().pushConstants(&pc, sizeof(pc), 0);
 				rgCtx.cmd().dispatch(( irrWidth + 7 ) / 8, ( irrHeight + 7 ) / 8, 1);
 
-				const u32 depthTile = gfx::DDGIVolume::kDepthTileTexels;
-				const u32 depthWidth = volume.probeCountX() * volume.probeCountY() * depthTile;
-				const u32 depthHeight = volume.probeCountZ() * depthTile;
+				pc.isDepthPass = 1;
+				rgCtx.cmd().pushConstants(&pc, sizeof(pc), 0);
+				rgCtx.cmd().dispatch(( depthWidth + 7 ) / 8, ( depthHeight + 7 ) / 8, 1);
+				rgCtx.cmd().computeToComputeBarrier();
+
+				pc.isBorderPass = 1;
+				pc.isDepthPass = 0;
+				rgCtx.cmd().pushConstants(&pc, sizeof(pc), 0);
+				rgCtx.cmd().dispatch(( irrWidth + 7 ) / 8, ( irrHeight + 7 ) / 8, 1);
 
 				pc.isDepthPass = 1;
 				rgCtx.cmd().pushConstants(&pc, sizeof(pc), 0);

@@ -24,6 +24,7 @@ layout(push_constant) uniform PushConstants
 	uint irradianceTileTexels;
 	uint depthTileTexels;
 	uint isDepthPass;
+	uint isBorderPass;
 	float hysteresis;
 	float depthSharpness;
 } pc;
@@ -59,8 +60,29 @@ void main()
 	const uint probeIndex = probeX + probeY * pc.probeCountX + probeZ * pc.probeCountX * pc.probeCountY;
 
 	bool isBorder = (localX == 0u || localX == tileTexels - 1u || localY == 0u || localY == tileTexels - 1u);
-	uint interiorX = clamp(localX, 1u, tileTexels - 2u) - 1u;
-	uint interiorY = clamp(localY, 1u, tileTexels - 2u) - 1u;
+	const ivec2 texelCoord = ivec2(int(tileCol * tileTexels + localX), int(tileRow * tileTexels + localY));
+
+	if (pc.isBorderPass != 0u)
+	{
+		if (!isBorder)
+			return;
+
+		uint interiorX = clamp(localX, 1u, tileTexels - 2u) - 1u;
+		uint interiorY = clamp(localY, 1u, tileTexels - 2u) - 1u;
+		const ivec2 interiorCoord = ivec2(int(tileCol * tileTexels + interiorX + 1u), int(tileRow * tileTexels + interiorY + 1u));
+
+		if (pc.isDepthPass != 0u)
+			imageStore(depthAtlas, texelCoord, imageLoad(depthAtlas, interiorCoord));
+		else
+			imageStore(irradianceAtlas, texelCoord, imageLoad(irradianceAtlas, interiorCoord));
+		return;
+	}
+
+	if (isBorder)
+		return;
+
+	const uint interiorX = localX - 1u;
+	const uint interiorY = localY - 1u;
 
 	const vec2 octUV = (vec2(interiorX, interiorY) + 0.5) / float(interiorTexels) * 2.0 - 1.0;
 	const vec3 texelDir = octDecode(octUV);
@@ -95,13 +117,11 @@ void main()
 		}
 	}
 
-	const ivec2 texelCoord = ivec2(int(tileCol * tileTexels + localX), int(tileRow * tileTexels + localY));
-	const ivec2 interiorCoord = ivec2(int(tileCol * tileTexels + interiorX + 1u), int(tileRow * tileTexels + interiorY + 1u));
 
 	if (pc.isDepthPass != 0u)
 	{
-		const vec2 newMoments = (totalWeight > 0.0) ? vec2(weightedDistance, weightedDistanceSq) / totalWeight : vec2(0.0);		
-		vec2 oldMoments = imageLoad(depthAtlas, isBorder ? interiorCoord : texelCoord).rg;
+		const vec2 newMoments = (totalWeight > 0.0) ? vec2(weightedDistance, weightedDistanceSq) / totalWeight : vec2(0.0);
+		const vec2 oldMoments = imageLoad(depthAtlas, texelCoord).rg;
 		const vec2 resolved = (totalWeight > 0.0) ? newMoments : oldMoments;
 		const vec2 blended = mix(resolved, oldMoments, pc.hysteresis);
 		imageStore(depthAtlas, texelCoord, vec4(blended, 0.0, 0.0));
@@ -109,7 +129,7 @@ void main()
 	else
 	{
 		const vec3 newRadiance = (totalWeight > 0.0) ? (weightedRadiance / totalWeight) : vec3(0.0);
-		vec3 oldRadiance = imageLoad(irradianceAtlas, isBorder ? interiorCoord : texelCoord).rgb;
+		vec3 oldRadiance = imageLoad(irradianceAtlas, texelCoord).rgb;
 		const vec3 resolved = (totalWeight > 0.0) ? newRadiance : oldRadiance;
 		const vec3 blended = mix(resolved, oldRadiance, pc.hysteresis);
 		imageStore(irradianceAtlas, texelCoord, vec4(blended, 1.0));

@@ -79,6 +79,7 @@ namespace imp::gfx
 		u32 irradianceTileTexels{ 0 };
 		u32 depthTileTexels{ 0 };
 		u32 isDepthPass{ 0 };
+		u32 isBorderPass{ 0 };
 		float hysteresis{ 0.f };
 		float depthSharpness{ 0.f };
 	};
