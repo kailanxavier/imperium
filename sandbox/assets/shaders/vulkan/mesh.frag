@@ -220,20 +220,20 @@ void main()
     ssao = mix(1.0, ssao, screen.flags.x);
     occlusion *= ssao;
 
-    vec3 N = normalize(inNormalWS);
+    vec3 geometricN = normalize(inNormalWS);
     vec3 T = normalize(inTangentWS);
 
-    vec3 B = normalize(cross(N, T)) * inTangentSign;
-    mat3 TBN = mat3(T, B, N);
+    vec3 B = normalize(cross(geometricN, T)) * inTangentSign;
+    mat3 TBN = mat3(T, B, geometricN);
     vec3 tangentNormal = texture(normalTexture, inUV).xyz;
     tangentNormal = tangentNormal * 2.0 - 1.0;
-    N = normalize(TBN * tangentNormal);
+    vec3 N = normalize(TBN * tangentNormal);
 
     vec3 V = normalize(lightData.cameraPositionWS.xyz - inPositionWS);
 
     vec3 F0 = mix(vec3(0.04), albedo, metallic);
 
-    vec3 indirectDiffuse = (ddgi.probeCounts.w != 0u) ? sampleDDGIIrradiance(inPositionWS, N) : lightData.ambientColour.rgb;
+    vec3 indirectDiffuse = (ddgi.probeCounts.w != 0u) ? sampleDDGIIrradiance(inPositionWS, geometricN) : lightData.ambientColour.rgb;
 
     vec3 result = indirectDiffuse * albedo * occlusion;
     vec3 sunL = normalize(-lightData.sunDirection);
