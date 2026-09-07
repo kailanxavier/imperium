@@ -129,7 +129,9 @@ namespace imp::app
 			const float phi = 2.f * math::kPif * u2;
 			const math::Vec3f axis{ r * std::cos(phi), r * std::sin(phi), z };
 
-			const float angle = u3 * 2.f * math::kPif;
+			const float maxAngle = std::max(0.f, gfx::gi::cvarRayRotationMaxDegrees.ref()) * ( math::kPif / 180.f );
+
+			const float angle = u3 * maxAngle;
 			const float halfAngle = angle * 0.5f;
 			const float s = std::sin(halfAngle);
 
@@ -176,6 +178,7 @@ namespace imp::app
 			},
 			[](const DDGIRayTracePassData& d, gfx::RenderGraphContext& rgCtx)
 			{
+				rgCtx.cmd().computeToComputeBarrier();
 				rgCtx.cmd().bindComputePipeline(*d.pipeline);
 				rgCtx.cmd().bindAccelerationStructure(*d.tlas, 0);
 				rgCtx.cmd().bindStorageBuffer(*d.materials, 1);
