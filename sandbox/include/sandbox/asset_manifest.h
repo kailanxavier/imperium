@@ -21,6 +21,10 @@ namespace imp::app
 
 		std::string ddgiProbeUpdateShader = "assets/shaders/ddgi_probe_update.comp.spv";
 		std::string ddgiRayTraceShader = "assets/shaders/ddgi_ray_trace.comp.spv";
+		std::string bloomDownsampleFragShader = "assets/shaders/bloom_down_sample.frag.spv";
+		std::string bloomUpsampleFragShader = "assets/shaders/bloom_up_sample.frag.spv";
+		std::string thermalUpdateDdgiShader = "assets/shaders/ddgi_thermal_update.comp.spv";
+		std::string thermalUpdateFallbackShader = "assets/shaders/thermal_update_fallback.comp.spv";
 
 		std::string environmentModel = "assets/models/khr-sponza.glb";
 		std::string environmentTestModel = "assets/models/environment_test.glb";

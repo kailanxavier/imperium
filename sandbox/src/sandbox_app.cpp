@@ -131,12 +131,16 @@ namespace imp::app
 		const gfx::RGBufferHandle ddgiRayBuffer = addDDGIRayTracePass(graph, m_resources, m_scene, ctx, params);
 		addDDGIProbeUpdatePass(graph, m_resources, m_scene, ctx, params, ddgiRayBuffer, ddgiIrradianceHandle, ddgiDepthHandle);
 
-		const gfx::RGTextureHandle hdrResolve = addHdrPass(graph, m_resources, m_scene, ctx, params, shadowPasses, 
-			aoTexture, ddgiIrradianceHandle, ddgiDepthHandle);
+		gfx::RGBufferHandle thermalBuffer = addThermalUpdatePass(graph, m_resources, m_scene, ctx, params, ddgiRayBuffer);
 
-		addTonemapPass(graph, m_resources, hdrResolve, ctx.gfx.backBuffer(), "Tonemap");
+		const gfx::RGTextureHandle hdrResolve = addHdrPass(graph, m_resources, m_scene, ctx, params, shadowPasses, 
+			aoTexture, ddgiIrradianceHandle, ddgiDepthHandle, thermalBuffer);
+
+		gfx::RGTextureHandle bloomTexture = addBloomPasses(graph, m_resources, ctx, hdrResolve);
+
+		addTonemapPass(graph, m_resources, hdrResolve, bloomTexture, ctx.gfx.backBuffer(), "Tonemap");
 		if (m_readbackTarget)
-			addTonemapPass(graph, m_resources, hdrResolve, *m_readbackTarget, "Tonemap Readback");
+			addTonemapPass(graph, m_resources, hdrResolve, bloomTexture, *m_readbackTarget, "Tonemap Readback");
 
 		if (!graph.compile())
 		{

@@ -56,6 +56,9 @@ namespace imp::gfx
 		gfx::IBuffer* ddgiVolumeBuffer = nullptr;
 		gfx::ISampler* ddgiSampler = nullptr;
 
+		gfx::IBuffer* thermalHeatBuffer = nullptr;
+		gfx::IBuffer* thermalVolumeBuffer = nullptr;
+
 		math::Mat4f viewProj;
 
 		const CullVolume* cullVolume = nullptr;

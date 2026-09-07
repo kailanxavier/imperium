@@ -73,6 +73,63 @@ layout(binding = 12) uniform DDGIVolumeUBO
     uvec4 probeCounts;
 } ddgi;
 
+layout(binding = 13) uniform ThermalVolumeUBO
+{
+    vec4 minCornerAndSpacing;
+    uvec4 probeCounts;
+    vec4 glowParams;
+} thermalVolume;
+
+layout(std430, binding = 14) readonly buffer ThermalHeatBuffer
+{
+    float heatValues[];
+} thermalHeat;
+
+float sampleThermalHeat(vec3 posWS)
+{
+    vec3 minCorner = thermalVolume.minCornerAndSpacing.xyz;
+    float spacing = max(thermalVolume.minCornerAndSpacing.w, 0.00000001);
+    uvec3 probeCounts = thermalVolume.probeCounts.xyz;
+
+    vec3 gridSpace = (posWS - minCorner) / spacing;
+    vec3 baseCoord = floor(gridSpace);
+    vec3 frac = clamp(gridSpace - baseCoord, 0.0, 1.0);
+
+    float heat = 0.0;
+    float totalWeight = 0.0;
+
+    for (uint i = 0u; i < 8u; ++i)
+    {
+        uvec3 offset = uvec3(i & 1u, (i >> 1u) & 1u, (i >> 2u) & 1u);
+        ivec3 probeCoord = ivec3(baseCoord) + ivec3(offset);
+        if (any(lessThan(probeCoord, ivec3(0))) || any(greaterThanEqual(probeCoord, ivec3(probeCounts))))
+            continue;
+
+        vec3 trilinear = mix(1.0 - frac, frac, vec3(offset));
+        float weight = trilinear.x * trilinear.y * trilinear.z;
+        if (weight <= 0.0)
+            continue;
+
+        uint index = uint(probeCoord.x) + uint(probeCoord.y) * probeCounts.x + uint(probeCoord.z) * probeCounts.x * probeCounts.y;
+        heat += thermalHeat.heatValues[index] * weight;
+        totalWeight += weight;
+    }
+
+    return (totalWeight > 0.0) ? (heat / totalWeight) : 0.0;
+}
+
+vec3 blackbodyGlowColour(float heat)
+{
+    vec3 dimRed = vec3(0.6, 0.05, 0.0);
+    vec3 orange = vec3(1.0, 0.35, 0.05);
+    vec3 paleYellow = vec3(1.0, 0.85, 0.55);
+
+    float t = clamp(heat, 0.0, 1.0);
+    vec3 lowMix = mix(dimRed, orange, clamp(t * 2.0, 0.0, 1.0));
+    vec3 highMix = mix(orange, paleYellow, clamp(t * 2.0 - 1.0, 0.0, 1.0));
+    return mix(lowMix, highMix, step(0.5, t));
+}
+
 int selectCascade(float viewSpaceDepth, out float blend, out int nextCascade)
 {
     float nearPlane = cascades.blendParams.x;
@@ -287,6 +344,17 @@ void main()
 
         float shadowFactor = isPoint ? 1.0 : sunShadowFactor;
         result += (diffuse + specular) * radiance * NdotL * shadowFactor;
+    }
+
+    if (thermalVolume.probeCounts.w != 0)
+    {
+        float heat = sampleThermalHeat(inPositionWS);
+        float ignition = thermalVolume.glowParams.y;
+        if (heat > ignition)
+        {
+            float glowFactor = (heat - ignition) * thermalVolume.glowParams.x;
+            result += blackbodyGlowColour(heat) * glowFactor;
+        }
     }
 
     float outAlpha = (material.alphaMode > 1.5) ? alpha : 1.0;

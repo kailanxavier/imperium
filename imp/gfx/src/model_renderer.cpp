@@ -168,6 +168,11 @@ namespace imp::gfx
 							ctx.cmd->bindTexture(*ctx.ddgiDepthTexture, ddgiSampler, 11);
 						if (ctx.ddgiVolumeBuffer)
 							ctx.cmd->bindUniformBuffer(*ctx.ddgiVolumeBuffer, 12);
+
+						if (ctx.thermalVolumeBuffer)
+							ctx.cmd->bindUniformBuffer(*ctx.thermalVolumeBuffer, 13);
+						if (ctx.thermalHeatBuffer)
+							ctx.cmd->bindStorageBuffer(*ctx.thermalHeatBuffer, 14);
 					}
 					else if (ctx.alphaTestOnly)
 					{

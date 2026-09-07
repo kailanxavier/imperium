@@ -7,6 +7,9 @@
 #include <gfx/ao.h>
 #include <gfx/ao_cvars.h>
 #include <gfx/gi_cvars.h>
+#include <gfx/thermal_cvars.h>
+#include <gfx/bloom_cvars.h>
+#include <gfx/post_process_types.h>
 
 #include <core/math/math.h>
 #include <random>
@@ -43,6 +46,10 @@ namespace imp::app
 			gfx::RGTextureHandle ddgiDepthAtlas;
 			gfx::RGBufferHandle ddgiVolumeUBO;
 
+			bool thermalActive = false;
+			gfx::RGBufferHandle thermalHeatBuffer;
+			gfx::RGBufferHandle thermalVolumeUBO;
+
 			RenderResources* resources = nullptr;
 			SandboxScene* scene = nullptr;
 			AppContext* ctx = nullptr;
@@ -53,6 +60,10 @@ namespace imp::app
 		{
 			gfx::RGTextureHandle hdrResolve;
 			gfx::RGTextureHandle output;
+
+			bool bloomActive = false;
+			gfx::RGTextureHandle bloomTexture;
+
 			RenderResources* resources = nullptr;
 		};
 
@@ -113,6 +124,43 @@ namespace imp::app
 			float maxRayDistance = 0.f, probeSpacing = 0.f, viewBias = 0.f;
 			math::Vec3f minCorner;
 			math::Vec4f randomRotation;
+		};
+
+		struct ThermalUpdatePassData
+		{
+			gfx::RGBufferHandle rayBuffer;
+			gfx::RGBufferHandle lightUBO;
+			gfx::RGBufferHandle heatBuffer;
+
+			gfx::IPipeline* pipeline = nullptr;
+			bool useDdgi = false;
+			u32 probeCountX = 0, probeCountY = 0, probeCountZ = 0, raysPerProbe = 0;
+			float hysteresis = 0.f, inputScale = 0.f, maxHeat = 0.f, probeSpacing = 0.f;
+			math::Vec3f minCorner;
+		};
+
+		struct BloomDownsamplePassData
+		{
+			gfx::RGTextureHandle source;
+			gfx::RGTextureHandle target;
+			RenderResources* resources = nullptr;
+			float texelSizeX = 0.f, texelSizeY = 0.f, threshold = 0.f, softKnee = 0.f;
+			bool applyThreshold = false;
+		};
+
+		struct BloomUpsamplePassData
+		{
+			gfx::RGTextureHandle lowerMip;
+			gfx::RGTextureHandle higherMip;
+			gfx::RGTextureHandle target;
+			RenderResources* resources = nullptr;
+			float texelSizeX = 0.f, texelSizeY = 0.f;
+		};
+
+		struct BloomMip
+		{
+			gfx::RGTextureHandle handle;
+			u32 width = 0, height = 0;
 		};
 
 		math::Vec4f randomRayRotationQuaternion()
@@ -281,6 +329,181 @@ namespace imp::app
 		outDepth = data.depthAtlas;
 	}
 
+	gfx::RGBufferHandle addThermalUpdatePass(gfx::RenderGraph& graph, RenderResources& resources, SandboxScene& scene, AppContext& ctx, const SceneRenderParams& params, gfx::RGBufferHandle ddgiRayBuffer)
+	{
+		if (!gfx::thermal::cvarEnabled)
+			return {};
+
+		gfx::ThermalVolume& volume = resources.thermalVolume();
+		if (volume.probeCount() == 0 || !volume.heatBuffer())
+			return {};
+
+		const bool useDdgi = ctx.gfx.supportsRayTracing() && gfx::gi::cvarEnabled && ddgiRayBuffer.isValid();
+		gfx::IPipeline* pipeline = useDdgi ? resources.thermalUpdateDdgiPipeline() : resources.thermalUpdateFallbackPipeline();
+		if (!pipeline)
+			return {};
+
+		const u32 raysPerProbe = static_cast<u32>( std::max<i32>(1, gfx::gi::cvarRaysPerProbe) );
+
+		const auto& data = graph.addPass<ThermalUpdatePassData>("ThermalUpdate",
+			[&](gfx::RenderGraphBuilder& b, ThermalUpdatePassData& d)
+			{
+				d.heatBuffer = b.writeStorageBuffer(b.importBuffer("ThermalHeatBuffer", volume.heatBuffer()));
+
+				if (useDdgi)
+					d.rayBuffer = b.readBuffer(ddgiRayBuffer);
+				else
+					d.lightUBO = b.readBuffer(b.importBuffer("LightUBO", &resources.lightUBO(params.currentFrame)));
+
+				d.pipeline = pipeline;
+				d.useDdgi = useDdgi;
+				d.probeCountX = volume.probeCountX();
+				d.probeCountY = volume.probeCountY();
+				d.probeCountZ = volume.probeCountZ();
+				d.raysPerProbe = raysPerProbe;
+				d.hysteresis = gfx::thermal::cvarHysteresis;
+				d.inputScale = gfx::thermal::cvarInputScale;
+				d.maxHeat = gfx::thermal::cvarMaxHeat;
+				d.minCorner = volume.minCorner();
+				d.probeSpacing = volume.desc().probeSpacing;
+			},
+			[](const ThermalUpdatePassData& d, gfx::RenderGraphContext& rgCtx)
+			{
+				rgCtx.cmd().computeToComputeBarrier();
+				rgCtx.cmd().bindComputePipeline(*d.pipeline);
+
+				if (d.useDdgi)
+					rgCtx.cmd().bindStorageBuffer(rgCtx.buffer(d.rayBuffer), 0);
+				else
+					rgCtx.cmd().bindUniformBuffer(rgCtx.buffer(d.lightUBO), 0);
+
+				rgCtx.cmd().bindStorageBuffer(rgCtx.buffer(d.heatBuffer), 1);
+
+				gfx::ThermalUpdatePushConstants pc{};
+				pc.probeCountX = d.probeCountX;
+				pc.probeCountY = d.probeCountY;
+				pc.probeCountZ = d.probeCountZ;
+				pc.raysPerProbe = d.raysPerProbe;
+				pc.hysteresis = d.hysteresis;
+				pc.inputScale = d.inputScale;
+				pc.maxHeat = d.maxHeat;
+				pc.minCorner = d.minCorner;
+				pc.probeSpacing = d.probeSpacing;
+				rgCtx.cmd().pushConstants(&pc, sizeof(pc), 0);
+
+				const u32 totalProbes = d.probeCountX * d.probeCountY * d.probeCountZ;
+				rgCtx.cmd().dispatch(( totalProbes + 63 ) / 64, 1, 1);
+			});
+
+		return data.heatBuffer;
+	}
+
+	gfx::RGTextureHandle addBloomPasses(gfx::RenderGraph& graph, RenderResources& resources, AppContext& ctx, gfx::RGTextureHandle hdrResolve)
+	{
+		if (!gfx::bloom::cvarEnabled)
+			return {};
+
+		const u32 mipCount = static_cast<u32>( std::max<i32>(1, gfx::bloom::cvarMipCount) );
+
+		std::vector<BloomMip> mips;
+		mips.reserve(mipCount);
+
+		gfx::RGTextureHandle currentSource = hdrResolve;
+		u32 mipW = ctx.gfx.backBuffer().width();
+		u32 mipH = ctx.gfx.backBuffer().height();
+
+		for (u32 mip = 0; mip < mipCount; ++mip)
+		{
+			mipW = std::max<u32>(1, mipW / 2);
+			mipH = std::max<u32>(1, mipH / 2);
+
+			char name[32];
+			std::snprintf(name, sizeof(name), "BloomDown%u", mip);
+			const bool applyThreshold = (mip == 0);
+			const u32 w = mipW, h = mipH;
+
+			const auto& data = graph.addPass<BloomDownsamplePassData>(name,
+				[&, w, h, applyThreshold](gfx::RenderGraphBuilder& b, BloomDownsamplePassData& d)
+				{
+					d.source = b.readTexture(currentSource);
+
+					gfx::TextureDesc desc{};
+					desc.width = w; desc.height = h;
+					desc.format = gfx::TextureFormat::RGBA16Float;
+					desc.usage = gfx::TextureUsage::RenderTarget | gfx::TextureUsage::Sampled;
+					d.target = b.createTexture(name, desc);
+					d.target = b.writeColour(d.target, gfx::RGLoadOp::DontCare);
+
+					d.resources = &resources;
+					d.texelSizeX = 1.f / static_cast<float>( w );
+					d.texelSizeY = 1.f / static_cast<float>( h );
+					d.threshold = gfx::bloom::cvarThreshold;
+					d.softKnee = gfx::bloom::cvarSoftKnee;
+					d.applyThreshold = applyThreshold;
+				},
+				[](const BloomDownsamplePassData& d, gfx::RenderGraphContext& rgCtx)
+				{
+					rgCtx.cmd().bindPipeline(d.resources->bloomDownsamplePipeline());
+					rgCtx.cmd().bindTexture(rgCtx.texture(d.source), d.resources->sampler(), 1);
+
+					gfx::BloomDownsamplePushConstants pc{};
+					pc.texelSize = { d.texelSizeX, d.texelSizeY };
+					pc.threshold = d.threshold;
+					pc.softKnee = d.softKnee;
+					pc.applyThreshold = d.applyThreshold ? 1u : 0u;
+					rgCtx.cmd().pushConstants(&pc, sizeof(pc), 0);
+					rgCtx.cmd().draw(3, 1);
+				});
+
+			mips.push_back({ data.target, w, h });
+			currentSource = data.target;
+		}
+
+		gfx::RGTextureHandle currentUpsample = mips.back().handle;
+
+		for (u32 i = mipCount - 1; i > 0; --i)
+		{
+			const BloomMip higher = mips[i - 1];
+			const BloomMip lower = mips[i];
+
+			char name[32];
+			std::snprintf(name, sizeof(name), "BloomUp%u", i);
+
+			const auto& data = graph.addPass<BloomUpsamplePassData>(name,
+				[&, higher, lower](gfx::RenderGraphBuilder& b, BloomUpsamplePassData& d)
+				{
+					d.lowerMip = b.readTexture(currentUpsample);
+					d.higherMip = b.readTexture(higher.handle);
+
+					gfx::TextureDesc desc{};
+					desc.width = higher.width; desc.height = higher.height;
+					desc.format = gfx::TextureFormat::RGBA16Float;
+					desc.usage = gfx::TextureUsage::RenderTarget | gfx::TextureUsage::Sampled;
+					d.target = b.createTexture(name, desc);
+					d.target = b.writeColour(d.target, gfx::RGLoadOp::DontCare);
+
+					d.resources = &resources;
+					d.texelSizeX = 1.f / static_cast<float>( lower.width );
+					d.texelSizeY = 1.f / static_cast<float>( lower.height );
+				},
+				[](const BloomUpsamplePassData& d, gfx::RenderGraphContext& rgCtx)
+				{
+					rgCtx.cmd().bindPipeline(d.resources->bloomUpsamplePipeline());
+					rgCtx.cmd().bindTexture(rgCtx.texture(d.lowerMip), d.resources->sampler(), 1);
+					rgCtx.cmd().bindTexture(rgCtx.texture(d.higherMip), d.resources->sampler(), 2);
+
+					gfx::BloomUpsamplePushConstants pc{};
+					pc.texelSize = { d.texelSizeX, d.texelSizeY };
+					rgCtx.cmd().pushConstants(&pc, sizeof(pc), 0);
+					rgCtx.cmd().draw(3, 1);
+				});
+
+			currentUpsample = data.target;
+		}
+
+		return currentUpsample;
+	}
+
 	ShadowCascadePasses addShadowCascadePasses(gfx::RenderGraph& graph, RenderResources& resources, SandboxScene& scene, const SceneRenderParams& params)
 	{
 		const auto& cascades = scene.cascades();
@@ -335,7 +558,7 @@ namespace imp::app
 		return out;
 	}
 
-	gfx::RGTextureHandle addHdrPass(gfx::RenderGraph& graph, RenderResources& resources, SandboxScene& scene, AppContext& ctx, const SceneRenderParams& params, const ShadowCascadePasses& shadowPasses, gfx::RGTextureHandle aoTexture, gfx::RGTextureHandle ddgiIrradianceHandle, gfx::RGTextureHandle ddgiDepthHandle)
+	gfx::RGTextureHandle addHdrPass(gfx::RenderGraph& graph, RenderResources& resources, SandboxScene& scene, AppContext& ctx, const SceneRenderParams& params, const ShadowCascadePasses& shadowPasses, gfx::RGTextureHandle aoTexture, gfx::RGTextureHandle ddgiIrradianceHandle, gfx::RGTextureHandle ddgiDepthHandle, gfx::RGBufferHandle thermalHeatBufferHandle)
 	{
 		const auto& data = graph.addPass<HdrPassData>("HDR",
 			[&](gfx::RenderGraphBuilder& b, HdrPassData& d)
@@ -401,6 +624,26 @@ namespace imp::app
 				resources.ddgiVolumeUBO(params.currentFrame).update(&ddgiParams, sizeof(ddgiParams), 0);
 				d.ddgiVolumeUBO = b.readBuffer(b.importBuffer("DDGIVolumeUBO", &resources.ddgiVolumeUBO(params.currentFrame)));
 
+				gfx::ThermalVolume& thermalVolume = resources.thermalVolume();
+				d.thermalActive = gfx::thermal::cvarEnabled && thermalVolume.heatBuffer() && thermalHeatBufferHandle.isValid();
+
+				gfx::ThermalVolumeUBO thermalParams{};
+				if (d.thermalActive)
+				{
+					const math::Vec3f minCorner = thermalVolume.minCorner();
+					thermalParams.minCornerAndSpacing = math::Vec4f{ minCorner.x, minCorner.y, minCorner.z, thermalVolume.desc().probeSpacing };
+					thermalParams.probeCountX = thermalVolume.probeCountX();
+					thermalParams.probeCountY = thermalVolume.probeCountY();
+					thermalParams.probeCountZ = thermalVolume.probeCountZ();
+					thermalParams.enabled = 1u;
+					thermalParams.glowIntensity = gfx::thermal::cvarGlowIntensity;
+					thermalParams.ignitionThreshold = gfx::thermal::cvarIgnitionThreshold;
+
+					d.thermalHeatBuffer = b.readBuffer(thermalHeatBufferHandle);
+				}
+				resources.thermalVolumeUBO(params.currentFrame).update(&thermalParams, sizeof(thermalParams), 0);
+				d.thermalVolumeUBO = b.readBuffer(b.importBuffer("ThermalVolumeUBO", &resources.thermalVolumeUBO(params.currentFrame)));
+
 				d.resources = &resources;
 				d.scene = &scene;
 				d.ctx = &ctx;
@@ -436,6 +679,12 @@ namespace imp::app
 				renderCtx.ddgiVolumeBuffer = &rgCtx.buffer(d.ddgiVolumeUBO);
 				renderCtx.ddgiSampler = &d.resources->ddgiSampler();
 
+				if (d.thermalActive)
+					renderCtx.thermalHeatBuffer = &rgCtx.buffer(d.thermalHeatBuffer);
+				else
+					renderCtx.thermalHeatBuffer = &d.resources->thermalFallbackBuffer();
+				renderCtx.thermalVolumeBuffer = &rgCtx.buffer(d.thermalVolumeUBO);
+
 				if (d.params.enableFrustumCulling)
 				{
 					mainCullVolume.useFrustum = true;
@@ -467,24 +716,40 @@ namespace imp::app
 		return data.hdrResolve;
 	}
 
-	void addTonemapPass(gfx::RenderGraph& graph, RenderResources& resources, gfx::RGTextureHandle hdrResolve, gfx::IRenderTarget& target, const char* passName)
+	void addTonemapPass(gfx::RenderGraph& graph, RenderResources& resources, gfx::RGTextureHandle hdrResolve, gfx::RGTextureHandle bloomTexture, gfx::IRenderTarget& target, const char* passName)
 	{
 		graph.addPass<TonemapPassData>(passName,
 			[&](gfx::RenderGraphBuilder& b, TonemapPassData& d)
 			{
 				d.hdrResolve = b.readTexture(hdrResolve);
 
+				d.bloomActive = gfx::bloom::cvarEnabled && bloomTexture.isValid();
+				if (d.bloomActive)
+					d.bloomTexture = b.readTexture(bloomTexture);
+
 				d.output = b.importTexture(passName, &target);
 				d.output = b.writeColour(d.output, gfx::RGLoadOp::DontCare);
 
 				d.resources = &resources;
-
 				b.hasSideEffect();
 			},
 			[](const TonemapPassData& d, gfx::RenderGraphContext& rgCtx)
 			{
 				rgCtx.cmd().bindPipeline(d.resources->tonemapPipeline());
 				rgCtx.cmd().bindTexture(rgCtx.texture(d.hdrResolve), d.resources->sampler(), 1);
+
+				if (d.bloomActive)
+					rgCtx.cmd().bindTexture(rgCtx.texture(d.bloomTexture), d.resources->sampler(), 2);
+				else
+					rgCtx.cmd().bindTexture(d.resources->bloomFallbackTexture(), d.resources->sampler(), 2);
+
+				gfx::TonemapPushConstants pc{};
+				pc.exposure = 0.f;
+				pc.saturation = 1.f;
+				pc.bloomIntensity = gfx::bloom::cvarIntensity;
+				pc.bloomEnabled = d.bloomActive ? 1u : 0u;
+				rgCtx.cmd().pushConstants(&pc, sizeof(pc), 0);
+
 				rgCtx.cmd().draw(3, 1);
 			});
 	}
@@ -516,7 +781,7 @@ namespace imp::app
 				d.depthTarget = b.createTexture("PrepassDepth", depthDesc);
 
 				d.normalTarget = b.writeColour(d.normalTarget, gfx::RGLoadOp::Clear, { 1.f, 1.f, 1.f, 1.f });
-				d.albedoRoughnessTarget = b.writeColour(d.albedoRoughnessTarget, gfx::RGLoadOp::Clear, { 0.f, 0.f, 0.f, 0.f });
+				d.albedoRoughnessTarget = b.writeColour(d.albedoRoughnessTarget, gfx::RGLoadOp::Clear, { 1.f, 1.f, 1.f, 1.f });
 				d.depthTarget = b.writeDepth(d.depthTarget, gfx::RGLoadOp::Clear, 1.f);
 
 				d.instanceBuffer = &resources.instanceBuffer(params.currentFrame);

@@ -1,11 +1,17 @@
 #version 450
 layout(location = 0) in vec2 inUV;
 layout(location = 0) out vec4 outColour;
-
 layout(binding = 1) uniform sampler2D hdrColour;
+layout(binding = 2) uniform sampler2D bloomTexture;
 
-const float kExposure = 0.0;
-const float kSaturation = 1.0;
+layout(push_constant) uniform PushConstants
+{
+    float exposure;
+    float saturation;
+    float bloomIntensity;
+    uint bloomEnabled;
+} pc;
+
 const vec3 kLuminance = vec3(0.2126, 0.7152, 0.0722);
 
 vec3 Saturate(vec3 colour, float saturation)
@@ -21,18 +27,17 @@ vec3 ACESFilm(vec3 x)
     const float c = 2.43;
     const float d = 0.59;
     const float e = 0.14;
-
 	return (x * (a * x + b)) / (x * (c * x + d) + e);
 }
 
 void main()
 {
 	vec3 hdr = texture(hdrColour, inUV).rgb;
+	if (pc.bloomEnabled != 0u)
+		hdr += texture(bloomTexture, inUV).rgb * pc.bloomIntensity;
 
-	vec3 exposed = hdr * pow(2.0, kExposure);
-	vec3 mapped = Saturate(ACESFilm(exposed), kSaturation);
-
+	vec3 exposed = hdr * pow(2.0, pc.exposure);
+	vec3 mapped = Saturate(ACESFilm(exposed), pc.saturation);
 	mapped = clamp(mapped, 0.0, 1.0);
-
 	outColour = vec4(mapped, 1.0);
 }

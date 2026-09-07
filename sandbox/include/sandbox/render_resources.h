@@ -3,6 +3,7 @@
 #include <sandbox/asset_manifest.h>
 #include <gfx/cascade_shadow.h>
 #include <gfx/ddgi_volume.h>
+#include <gfx/thermal_volume.h>
 #include <core/types/int_types.h>
 #include <memory>
 #include <vector>
@@ -72,6 +73,16 @@ namespace imp::app
 		[[nodiscard]] gfx::ITexture& ddgiFallbackTexture() const { return *m_ddgiFallbackTexture; }
 		[[nodiscard]] gfx::IBuffer& ddgiVolumeUBO(u32 frame) const { return *m_ddgiVolumeUBOs[frame]; }
 
+		gfx::IPipeline& bloomDownsamplePipeline() const { return *m_bloomDownsamplePipeline; }
+		gfx::IPipeline& bloomUpsamplePipeline() const { return *m_bloomUpsamplePipeline; }
+		[[nodiscard]] gfx::ITexture& bloomFallbackTexture() const { return *m_bloomFallbackTexture; }
+
+		[[nodiscard]] gfx::ThermalVolume& thermalVolume() { return m_thermalVolume; }
+		[[nodiscard]] gfx::IPipeline* thermalUpdateDdgiPipeline() const { return m_thermalUpdateDdgiPipeline.get(); }
+		[[nodiscard]] gfx::IPipeline* thermalUpdateFallbackPipeline() const { return m_thermalUpdateFallbackPipeline.get(); }
+		[[nodiscard]] gfx::IBuffer& thermalVolumeUBO(u32 frame) const { return *m_thermalVolumeUBOs[frame]; }
+		[[nodiscard]] gfx::IBuffer& thermalFallbackBuffer() const { return *m_thermalFallbackBuffer; }
+
 	private:
 		struct ShaderPipelineSet
 		{
@@ -83,6 +94,7 @@ namespace imp::app
 			std::unique_ptr<gfx::IShader> fullscreenVertShader;
 			std::unique_ptr<gfx::IShader> gtaoFragShader;
 			std::unique_ptr<gfx::IShader> blurFragShader;
+			std::unique_ptr<gfx::IShader> bloomDownsampleFragShader, bloomUpsampleFragShader;
 
 			std::unique_ptr<gfx::IPipeline> pipeline;
 			std::unique_ptr<gfx::IPipeline> blendPipeline;
@@ -92,6 +104,7 @@ namespace imp::app
 			std::unique_ptr<gfx::IPipeline> prepassPipeline;
 			std::unique_ptr<gfx::IPipeline> gtaoPipeline;
 			std::unique_ptr<gfx::IPipeline> blurPipeline;
+			std::unique_ptr<gfx::IPipeline> bloomDownsamplePipeline, bloomUpsamplePipeline;
 		};
 
 		bool buildShaderPipelineSet(AppContext& ctx, const AssetManifest& assets, ShaderPipelineSet& out) const;
@@ -144,5 +157,15 @@ namespace imp::app
 
 		std::unique_ptr<gfx::ITexture> m_ddgiFallbackTexture;
 		std::vector<std::unique_ptr<gfx::IBuffer>> m_ddgiVolumeUBOs;
+
+		std::unique_ptr<gfx::IShader> m_bloomDownsampleFragShader, m_bloomUpsampleFragShader;
+		std::unique_ptr<gfx::IPipeline> m_bloomDownsamplePipeline, m_bloomUpsamplePipeline;
+		std::unique_ptr<gfx::ITexture> m_bloomFallbackTexture;
+
+		gfx::ThermalVolume m_thermalVolume;
+		std::unique_ptr<gfx::IShader> m_thermalUpdateDdgiShader, m_thermalUpdateFallbackShader;
+		std::unique_ptr<gfx::IPipeline> m_thermalUpdateDdgiPipeline, m_thermalUpdateFallbackPipeline;
+		std::vector<std::unique_ptr<gfx::IBuffer>> m_thermalVolumeUBOs;
+		std::unique_ptr<gfx::IBuffer> m_thermalFallbackBuffer;
 	};
 }

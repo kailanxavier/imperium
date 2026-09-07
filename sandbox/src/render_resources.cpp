@@ -12,6 +12,9 @@
 #include <gfx/ddgi_volume.h>
 #include <gfx/gi_cvars.h>
 
+#include <gfx/thermal_cvars.h>
+#include <gfx/bloom_cvars.h>
+
 namespace imp::app
 {
 	RenderResources::RenderResources() = default;
@@ -117,6 +120,22 @@ namespace imp::app
 		if (!out.fullscreenVertShader || !out.gtaoFragShader || !out.blurFragShader)
 		{
 			LOG_ERROR("Sandbox", "Failed to load AO shaders.");
+			return false;
+		}
+
+		gfx::ShaderDesc bloomDownsampleFragDesc;
+		bloomDownsampleFragDesc.stage = gfx::ShaderStage::Fragment;
+		bloomDownsampleFragDesc.path = assets.bloomDownsampleFragShader;
+		out.bloomDownsampleFragShader = ctx.gfx.createShader(bloomDownsampleFragDesc);
+
+		gfx::ShaderDesc bloomUpsampleFragDesc;
+		bloomUpsampleFragDesc.stage = gfx::ShaderStage::Fragment;
+		bloomUpsampleFragDesc.path = assets.bloomUpsampleFragShader;
+		out.bloomUpsampleFragShader = ctx.gfx.createShader(bloomUpsampleFragDesc);
+
+		if (!out.bloomDownsampleFragShader || !out.bloomUpsampleFragShader)
+		{
+			LOG_ERROR("Sandbox", "Failed to load bloom shaders.");
 			return false;
 		}
 
@@ -260,6 +279,25 @@ namespace imp::app
 			return false;
 		}
 
+		gfx::PipelineDesc bloomDownsamplePipelineDesc{};
+		bloomDownsamplePipelineDesc.vertexShader = out.fullscreenVertShader.get();
+		bloomDownsamplePipelineDesc.fragmentShader = out.bloomDownsampleFragShader.get();
+		bloomDownsamplePipelineDesc.colourFormat = gfx::TextureFormat::RGBA16Float;
+		bloomDownsamplePipelineDesc.depthFormat = gfx::TextureFormat::Unknown;
+		bloomDownsamplePipelineDesc.sampleCount = gfx::SampleCount::One;
+		bloomDownsamplePipelineDesc.hasInstanceBinding = false;
+		out.bloomDownsamplePipeline = ctx.gfx.createPipeline(bloomDownsamplePipelineDesc);
+
+		gfx::PipelineDesc bloomUpsamplePipelineDesc{ bloomDownsamplePipelineDesc };
+		bloomUpsamplePipelineDesc.fragmentShader = out.bloomUpsampleFragShader.get();
+		out.bloomUpsamplePipeline = ctx.gfx.createPipeline(bloomUpsamplePipelineDesc);
+
+		if (!out.bloomDownsamplePipeline || !out.bloomUpsamplePipeline)
+		{
+			LOG_ERROR("Sandbox", "Failed to create bloom pipelines");
+			return false;
+		}
+
 		return true;
 	}
 
@@ -278,6 +316,8 @@ namespace imp::app
 		m_fullscreenVertShader = std::move(set.fullscreenVertShader);
 		m_gtaoFragShader = std::move(set.gtaoFragShader);
 		m_blurFragShader = std::move(set.blurFragShader);
+		m_bloomDownsampleFragShader = std::move(set.bloomDownsampleFragShader);
+		m_bloomUpsampleFragShader = std::move(set.bloomUpsampleFragShader);
 
 		m_pipeline = std::move(set.pipeline);
 		m_blendPipeline = std::move(set.blendPipeline);
@@ -287,6 +327,8 @@ namespace imp::app
 		m_prepassPipeline = std::move(set.prepassPipeline);
 		m_gtaoPipeline = std::move(set.gtaoPipeline);
 		m_blurPipeline = std::move(set.blurPipeline);
+		m_bloomDownsamplePipeline = std::move(set.bloomDownsamplePipeline);
+		m_bloomUpsamplePipeline = std::move(set.bloomUpsamplePipeline);
 	}
 
 	bool RenderResources::reloadShaders(AppContext& ctx, const AssetManifest& assets)
@@ -414,6 +456,39 @@ namespace imp::app
 				LOG_ERROR("Sandbox", "Failed to create DDGI fallback texture");
 		}
 
+		{
+			gfx::BufferDesc thermalFallbackDesc{};
+			thermalFallbackDesc.size = sizeof(float);
+			thermalFallbackDesc.usage = gfx::BufferUsage::Storage;
+			thermalFallbackDesc.memoryAccess = gfx::MemoryAccess::HostVisible;
+			thermalFallbackDesc.debugName = "ThermalFallback";
+			m_thermalFallbackBuffer = ctx.gfx.createBuffer(thermalFallbackDesc);
+			const float zero = 0.f;
+			if (m_thermalFallbackBuffer)
+				m_thermalFallbackBuffer->update(&zero, sizeof(zero), 0);
+
+			gfx::BufferDesc thermalVolumeUboDesc{};
+			thermalVolumeUboDesc.size = sizeof(gfx::ThermalVolumeUBO);
+			thermalVolumeUboDesc.usage = gfx::BufferUsage::Uniform;
+			thermalVolumeUboDesc.memoryAccess = gfx::MemoryAccess::HostVisible;
+			m_thermalVolumeUBOs.resize(gfx::kMaxFramesInFlight);
+			for (auto& buf : m_thermalVolumeUBOs)
+				buf = ctx.gfx.createBuffer(thermalVolumeUboDesc);
+
+			const u8 kBlackTexel[4] = { 0, 0, 0, 0 };
+			gfx::TextureDesc bloomFallbackDesc{};
+			bloomFallbackDesc.width = 1;
+			bloomFallbackDesc.height = 1;
+			bloomFallbackDesc.format = gfx::TextureFormat::RGBA8Unorm;
+			bloomFallbackDesc.usage = gfx::TextureUsage::Sampled;
+			bloomFallbackDesc.debugName = "BloomFallback";
+			bloomFallbackDesc.initialData = kBlackTexel;
+			m_bloomFallbackTexture = ctx.gfx.createTexture(bloomFallbackDesc);
+
+			if (!m_thermalFallbackBuffer || !m_bloomFallbackTexture)
+				LOG_ERROR("Sandbox", "Failed to create thermal or bloom fallback resources");
+		}
+
 		if (ctx.gfx.supportsRayTracing())
 		{
 			gfx::DDGIVolumeDesc volumeDesc{};
@@ -423,6 +498,26 @@ namespace imp::app
 
 			if (!m_ddgiVolume.create(ctx.gfx, volumeDesc))
 				LOG_ERROR("Sandbox", "Failed to create DDGI volume");
+
+			gfx::ThermalVolumeDesc thermalDesc{};
+			thermalDesc.origin = m_ddgiVolume.desc().origin;
+			thermalDesc.extents = m_ddgiVolume.desc().extents;
+			thermalDesc.probeSpacing = m_ddgiVolume.desc().probeSpacing;
+			if (!m_thermalVolume.create(ctx.gfx, thermalDesc, m_ddgiVolume.probeCountX(), m_ddgiVolume.probeCountY(), m_ddgiVolume.probeCountZ()))
+				LOG_ERROR("Sandbox", "Failed to create thermal volume");
+
+			gfx::ShaderDesc thermalDdgiComputeDesc{};
+			thermalDdgiComputeDesc.stage = gfx::ShaderStage::Compute;
+			thermalDdgiComputeDesc.path = assets.thermalUpdateDdgiShader;
+			m_thermalUpdateDdgiShader = ctx.gfx.createShader(thermalDdgiComputeDesc);
+			if (m_thermalUpdateDdgiShader)
+			{
+				gfx::ComputePipelineDesc thermalPipelineDesc{};
+				thermalPipelineDesc.computeShader = m_thermalUpdateDdgiShader.get();
+				m_thermalUpdateDdgiPipeline = ctx.gfx.createComputePipeline(thermalPipelineDesc);
+			}
+			if (!m_thermalUpdateDdgiShader || !m_thermalUpdateDdgiPipeline)
+				LOG_ERROR("Sandbox", "Thermal compute pipeline failed to build");
 
 			gfx::ShaderDesc ddgiComputeDesc{};
 			ddgiComputeDesc.stage = gfx::ShaderStage::Compute;
@@ -453,6 +548,28 @@ namespace imp::app
 
 			if (!m_ddgiRayTraceShader || !m_ddgiRayTracePipeline)
 				LOG_ERROR("Sandbox", "DDGI ray trace compute pipeline failed to build");
+		}
+		else
+		{
+			gfx::ThermalVolumeDesc thermalDesc{};
+			thermalDesc.origin = math::Vec3f(gfx::gi::cvarVolumeOriginX, gfx::gi::cvarVolumeOriginY, gfx::gi::cvarVolumeOriginZ);
+			thermalDesc.extents = math::Vec3f(gfx::gi::cvarVolumeExtentX, gfx::gi::cvarVolumeExtentY, gfx::gi::cvarVolumeExtentZ);
+			thermalDesc.probeSpacing = gfx::thermal::cvarFallbackProbeSpacing;
+			if (!m_thermalVolume.create(ctx.gfx, thermalDesc))
+				LOG_ERROR("Sandbox", "Failed to create thermal volume");
+
+			gfx::ShaderDesc thermalFallbackComputeDesc{};
+			thermalFallbackComputeDesc.stage = gfx::ShaderStage::Compute;
+			thermalFallbackComputeDesc.path = assets.thermalUpdateFallbackShader;
+			m_thermalUpdateFallbackShader = ctx.gfx.createShader(thermalFallbackComputeDesc);
+			if (m_thermalUpdateFallbackShader)
+			{
+				gfx::ComputePipelineDesc thermalFallbackPipelineDesc{};
+				thermalFallbackPipelineDesc.computeShader = m_thermalUpdateFallbackShader.get();
+				m_thermalUpdateFallbackPipeline = ctx.gfx.createComputePipeline(thermalFallbackPipelineDesc);
+			}
+			if (!m_thermalUpdateFallbackShader || !m_thermalUpdateFallbackPipeline)
+				LOG_ERROR("Sandbox", "Thermal compute pipeline failed to build");
 		}
 
 		if (!m_pipeline || !m_blendPipeline || !m_tonemapPipeline || !m_sampler
@@ -495,6 +612,16 @@ namespace imp::app
 		m_ddgiProbeUpdateShader.reset();
 		m_ddgiRayTracePipeline.reset();
 		m_ddgiRayTraceShader.reset();
+		m_bloomDownsamplePipeline.reset();
+		m_bloomUpsamplePipeline.reset();
+		m_bloomDownsampleFragShader.reset();
+		m_bloomUpsampleFragShader.reset();
+		m_bloomFallbackTexture.reset();
+		m_thermalUpdateDdgiPipeline.reset();
+		m_thermalUpdateDdgiShader.reset();
+		m_thermalUpdateFallbackPipeline.reset();
+		m_thermalUpdateFallbackShader.reset();
+		m_thermalFallbackBuffer.reset();
 
 		for (auto& buf : m_cascadeUBOs) buf.reset();
 		for (auto& buf : m_lightUBOs) buf.reset();
@@ -502,6 +629,7 @@ namespace imp::app
 		for (auto& buf : m_aoParamsUBOs) buf.reset();
 		for (auto& buf : m_screenParamsUBOs) buf.reset();
 		for (auto& buf : m_blurParamsUBOs) buf.reset();
+		for (auto& buf : m_thermalVolumeUBOs) buf.reset();
 
 		m_graphPool.reset();
 	}

@@ -72,6 +72,7 @@ target_sources(imp_gfx PRIVATE
 	src/shader_compiler.cpp
 	src/shader_hot_reload.cpp
 	src/ddgi_volume.cpp
+	src/thermal_volume.cpp
 )
 
 if(IMP_VULKAN_MEM_TEST)

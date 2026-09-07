@@ -34,10 +34,18 @@ namespace imp::app
 	gfx::RGTextureHandle addHdrPass(gfx::RenderGraph& graph, RenderResources& resources, 
 		SandboxScene& scene, AppContext& ctx, const SceneRenderParams& params, 
 		const ShadowCascadePasses& shadowPasses, gfx::RGTextureHandle aoTexture, 
-		gfx::RGTextureHandle ddgiIrradianceHandle, gfx::RGTextureHandle ddgiDepthHandle);
+		gfx::RGTextureHandle ddgiIrradianceHandle, gfx::RGTextureHandle ddgiDepthHandle, 
+		gfx::RGBufferHandle thermalHeatBufferHandle);
 
 	void addTonemapPass(gfx::RenderGraph& graph, RenderResources& resources,
-		gfx::RGTextureHandle hdrResolve, gfx::IRenderTarget& target, const char* passName);
+		gfx::RGTextureHandle hdrResolve, gfx::RGTextureHandle bloomTexture, gfx::IRenderTarget& target, 
+		const char* passName);
+
+	gfx::RGBufferHandle addThermalUpdatePass(gfx::RenderGraph& graph, RenderResources& resources,
+		SandboxScene& scene, AppContext& ctx, const SceneRenderParams& params, gfx::RGBufferHandle ddgiRayBuffer);
+
+	gfx::RGTextureHandle addBloomPasses(gfx::RenderGraph& graph, RenderResources& resources,
+		AppContext& ctx, gfx::RGTextureHandle hdrResolve);
 
 	struct PrepassOutputs
 	{
