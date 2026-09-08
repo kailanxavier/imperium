@@ -54,6 +54,7 @@ namespace imp::gfx
 		gfx::ITexture* ddgiIrradianceTexture = nullptr;
 		gfx::ITexture* ddgiDepthTexture = nullptr;
 		gfx::IBuffer* ddgiVolumeBuffer = nullptr;
+		gfx::IBuffer* ddgiProbeStateBuffer = nullptr;
 		gfx::ISampler* ddgiSampler = nullptr;
 
 		gfx::IBuffer* thermalHeatBuffer = nullptr;

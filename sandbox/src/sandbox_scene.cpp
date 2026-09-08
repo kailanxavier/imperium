@@ -87,7 +87,6 @@ namespace imp::app
 	void SandboxScene::update(AppContext& ctx, const fwk::Camera& camera)
 	{
 		ctx.ecs.transforms.updateWorldMatricesParallel(ctx.jobs);
-		ctx.ecs.transforms.setLocalTransform(m_localLight, m_localLightTransform);
 
 		updateSunViewProj();
 		extractRenderables(ctx.ecs, m_modelRegistry, camera.position(), m_extraction);

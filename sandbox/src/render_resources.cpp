@@ -220,7 +220,7 @@ namespace imp::app
 		shadowPipelineDesc.vertexLayout.attributes = shadowAttrs;
 		shadowPipelineDesc.vertexLayout.stride = sizeof(gfx::ModelVertex);
 		shadowPipelineDesc.instanceLayout = meshPipelineDesc.instanceLayout;
-		shadowPipelineDesc.rasterizerState.cullMode = gfx::CullMode::Back; // reduces acne on closed meshes
+		shadowPipelineDesc.rasterizerState.cullMode = gfx::CullMode::Front; // reduces acne on closed meshes
 		shadowPipelineDesc.depthStencilState.depthTestEnable = true;
 		shadowPipelineDesc.depthStencilState.depthWriteEnable = true;
 		shadowPipelineDesc.depthStencilState.depthCompareOp = gfx::CompareOp::Less;
@@ -347,8 +347,6 @@ namespace imp::app
 		return true;
 	}
 
-
-
 	bool RenderResources::init(AppContext& ctx, const AssetManifest& assets, const gfx::CascadeConfig& cascadeConfig)
 	{
 		m_graphPool = std::make_unique<gfx::RenderGraphResourcePool>(ctx.gfx);
@@ -443,6 +441,18 @@ namespace imp::app
 			fallbackDesc.debugName = "DDGIFallback";
 			fallbackDesc.initialData = kBlackTexel;
 			m_ddgiFallbackTexture = ctx.gfx.createTexture(fallbackDesc);
+
+			{
+				const gfx::DDGIProbeState fallbackState{};
+				gfx::BufferDesc probeStateFallbackDesc{};
+				probeStateFallbackDesc.size = sizeof(gfx::DDGIProbeState);
+				probeStateFallbackDesc.usage = gfx::BufferUsage::Storage;
+				probeStateFallbackDesc.memoryAccess = gfx::MemoryAccess::HostVisible;
+				probeStateFallbackDesc.debugName = "DDGIProbeStateFallback";
+				m_ddgiProbeStateFallbackBuffer = ctx.gfx.createBuffer(probeStateFallbackDesc);
+				if (m_ddgiProbeStateFallbackBuffer)
+					m_ddgiProbeStateFallbackBuffer->update(&fallbackState, sizeof(fallbackState), 0);
+			}
 
 			gfx::BufferDesc volumeUBODesc{};
 			volumeUBODesc.size = sizeof(gfx::DDGIVolumeUBO);
@@ -548,6 +558,21 @@ namespace imp::app
 
 			if (!m_ddgiRayTraceShader || !m_ddgiRayTracePipeline)
 				LOG_ERROR("Sandbox", "DDGI ray trace compute pipeline failed to build");
+
+			gfx::ShaderDesc ddgiClassifyDesc{};
+			ddgiClassifyDesc.stage = gfx::ShaderStage::Compute;
+			ddgiClassifyDesc.path = assets.ddgiClassifyShader;
+			m_ddgiClassifyShader = ctx.gfx.createShader(ddgiClassifyDesc);
+
+			if (m_ddgiClassifyShader)
+			{
+				gfx::ComputePipelineDesc ddgiClassifyPipelineDesc{};
+				ddgiClassifyPipelineDesc.computeShader = m_ddgiClassifyShader.get();
+				m_ddgiClassifyPipeline = ctx.gfx.createComputePipeline(ddgiClassifyPipelineDesc);
+			}
+
+			if (!m_ddgiClassifyShader || !m_ddgiClassifyPipeline)
+				LOG_ERROR("Sandbox", "DDGI classify compute pipeline failed to build.");
 		}
 		else
 		{
@@ -612,6 +637,8 @@ namespace imp::app
 		m_ddgiProbeUpdateShader.reset();
 		m_ddgiRayTracePipeline.reset();
 		m_ddgiRayTraceShader.reset();
+		m_ddgiClassifyPipeline.reset();
+		m_ddgiClassifyShader.reset();
 		m_bloomDownsamplePipeline.reset();
 		m_bloomUpsamplePipeline.reset();
 		m_bloomDownsampleFragShader.reset();

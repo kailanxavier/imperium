@@ -64,5 +64,10 @@ namespace imp::app
 		AppContext& ctx, const PrepassOutputs& prepass, gfx::RGTextureHandle rawAO);
 
 	gfx::RGBufferHandle addDDGIRayTracePass(gfx::RenderGraph& graph, RenderResources& resources, SandboxScene& scene, AppContext& ctx, const SceneRenderParams& params);
-	void addDDGIProbeUpdatePass(gfx::RenderGraph& graph, RenderResources& resources, SandboxScene& scene, AppContext& ctx, const SceneRenderParams& params, gfx::RGBufferHandle rayBuffer, gfx::RGTextureHandle& outIrradiance, gfx::RGTextureHandle& outDepth);
+
+	void addDDGIClassifyPass(gfx::RenderGraph& graph, RenderResources& resources, SandboxScene& scene,
+		AppContext& ctx, const SceneRenderParams& params, gfx::RGBufferHandle rayBuffer);
+
+	void addDDGIProbeUpdatePass(gfx::RenderGraph& graph, RenderResources& resources, SandboxScene& scene, AppContext& ctx, const SceneRenderParams& params,
+		gfx::RGBufferHandle rayBuffer, gfx::RGTextureHandle& outIrradiance, gfx::RGTextureHandle& outDepth);
 }

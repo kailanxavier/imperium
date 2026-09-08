@@ -1,0 +1,109 @@
+#version 460
+
+layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+struct RayResult
+{
+	vec4 directionAndDistance;
+	vec4 radiance;
+};
+
+layout(std430, binding = 0) readonly buffer RayResults
+{
+	RayResult rays[];
+};
+
+struct ProbeState
+{
+	vec4 offsetAndState;
+};
+
+layout(std430, binding = 1) buffer ProbeStates
+{
+	ProbeState states[];
+};
+
+layout(push_constant) uniform PushConstants
+{
+	uint probeCountX;
+	uint probeCountY;
+	uint probeCountZ;
+	uint raysPerProbe;
+	float maxRayDistance;
+	float probeSpacing;
+	float backfaceThreshold;
+	float maxRelocationOffset;
+	float relocationStep;
+	float backfaceRatioHigh;
+	float backfaceRatioLow;
+} pc;
+
+void main()
+{
+	const uint probeIndex = gl_GlobalInvocationID.x;
+	const uint totalProbes = pc.probeCountX * pc.probeCountY * pc.probeCountZ;
+	if (probeIndex >= totalProbes)
+		return;
+
+	const uint rayBase = probeIndex * pc.raysPerProbe;
+
+	uint totalHits = 0u;
+	uint backfaceCount = 0u;
+	bool anyCloseBackface = false;
+	float closestBackfaceDist = pc.maxRayDistance;
+	vec3 closestBackfaceDir = vec3(0.0);
+
+	const float missDistanceEpsilon = 0.001;
+	const float closeBackfaceThreshold = pc.probeSpacing * pc.backfaceThreshold;
+
+	for (uint i = 0u; i < pc.raysPerProbe; ++i)
+	{
+		const RayResult r = rays[rayBase + i];
+		const float hitDistance = r.directionAndDistance.w;
+		const bool isMiss = hitDistance >= pc.maxRayDistance - missDistanceEpsilon;
+		if (isMiss)
+			continue;
+
+		totalHits++;
+
+		const bool isBackFace = r.radiance.a > 0.5;
+		if (!isBackFace)
+			continue;
+
+		backfaceCount++;
+
+		if (hitDistance < closestBackfaceDist)
+		{
+			closestBackfaceDist = hitDistance;
+			closestBackfaceDir = r.directionAndDistance.xyz;
+			anyCloseBackface = anyCloseBackface || ( hitDistance < closeBackfaceThreshold );
+		}
+	}
+
+	ProbeState state = states[probeIndex];
+	vec3 offset = state.offsetAndState.xyz;
+	const float maxOffset = pc.probeSpacing * pc.maxRelocationOffset;
+
+	if (anyCloseBackface)
+	{
+		const float pushAmount = ( closeBackfaceThreshold - closestBackfaceDist ) * pc.relocationStep;
+		offset += closestBackfaceDir * pushAmount;
+	}
+	else if (backfaceCount == 0)
+	{
+		// This is an attempt at not allowing probes to become stale.
+		offset *= ( 1.0 - pc.relocationStep * 0.25 );
+	}
+
+	const float offsetLen = length(offset);
+	if (offsetLen > maxOffset)
+		offset *= ( maxOffset / offsetLen );
+
+	const float backfaceRatio = totalHits > 0u ? float(backfaceCount) / float(totalHits) : 0.0;
+	float isActive = state.offsetAndState.w; // Yes, floolean again. Sue me.
+	if (backfaceRatio > pc.backfaceRatioHigh)
+		isActive = 0.0;
+	else if (backfaceRatio < pc.backfaceRatioLow)
+		isActive = 1.0;
+
+	states[probeIndex].offsetAndState = vec4(offset, isActive);
+}

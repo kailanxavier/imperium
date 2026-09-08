@@ -66,6 +66,23 @@ namespace imp::gfx
 		LOG_INFO("Global Illumination", "DDGIVolume created: {}x{}x{} probes, ({} total). Irradiance Atlas: {}x{}. Depth Atlas: {}x{}",
 			m_probeCountX, m_probeCountY, m_probeCountZ, probeCount(), irrWidth, irrHeight, depthWidth, depthHeight);
 
+		{
+			std::vector<DDGIProbeState> initialStates(probeCount());
+			BufferDesc probeStateDesc{};
+			probeStateDesc.size = static_cast<u64>( initialStates.size() ) * sizeof(DDGIProbeState);
+			probeStateDesc.usage = BufferUsage::Storage;
+			probeStateDesc.memoryAccess = MemoryAccess::HostVisible;
+			probeStateDesc.debugName = "DDGI probe states";
+
+			m_probeStateBuffer = device.createBuffer(probeStateDesc);
+			if (!m_probeStateBuffer)
+			{
+				LOG_ERROR("Global Illumination", "DDGIVolume::create(): probe state buffer allocation failed ({} probes)", probeCount());
+				return false;
+			}
+			m_probeStateBuffer->update(initialStates.data(), probeStateDesc.size, 0);
+		}
+
 		return true;
 	}
 

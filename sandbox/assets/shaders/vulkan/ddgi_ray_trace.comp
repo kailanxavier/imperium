@@ -48,6 +48,16 @@ layout(std430, binding = 3) writeonly buffer RayResults
 	RayResult rays[];
 };
 
+struct ProbeState
+{
+	vec4 offsetAndState;
+};
+
+layout(std430, binding = 4) readonly buffer ProbeStates
+{
+	ProbeState states[];
+};
+
 layout(push_constant) uniform PushConstants
 {
 	uint probeCountX;
@@ -128,12 +138,15 @@ void main()
 
 	float hitDistance = pc.maxRayDistance;
 	vec3 radiance = vec3(0.0);
+	bool isBackfaceHit = false;
 
 	if (rayQueryGetIntersectionTypeEXT(rq, true) == gl_RayQueryCommittedIntersectionTriangleEXT)
 	{
 		hitDistance = rayQueryGetIntersectionTEXT(rq, true);
 		const uint instanceIndex = uint(rayQueryGetIntersectionInstanceCustomIndexEXT(rq, true));
 		const vec3 hitPos = probePos + rayDir * hitDistance;
+
+		isBackfaceHit = !rayQueryGetIntersectionFrontFaceEXT(rq, true);
 
 		const vec3 hitNormal = -rayDir;
 		const InstanceMaterial material = materials[instanceIndex];
@@ -165,5 +178,5 @@ void main()
 	}
 
 	rays[globalIndex].directionAndDistance = vec4(rayDir, hitDistance);
-	rays[globalIndex].radiance = vec4(radiance, 0.0);
+	rays[globalIndex].radiance = vec4(radiance, isBackfaceHit ? 1.0 : 0.0);
 }

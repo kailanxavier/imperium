@@ -42,6 +42,8 @@ namespace imp::gfx
 		[[nodiscard]] u32 rayBufferCapacity() const { return m_rayBufferCapacity; }
 		bool ensureRayBufferCapacity(IDevice& device, u32 requiredRayCount);
 
+		[[nodiscard]] IBuffer* probeStateBuffer() const { return m_probeStateBuffer.get(); }
+
 	private:
 		DDGIVolumeDesc m_desc;
 		u32 m_probeCountX{ 0 };
@@ -53,6 +55,8 @@ namespace imp::gfx
 
 		std::unique_ptr<IBuffer> m_rayBuffer;
 		u32 m_rayBufferCapacity{ 0 };
+
+		std::unique_ptr<IBuffer> m_probeStateBuffer;
 	};
 
 	struct DDGIRayTracePushConstants
@@ -97,6 +101,27 @@ namespace imp::gfx
 		math::Vec4f radiance{ 0.f, 0.f, 0.f, 0.f };
 	};
 	static_assert( sizeof(DDGIRayResult) == 32 && "DDGIRayResult must stay std430 array friendly" );
+
+	struct DDGIProbeState
+	{
+		math::Vec4f offsetAndState{ 0.f, 0.f, 0.f, 1.f };
+	};
+	static_assert( sizeof(DDGIProbeState) == 16 && "DDGIProbeState must stay std430 array friendly" );
+
+	struct DDGIClassifyPushConstants
+	{
+		u32 probeCountX{ 0 };
+		u32 probeCountY{ 0 };
+		u32 probeCountZ{ 0 };
+		u32 raysPerProbe{ 0 };
+		float maxRayDistance{ 0.f };
+		float probeSpacing{ 0.f };
+		float backfaceThreshold{ 0.f };
+		float maxRelocationOffset{ 0.f };
+		float relocationStep{ 0.f };
+		float backfaceRatioHigh{ 0.f };
+		float backfaceRatioLow{ 0.f };
+	};
 
 	struct DDGIVolumeUBO
 	{

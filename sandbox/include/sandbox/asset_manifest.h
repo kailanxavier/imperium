@@ -21,6 +21,7 @@ namespace imp::app
 
 		std::string ddgiProbeUpdateShader = "assets/shaders/ddgi_probe_update.comp.spv";
 		std::string ddgiRayTraceShader = "assets/shaders/ddgi_ray_trace.comp.spv";
+		std::string ddgiClassifyShader = "assets/shaders/ddgi_classify_probes.comp.spv";
 		std::string bloomDownsampleFragShader = "assets/shaders/bloom_down_sample.frag.spv";
 		std::string bloomUpsampleFragShader = "assets/shaders/bloom_up_sample.frag.spv";
 		std::string thermalUpdateDdgiShader = "assets/shaders/ddgi_thermal_update.comp.spv";

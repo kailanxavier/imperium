@@ -85,6 +85,11 @@ layout(std430, binding = 14) readonly buffer ThermalHeatBuffer
     float heatValues[];
 } thermalHeat;
 
+layout(std430, binding = 15) readonly buffer DDGIProbeStates
+{
+    vec4 ddgiProbeStateData[];
+};
+
 float sampleThermalHeat(vec3 posWS)
 {
     vec3 minCorner = thermalVolume.minCornerAndSpacing.xyz;
@@ -229,7 +234,18 @@ vec3 sampleDDGIIrradiance(vec3 posWS, vec3 N)
         if (any(lessThan(probeCoord, ivec3(0))) || any(greaterThanEqual(probeCoord, ivec3(probeCounts))))
             continue;
 
-        vec3 probePosWS = minCorner + vec3(probeCoord) * spacing;
+        // Inverse of DDGIVolume::probeAtlasColumn(x, y) = x + y * probeCountX.
+        uint tileCol = uint(probeCoord.x) + uint(probeCoord.y) * probeCounts.x;
+        uint tileRow = uint(probeCoord.z);
+        uvec2 atlasProbeCoord = uvec2(tileCol, tileRow);
+        uint probeIndex = tileCol + tileRow * probeCounts.x * probeCounts.y;
+
+        vec4 probeState = ddgiProbeStateData[probeIndex];
+        if (probeState.w < 0.5)
+            continue; // We're probably inside geometry. Key word is probably so let us come back to this
+                      // if any weird behaviour is observed.
+
+        vec3 probePosWS = minCorner + vec3(probeCoord) * spacing + probeState.xyz;
         vec3 toProbe = probePosWS - posWS;
         float distToProbe = max(length(toProbe), 0.0001);
         vec3 dirToProbe = toProbe / distToProbe;
@@ -238,11 +254,6 @@ vec3 sampleDDGIIrradiance(vec3 posWS, vec3 N)
         float weight = trilinear.x * trilinear.y * trilinear.z;
         weight *= max(0.05, dot(N, dirToProbe)); // fade out probes behind the surface
 
-        // Inverse of DDGIVolume::probeAtlasColumn(x, y) = x + y * probeCountX.
-        uint tileCol = uint(probeCoord.x) + uint(probeCoord.y) * probeCounts.x;
-        uint tileRow = uint(probeCoord.z);
-        uvec2 atlasProbeCoord = uvec2(tileCol, tileRow);
-
         vec2 moments = sampleProbeTile(ddgiDepthAtlas, atlasProbeCoord, kDDGIDepthTileTexels, kDDGIDepthInteriorTexels, -dirToProbe).rg;
         float mean = moments.x;
         float variance = max(moments.y - mean * mean, 0.0001);
@@ -250,7 +261,7 @@ vec3 sampleDDGIIrradiance(vec3 posWS, vec3 N)
         float chebyshev = (diff <= 0.0) ? 1.0 : clamp(variance / (variance + diff * diff), 0.0, 1.0);
         weight *= max(chebyshev, 0.05); // never fully zero, avoids hard seams between probes
 
-        weight = max(weight, 0.000001);
+        weight = max(weight, 0.0001);
 
         irradiance += sampleProbeTile(ddgiIrradianceAtlas, atlasProbeCoord, kDDGIIrradianceTileTexels, kDDGIIrradianceInteriorTexels, N) * weight;
         totalWeight += weight;
@@ -359,5 +370,4 @@ void main()
 
     float outAlpha = (material.alphaMode > 1.5) ? alpha : 1.0;
     outColour = vec4(result, outAlpha);
-    //outColour = vec4(vec3(ssao), 1.0);
 }

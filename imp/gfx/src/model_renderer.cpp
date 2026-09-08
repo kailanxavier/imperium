@@ -173,6 +173,9 @@ namespace imp::gfx
 							ctx.cmd->bindUniformBuffer(*ctx.thermalVolumeBuffer, 13);
 						if (ctx.thermalHeatBuffer)
 							ctx.cmd->bindStorageBuffer(*ctx.thermalHeatBuffer, 14);
+
+						if (ctx.ddgiProbeStateBuffer)
+							ctx.cmd->bindStorageBuffer(*ctx.ddgiProbeStateBuffer, 15);
 					}
 					else if (ctx.alphaTestOnly)
 					{

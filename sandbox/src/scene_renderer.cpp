@@ -45,6 +45,7 @@ namespace imp::app
 			gfx::RGTextureHandle ddgiIrradianceAtlas;
 			gfx::RGTextureHandle ddgiDepthAtlas;
 			gfx::RGBufferHandle ddgiVolumeUBO;
+			gfx::RGBufferHandle ddgiProbeStates;
 
 			bool thermalActive = false;
 			gfx::RGBufferHandle thermalHeatBuffer;
@@ -115,6 +116,7 @@ namespace imp::app
 		{
 			gfx::RGBufferHandle rayBuffer;
 			gfx::RGBufferHandle lightUBO;
+			gfx::RGBufferHandle probeStates;
 
 			gfx::IPipeline* pipeline = nullptr;
 			const gfx::ITlas* tlas = nullptr;
@@ -124,6 +126,16 @@ namespace imp::app
 			float maxRayDistance = 0.f, probeSpacing = 0.f, viewBias = 0.f;
 			math::Vec3f minCorner;
 			math::Vec4f randomRotation;
+		};
+
+		struct DDGIClassifyPassData
+		{
+			gfx::RGBufferHandle rayBuffer;
+			gfx::RGBufferHandle probeStates;
+			gfx::IPipeline* pipeline = nullptr;
+
+			u32 probeCountX = 0, probeCountY = 0, probeCountZ = 0, raysPerProbe = 0;
+			float maxRayDistance = 0.f, probeSpacing = 0.f;
 		};
 
 		struct ThermalUpdatePassData
@@ -209,6 +221,7 @@ namespace imp::app
 			{
 				d.rayBuffer = b.writeStorageBuffer(b.importBuffer("DDGIRayResults", volume.rayBuffer()));
 				d.lightUBO = b.readBuffer(b.importBuffer("LightUBO", &resources.lightUBO(params.currentFrame)));
+				d.probeStates = b.readBuffer(b.importBuffer("DDGIProbeStates", volume.probeStateBuffer()));
 
 				d.pipeline = pipeline;
 				d.tlas = tlas;
@@ -232,6 +245,7 @@ namespace imp::app
 				rgCtx.cmd().bindStorageBuffer(*d.materials, 1);
 				rgCtx.cmd().bindUniformBuffer(rgCtx.buffer(d.lightUBO), 2);
 				rgCtx.cmd().bindStorageBuffer(rgCtx.buffer(d.rayBuffer), 3);
+				rgCtx.cmd().bindStorageBuffer(rgCtx.buffer(d.probeStates), 4);
 
 				gfx::DDGIRayTracePushConstants pc{};
 				pc.probeCountX = d.probeCountX;
@@ -252,6 +266,60 @@ namespace imp::app
 			});
 
 		return data.rayBuffer;
+	}
+
+	void addDDGIClassifyPass(gfx::RenderGraph& graph, RenderResources& resources, SandboxScene& scene,
+		AppContext& ctx, const SceneRenderParams& params, gfx::RGBufferHandle rayBuffer)
+	{
+		if (!ctx.gfx.supportsRayTracing())
+			return;
+
+		gfx::DDGIVolume& volume = resources.ddgiVolume();
+		gfx::IPipeline* pipeline = resources.ddgiClassifyPipeline();
+		if (!pipeline || !volume.rayBuffer() || !volume.probeStateBuffer())
+			return;
+
+		const u32 raysPerProbe = static_cast<u32>( std::max<i32>(1, gfx::gi::cvarRaysPerProbe) );
+
+		graph.addPass<DDGIClassifyPassData>("DDGIClassifyProbes",
+			[&](gfx::RenderGraphBuilder& b, DDGIClassifyPassData& d)
+			{
+				d.rayBuffer = b.readBuffer(rayBuffer);
+				d.probeStates = b.writeStorageBuffer(b.importBuffer("DDGIProbeStates", volume.probeStateBuffer()));
+				d.pipeline = pipeline;
+				d.probeCountX = volume.probeCountX();
+				d.probeCountY = volume.probeCountY();
+				d.probeCountZ = volume.probeCountZ();
+				d.raysPerProbe = raysPerProbe;
+				d.maxRayDistance = gfx::gi::cvarMaxRayDistance;
+				d.probeSpacing = volume.desc().probeSpacing;
+				b.hasSideEffect();
+			},
+			[](const DDGIClassifyPassData& d, gfx::RenderGraphContext& rgCtx)
+			{
+				rgCtx.cmd().computeToComputeBarrier();
+
+				rgCtx.cmd().bindComputePipeline(*d.pipeline);
+				rgCtx.cmd().bindStorageBuffer(rgCtx.buffer(d.rayBuffer), 0);
+				rgCtx.cmd().bindStorageBuffer(rgCtx.buffer(d.probeStates), 1);
+
+				gfx::DDGIClassifyPushConstants pc{};
+				pc.probeCountX = d.probeCountX;
+				pc.probeCountY = d.probeCountY;
+				pc.probeCountZ = d.probeCountZ;
+				pc.raysPerProbe = d.raysPerProbe;
+				pc.maxRayDistance = d.maxRayDistance;
+				pc.probeSpacing = d.probeSpacing;
+				pc.backfaceThreshold = gfx::gi::cvarRelocationBackfaceThreshold;
+				pc.maxRelocationOffset = gfx::gi::cvarRelocationMaxOffset;
+				pc.relocationStep = gfx::gi::cvarRelocationStep;
+				pc.backfaceRatioHigh = gfx::gi::cvarClassifyBackfaceRatioHigh;
+				pc.backfaceRatioLow = gfx::gi::cvarClassifyBackfaceRatioLow;
+				rgCtx.cmd().pushConstants(&pc, sizeof(pc), 0);
+
+				const u32 totalProbes = d.probeCountX * d.probeCountY * d.probeCountZ;
+				rgCtx.cmd().dispatch(( totalProbes + 63 ) / 64, 1, 1);
+			});
 	}
 
 	void addDDGIProbeUpdatePass(gfx::RenderGraph& graph, RenderResources& resources, SandboxScene& scene, AppContext& ctx, const SceneRenderParams& params, gfx::RGBufferHandle rayBuffer, gfx::RGTextureHandle& outIrradiance, gfx::RGTextureHandle& outDepth)
@@ -419,7 +487,7 @@ namespace imp::app
 
 			char name[32];
 			std::snprintf(name, sizeof(name), "BloomDown%u", mip);
-			const bool applyThreshold = (mip == 0);
+			const bool applyThreshold = ( mip == 0 );
 			const u32 w = mipW, h = mipH;
 
 			const auto& data = graph.addPass<BloomDownsamplePassData>(name,
@@ -461,7 +529,7 @@ namespace imp::app
 
 		gfx::RGTextureHandle currentUpsample = mips.back().handle;
 
-		for (u32 i = mipCount - 1; i > 0; --i)
+		for (auto i{ mipCount - 1 }; i-- > 0;) // where's my 400k quant job coding jesus
 		{
 			const BloomMip higher = mips[i - 1];
 			const BloomMip lower = mips[i];
@@ -620,6 +688,7 @@ namespace imp::app
 
 					d.ddgiIrradianceAtlas = b.readTexture(ddgiIrradianceHandle);
 					d.ddgiDepthAtlas = b.readTexture(ddgiDepthHandle);
+					d.ddgiProbeStates = b.readBuffer(b.importBuffer("DDGIProbeStates", ddgiVolume.probeStateBuffer()));
 				}
 				resources.ddgiVolumeUBO(params.currentFrame).update(&ddgiParams, sizeof(ddgiParams), 0);
 				d.ddgiVolumeUBO = b.readBuffer(b.importBuffer("DDGIVolumeUBO", &resources.ddgiVolumeUBO(params.currentFrame)));
@@ -670,11 +739,13 @@ namespace imp::app
 				{
 					renderCtx.ddgiIrradianceTexture = &rgCtx.texture(d.ddgiIrradianceAtlas);
 					renderCtx.ddgiDepthTexture = &rgCtx.texture(d.ddgiDepthAtlas);
+					renderCtx.ddgiProbeStateBuffer = &rgCtx.buffer(d.ddgiProbeStates);
 				}
 				else
 				{
 					renderCtx.ddgiIrradianceTexture = &d.resources->ddgiFallbackTexture();
 					renderCtx.ddgiDepthTexture = &d.resources->ddgiFallbackTexture();
+					renderCtx.ddgiProbeStateBuffer = &d.resources->ddgiProbeStateFallbackBuffer();
 				}
 				renderCtx.ddgiVolumeBuffer = &rgCtx.buffer(d.ddgiVolumeUBO);
 				renderCtx.ddgiSampler = &d.resources->ddgiSampler();

@@ -69,8 +69,10 @@ namespace imp::app
 		[[nodiscard]] gfx::DDGIVolume& ddgiVolume() { return m_ddgiVolume; }
 		[[nodiscard]] gfx::IPipeline* ddgiProbeUpdatePipeline() const { return m_ddgiProbeUpdatePipeline.get(); }
 		[[nodiscard]] gfx::IPipeline* ddgiRayTracePipeline() const { return m_ddgiRayTracePipeline.get(); }
+		[[nodiscard]] gfx::IPipeline* ddgiClassifyPipeline() const { return m_ddgiClassifyPipeline.get(); };
 
 		[[nodiscard]] gfx::ITexture& ddgiFallbackTexture() const { return *m_ddgiFallbackTexture; }
+		[[nodiscard]] gfx::IBuffer& ddgiProbeStateFallbackBuffer() const { return *m_ddgiProbeStateFallbackBuffer; };
 		[[nodiscard]] gfx::IBuffer& ddgiVolumeUBO(u32 frame) const { return *m_ddgiVolumeUBOs[frame]; }
 
 		gfx::IPipeline& bloomDownsamplePipeline() const { return *m_bloomDownsamplePipeline; }
@@ -155,7 +157,11 @@ namespace imp::app
 		std::unique_ptr<gfx::IShader> m_ddgiRayTraceShader;
 		std::unique_ptr<gfx::IPipeline> m_ddgiRayTracePipeline;
 
+		std::unique_ptr<gfx::IShader> m_ddgiClassifyShader;
+		std::unique_ptr<gfx::IPipeline> m_ddgiClassifyPipeline;
+
 		std::unique_ptr<gfx::ITexture> m_ddgiFallbackTexture;
+		std::unique_ptr<gfx::IBuffer> m_ddgiProbeStateFallbackBuffer;
 		std::vector<std::unique_ptr<gfx::IBuffer>> m_ddgiVolumeUBOs;
 
 		std::unique_ptr<gfx::IShader> m_bloomDownsampleFragShader, m_bloomUpsampleFragShader;

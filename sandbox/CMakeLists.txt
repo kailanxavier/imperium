@@ -36,6 +36,7 @@ IMP_COMPILE_SHADERS(
 		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/ddgi_probe_update.comp
 		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/ddgi_ray_trace.comp
 		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/ddgi_thermal_update.comp
+		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/ddgi_classify_probes.comp
 		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/thermal_update_fallback.comp
 		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/fullscreen.vert
 
