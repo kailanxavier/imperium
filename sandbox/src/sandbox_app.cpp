@@ -129,6 +129,7 @@ namespace imp::app
 		gfx::RGTextureHandle ddgiDepthHandle{};
 
 		const gfx::RGBufferHandle ddgiRayBuffer = addDDGIRayTracePass(graph, m_resources, m_scene, ctx, params);
+		addDDGIClassifyPass(graph, m_resources, m_scene, ctx, params, ddgiRayBuffer);
 		addDDGIProbeUpdatePass(graph, m_resources, m_scene, ctx, params, ddgiRayBuffer, ddgiIrradianceHandle, ddgiDepthHandle);
 
 		gfx::RGBufferHandle thermalBuffer = addThermalUpdatePass(graph, m_resources, m_scene, ctx, params, ddgiRayBuffer);

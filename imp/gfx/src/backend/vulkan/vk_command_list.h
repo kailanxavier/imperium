@@ -43,6 +43,7 @@ namespace imp::gfx::vulkan
 		void resetImageTracking() { m_imageStates.clear(); }
 
 		void computeToComputeBarrier() override;
+		void computeToGraphicsBarrier() override;
 
 	private:
 		struct ImageStateKey

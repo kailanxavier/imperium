@@ -375,6 +375,23 @@ namespace imp::gfx::vulkan
 		vkCmdPipelineBarrier2(m_cmd, &dep);
 	}
 
+	void VulkanCommandList::computeToGraphicsBarrier()
+	{
+		VkMemoryBarrier2 barrier{};
+		barrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2;
+		barrier.srcStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+		barrier.srcAccessMask = VK_ACCESS_2_SHADER_WRITE_BIT;
+		barrier.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT;
+		barrier.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;
+
+		VkDependencyInfo dep{};
+		dep.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+		dep.memoryBarrierCount = 1;
+		dep.pMemoryBarriers = &barrier;
+
+		vkCmdPipelineBarrier2(m_cmd, &dep);
+	}
+
 	void VulkanCommandList::setPendingBinding(const PendingBinding& pb)
 	{
 		for (PendingBinding& existing : m_pendingBindings)
