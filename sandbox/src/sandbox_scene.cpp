@@ -104,7 +104,7 @@ namespace imp::app
 		m_cascades = gfx::computeCascades(camera, aspect, m_sunDirection, m_cascadeConfig);
 	}
 
-	void SandboxScene::syncSunTransform(AppContext& ctx)
+	void SandboxScene::syncSunTransform(AppContext& ctx) const
 	{
 		using namespace imp::math;
 

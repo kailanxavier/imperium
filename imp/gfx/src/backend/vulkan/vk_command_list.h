@@ -37,6 +37,7 @@ namespace imp::gfx::vulkan
 		void bindAccelerationStructure(const gfx::ITlas& tlas, u32 binding) override;
 		void dispatch(u32 groupCountX, u32 groupCountY, u32 groupCountZ) override;
 
+		void flushBarriers();
 		[[nodiscard]] VkCommandBuffer commandBuffer() const { return m_cmd; }
 
 		void transitionToPresent(gfx::IRenderTarget& target);
@@ -115,5 +116,8 @@ namespace imp::gfx::vulkan
 
 		std::vector<PendingBinding> m_pendingBindings;
 		std::unordered_map<u64, VkDescriptorSet> m_descriptorSetCache;
+
+		std::vector<VkImageMemoryBarrier2> m_pendingImageBarriers;
+		std::vector<VkMemoryBarrier2> m_pendingMemoryBarriers;
 	};
 }

@@ -83,6 +83,9 @@ namespace imp::app
 			gfx::IBuffer* instanceBuffer = nullptr;
 			math::Mat4f viewProj;
 
+			gfx::CullVolume cullVolume;
+			bool enableFrustumCulling = true;
+
 			RenderResources* resources = nullptr;
 			SandboxScene* scene = nullptr;
 		};
@@ -762,8 +765,6 @@ namespace imp::app
 			},
 			[](const HdrPassData& d, gfx::RenderGraphContext& rgCtx)
 			{
-				gfx::CullVolume mainCullVolume{};
-
 				gfx::ModelRenderContext renderCtx{};
 				renderCtx.cmd = &rgCtx.cmd();
 				renderCtx.modelRegistry = &d.scene->modelRegistry();
@@ -798,6 +799,7 @@ namespace imp::app
 					renderCtx.thermalHeatBuffer = &d.resources->thermalFallbackBuffer();
 				renderCtx.thermalVolumeBuffer = &rgCtx.buffer(d.thermalVolumeUBO);
 
+				gfx::CullVolume mainCullVolume{};
 				if (d.params.enableFrustumCulling)
 				{
 					mainCullVolume.useFrustum = true;
@@ -947,6 +949,9 @@ namespace imp::app
 				d.viewProj = params.camera->projection(params.aspect) * params.camera->view();
 				d.resources = &resources;
 				d.scene = &scene;
+
+				d.enableFrustumCulling = params.enableFrustumCulling;
+				d.cullVolume = {};
 			},
 			[](const PrepassData& d, gfx::RenderGraphContext& rgCtx)
 			{
@@ -957,6 +962,14 @@ namespace imp::app
 				prepassCtx.viewProj = d.viewProj;
 				prepassCtx.sampler = &d.resources->sampler();
 				prepassCtx.alphaTestOnly = true;
+
+				gfx::CullVolume execCullVolume = d.cullVolume;
+				if (d.enableFrustumCulling)
+				{
+					execCullVolume.useFrustum = true;
+					execCullVolume.frustumPlanes = gfx::extractFrustumPlanes(d.viewProj);
+				}
+				prepassCtx.cullVolume = &execCullVolume;
 				// no light or shadow bindings needed, this is a normals only pass
 
 				rgCtx.cmd().bindPipeline(d.resources->prepassPipeline());

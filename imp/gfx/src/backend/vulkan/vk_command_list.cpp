@@ -17,6 +17,14 @@ namespace imp::gfx::vulkan
 {
 	void VulkanCommandList::reset(VkDevice device, VkCommandBuffer cmd, VulkanDescriptorAllocator* descriptorAllocator, u32 frameIndex)
 	{
+		const bool barriersFlushed = m_pendingImageBarriers.empty() && m_pendingMemoryBarriers.empty();
+		if (!barriersFlushed)
+			LOG_ERROR("Vulkan", "VulkanCommandList::reset() called with {} unflushed image barrier(s) and {} unflushed memory barrier(s) from the previous recording.",
+				m_pendingImageBarriers.size(), m_pendingMemoryBarriers.size());
+
+		m_pendingImageBarriers.clear();
+		m_pendingMemoryBarriers.clear();
+
 		m_cmd = cmd;
 		m_device = device;
 		m_currentPipelineLayout = VK_NULL_HANDLE;
@@ -49,13 +57,13 @@ namespace imp::gfx::vulkan
 			colourTargets[colourTargetCount++] = dynamic_cast<VulkanRenderTarget*>(
 				desc.colourTargets[i].target);
 
-		auto* depthTarget = dynamic_cast<VulkanRenderTarget*>( desc.depthTarget );
-		auto* resolveTarget = dynamic_cast<VulkanRenderTarget*>( desc.resolveTarget );
+		auto* depthTarget = dynamic_cast<VulkanRenderTarget*>(desc.depthTarget);
+		auto* resolveTarget = dynamic_cast<VulkanRenderTarget*>(desc.resolveTarget);
 
 		for (u32 i = 0; i < colourTargetCount; ++i)
 		{
 			VulkanRenderTarget* colourTarget = colourTargets[i];
-			if (!colourTarget) 
+			if (!colourTarget)
 				continue;
 
 			VkAccessFlags2 dstAccess = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
@@ -90,11 +98,14 @@ namespace imp::gfx::vulkan
 				dstAccess, isSwapchainImage, depthTarget->layer());
 		}
 
+		// BE CAREFUL WITH THIS. I DON'T LIKE HOW SMALL IT IS *******************
+		flushBarriers();
+
 		VkRenderingAttachmentInfo colourAttachments[gfx::RenderPassDesc::kMaxColourAttachments]{};
 		for (u32 i = 0; i < colourTargetCount; ++i)
 		{
 			VulkanRenderTarget* colourTarget = colourTargets[i];
-			if (!colourTarget) 
+			if (!colourTarget)
 				continue;
 
 			VkRenderingAttachmentInfo& attachment = colourAttachments[i];
@@ -143,7 +154,7 @@ namespace imp::gfx::vulkan
 		renderingInfo.colorAttachmentCount = colourTargetCount;
 		renderingInfo.pColorAttachments = colourTargetCount > 0 ? colourAttachments : nullptr;
 
-		if (depthTarget) 
+		if (depthTarget)
 			renderingInfo.pDepthAttachment = &depthAttachment;
 
 		vkCmdBeginRendering(m_cmd, &renderingInfo);
@@ -213,7 +224,7 @@ namespace imp::gfx::vulkan
 
 	void VulkanCommandList::bindPipeline(gfx::IPipeline& pipeline)
 	{
-		const auto& vkPipeline = dynamic_cast<VulkanGraphicsPipeline&>( pipeline );
+		const auto& vkPipeline = dynamic_cast<VulkanGraphicsPipeline&>(pipeline);
 		vkCmdBindPipeline(m_cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, vkPipeline.pipeline());
 		m_currentBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
 		m_currentPipelineLayout = vkPipeline.layout();
@@ -296,12 +307,14 @@ namespace imp::gfx::vulkan
 
 	void VulkanCommandList::draw(u32 vertexCount, u32 instanceCount)
 	{
+		flushBarriers();
 		flushDescriptorBindings();
 		vkCmdDraw(m_cmd, vertexCount, instanceCount, 0, 0);
 	}
 
 	void VulkanCommandList::drawIndexed(u32 indexCount, u32 instanceCount, u32 firstInstance)
 	{
+		flushBarriers();
 		flushDescriptorBindings();
 		vkCmdDrawIndexed(m_cmd, indexCount, instanceCount, 0, 0, firstInstance);
 	}
@@ -347,6 +360,7 @@ namespace imp::gfx::vulkan
 
 	void VulkanCommandList::dispatch(u32 groupCountX, u32 groupCountY, u32 groupCountZ)
 	{
+		flushBarriers();
 		flushDescriptorBindings();
 		vkCmdDispatch(m_cmd, groupCountX, groupCountY, groupCountZ);
 	}
@@ -357,6 +371,7 @@ namespace imp::gfx::vulkan
 		transitionImage(vkTarget.image(), VK_IMAGE_ASPECT_COLOR_BIT,
 			VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
 			VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT, VK_ACCESS_2_NONE);
+		flushBarriers();
 	}
 
 	void VulkanCommandList::computeToComputeBarrier()
@@ -368,11 +383,7 @@ namespace imp::gfx::vulkan
 		barrier.dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
 		barrier.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT;
 
-		VkDependencyInfo dep{};
-		dep.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-		dep.memoryBarrierCount = 1;
-		dep.pMemoryBarriers = &barrier;
-		vkCmdPipelineBarrier2(m_cmd, &dep);
+		m_pendingMemoryBarriers.push_back(barrier);
 	}
 
 	void VulkanCommandList::computeToGraphicsBarrier()
@@ -384,12 +395,7 @@ namespace imp::gfx::vulkan
 		barrier.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT;
 		barrier.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;
 
-		VkDependencyInfo dep{};
-		dep.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-		dep.memoryBarrierCount = 1;
-		dep.pMemoryBarriers = &barrier;
-
-		vkCmdPipelineBarrier2(m_cmd, &dep);
+		m_pendingMemoryBarriers.push_back(barrier);
 	}
 
 	void VulkanCommandList::setPendingBinding(const PendingBinding& pb)
@@ -422,7 +428,7 @@ namespace imp::gfx::vulkan
 #endif
 
 		std::ranges::sort(m_pendingBindings,
-		                  [](const PendingBinding& a, const PendingBinding& b) { return a.binding < b.binding; });
+			[](const PendingBinding& a, const PendingBinding& b) { return a.binding < b.binding; });
 
 		const u64 key = hashPendingBindings();
 
@@ -539,8 +545,8 @@ namespace imp::gfx::vulkan
 			if (it == m_currentBindingLayout->end())
 			{
 				LOG_ERROR("Vulkan",
-						"Draw call bound resource at binding {} but the active shader doesn't declare a descriptor there \n{}",
-						pb.binding, "(likely a stale or incorrect binding index at the call site)");
+					"Draw call bound resource at binding {} but the active shader doesn't declare a descriptor there \n{}",
+					pb.binding, "(likely a stale or incorrect binding index at the call site)");
 				ok = false;
 				continue;
 			}
@@ -557,7 +563,7 @@ namespace imp::gfx::vulkan
 		for (const auto& [bindingIndex, info] : *m_currentBindingLayout)
 		{
 			const bool staged = std::ranges::any_of(m_pendingBindings,
-			                                        [bindingIndex](const PendingBinding& pb) { return pb.binding == bindingIndex; });
+				[bindingIndex](const PendingBinding& pb) { return pb.binding == bindingIndex; });
 
 			if (!staged)
 			{
@@ -592,8 +598,21 @@ namespace imp::gfx::vulkan
 		}
 	}
 
+	namespace
+	{
+		constexpr VkAccessFlags2 kWriteAccessMask =
+			VK_ACCESS_2_SHADER_WRITE_BIT
+			| VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT
+			| VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT
+			| VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
+			| VK_ACCESS_2_TRANSFER_WRITE_BIT
+			| VK_ACCESS_2_HOST_WRITE_BIT
+			| VK_ACCESS_2_MEMORY_WRITE_BIT
+			| VK_ACCESS_2_ACCELERATION_STRUCTURE_WRITE_BIT_KHR;
+	}
+
 	void VulkanCommandList::transitionImage(VkImage image, VkImageAspectFlags aspect, VkImageLayout newLayout,
-	                                        VkPipelineStageFlags2 dstStage, VkAccessFlags2 dstAccess, bool crossesPresentationEngine, u32 baseArrayLayer /* = 0*/)
+		VkPipelineStageFlags2 dstStage, VkAccessFlags2 dstAccess, bool crossesPresentationEngine, u32 baseArrayLayer /* = 0*/)
 	{
 		ImageSyncState& state = m_imageStates[{image, baseArrayLayer}];
 
@@ -604,6 +623,16 @@ namespace imp::gfx::vulkan
 		{
 			srcStage = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
 			srcAccess = VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT;
+		}
+
+		const bool sameLayout = !crossesPresentationEngine && ( state.layout == newLayout );
+		const bool bothReadOnly = ( ( srcAccess & kWriteAccessMask ) == 0 ) && ( ( dstAccess & kWriteAccessMask ) == 0 );
+
+		if (sameLayout && bothReadOnly)
+		{
+			state.stage |= dstStage;
+			state.access |= dstAccess;
+			return;
 		}
 
 		VkImageMemoryBarrier2 barrier{};
@@ -619,15 +648,29 @@ namespace imp::gfx::vulkan
 		barrier.image = image;
 		barrier.subresourceRange = { aspect, 0, 1, baseArrayLayer, 1 };
 
-		VkDependencyInfo dep{};
-		dep.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-		dep.imageMemoryBarrierCount = 1;
-		dep.pImageMemoryBarriers = &barrier;
-		vkCmdPipelineBarrier2(m_cmd, &dep);
+		m_pendingImageBarriers.push_back(barrier);
 
 		state.layout = newLayout;
 		state.stage = dstStage;
 		state.access = dstAccess;
+	}
+
+	void VulkanCommandList::flushBarriers()
+	{
+		if (m_pendingImageBarriers.empty() && m_pendingMemoryBarriers.empty())
+			return;
+
+		VkDependencyInfo dep{};
+		dep.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+		dep.memoryBarrierCount = static_cast<u32>( m_pendingMemoryBarriers.size() );
+		dep.pMemoryBarriers = m_pendingMemoryBarriers.empty() ? nullptr : m_pendingMemoryBarriers.data();
+		dep.imageMemoryBarrierCount = static_cast<u32>( m_pendingImageBarriers.size() );
+		dep.pImageMemoryBarriers = m_pendingImageBarriers.empty() ? nullptr : m_pendingImageBarriers.data();
+
+		vkCmdPipelineBarrier2(m_cmd, &dep);
+
+		m_pendingImageBarriers.clear();
+		m_pendingMemoryBarriers.clear();
 	}
 }
 

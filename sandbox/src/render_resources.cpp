@@ -253,6 +253,7 @@ namespace imp::app
 		shadowPipelineDesc.depthStencilState.depthCompareOp = gfx::CompareOp::Less;
 		shadowPipelineDesc.colourFormat = gfx::TextureFormat::Unknown;
 		shadowPipelineDesc.depthFormat = gfx::TextureFormat::Depth32Float;
+		shadowPipelineDesc.blendState.blendEnable = true;
 		shadowPipelineDesc.hasInstanceBinding = true;
 		out.shadowPipeline = ctx.gfx.createPipeline(shadowPipelineDesc);
 
