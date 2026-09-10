@@ -5,6 +5,7 @@
 #include <core/config/cvar.h>
 #include <core/log/log.h>
 #include <cmath>
+#include <algorithm>
 #include <gfx/texture_cache.h>
 
 namespace imp::app
@@ -86,6 +87,7 @@ namespace imp::app
 
 	void SandboxScene::update(AppContext& ctx, const fwk::Camera& camera)
 	{
+		syncSunTransform(ctx);
 		ctx.ecs.transforms.updateWorldMatricesParallel(ctx.jobs);
 
 		updateSunViewProj();
@@ -100,6 +102,37 @@ namespace imp::app
 	void SandboxScene::recomputeCascades(const fwk::Camera& camera, float aspect)
 	{
 		m_cascades = gfx::computeCascades(camera, aspect, m_sunDirection, m_cascadeConfig);
+	}
+
+	void SandboxScene::syncSunTransform(AppContext& ctx)
+	{
+		using namespace imp::math;
+
+		const Vec3f from = Vec3f::forward();
+		const Vec3f to = normalise(m_sunDirection);
+
+		const float d = std::clamp(dot(from, to), -1.f, 1.f);
+		Quaternionf rotation;
+		if (d > 0.999999f)
+		{
+			rotation = Quaternionf::identity();
+		}
+		else if (d < -0.999999f)
+		{
+			Vec3f axis = cross(Vec3f::unitX(), from);
+			if (length(axis) < 0.0001f)
+				axis = cross(Vec3f::unitY(), from);
+			rotation = Quaternionf::fromAxisAngle(normalise(axis), toRadians(180.f));
+		}
+		else
+		{
+			const Vec3f axis = normalise(cross(from, to));
+			rotation = Quaternionf::fromAxisAngle(axis, std::acos(d));
+		}
+
+		ecs::Transform sunTransform = ctx.ecs.transforms.localTransform(m_sunEntity);
+		sunTransform.rotation = rotation;
+		ctx.ecs.transforms.setLocalTransform(m_sunEntity, sunTransform);
 	}
 
 	void SandboxScene::updateSunViewProj()

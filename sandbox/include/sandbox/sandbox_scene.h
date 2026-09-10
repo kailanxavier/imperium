@@ -46,6 +46,7 @@ namespace imp::app
 		const ecs::Transform& pointLightTransform() const { return m_localLightTransform; }
 
 	private:
+		void syncSunTransform(AppContext& ctx);
 		void updateSunViewProj();
 		void updateDynamicTlas(AppContext& ctx);
 
