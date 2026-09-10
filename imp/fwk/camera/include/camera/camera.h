@@ -18,6 +18,9 @@ namespace imp::fwk
 		[[nodiscard]] std::array<math::Vec3f, 8> frustumCornersWorldSpace(
 			float aspect, float sliceNear, float sliceFar) const;
 
+		[[nodiscard]] math::Vec3f forward() const;
+		[[nodiscard]] math::Vec3f right() const;
+
 		void setPosition(const math::Vec3f& pos) { m_position = pos; }
 		void setYawPitch(float yawRadians, float pitchRadians) 
 		{ 
@@ -32,8 +35,6 @@ namespace imp::fwk
 		float farPlane = 100.f;
 
 	private:
-		[[nodiscard]] math::Vec3f forward() const;
-		[[nodiscard]] math::Vec3f right() const;
 
 		math::Vec3f m_position = math::Vec3f::zero();
 		float m_yaw = 0.f;

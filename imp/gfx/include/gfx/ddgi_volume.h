@@ -132,4 +132,33 @@ namespace imp::gfx
 		u32 enabled{ 0 };
 	};
 	static_assert( sizeof(DDGIVolumeUBO) == 32 && "DDGIVolumeUBO must match the std140 layout in mesh.frag" );
+
+	struct DDGIProbeDebugPushConstants
+	{
+		math::Mat4f viewProj;
+		math::Vec4f cameraForwardAndRadius{ 0.f, 0.f, 1.f, 0.15f };
+		math::Vec4f minCornerAndSpacing{ 0.f, 0.f, 0.f, 0.f };
+		u32 probeCountX{ 0 };
+		u32 probeCountY{ 0 };
+		u32 probeCountZ{ 0 };
+		u32 showInactive{ 1 };
+	};
+	static_assert( sizeof(DDGIProbeDebugPushConstants) == 112
+		&& "DDGIProbeDebugPushConstants must stay under the 128B push constant floor" );
+
+	struct DDGIRayDebugPushConstants
+	{
+		math::Mat4f viewProj;
+		math::Vec4f minCornerAndSpacing{ 0.f, 0.f, 0.f, 0.f };
+		u32 probeCountX{ 0 };
+		u32 probeCountY{ 0 };
+		u32 probeCountZ{ 0 };
+		u32 probeIndex{ 0 };
+		u32 rayBase{ 0 };
+		float maxRayDistance{ 0.f };
+		u32 _pad0{ 0 };
+		u32 _pad1{ 0 };
+	};
+	static_assert( sizeof(DDGIRayDebugPushConstants) == 112
+		&& "DDGIRayDebugPushConstants must stay under the 128B push constant floor" );
 }

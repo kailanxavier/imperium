@@ -40,6 +40,12 @@ IMP_COMPILE_SHADERS(
 		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/thermal_update_fallback.comp
 		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/fullscreen.vert
 
+		# DDGI probe dbg
+		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/ddgi_debug_probes.vert
+		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/ddgi_debug_probes.frag
+		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/ddgi_debug_rays.vert
+		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/ddgi_debug_rays.frag
+
 		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/bloom_down_sample.frag
 		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/bloom_up_sample.frag
 )

@@ -25,6 +25,11 @@ namespace imp::gfx::gi
 	inline CVarInt cvarProbesPerFrame{ "gi.probes_per_frame", 512 };
 
 	inline CVarBool cvarShowProbes{ "gi.debug_show_probes", false };
+	inline CVarFloat cvarDebugProbeRadius{ "gi.debug_probe_radius", 0.15f };
+	inline CVarBool cvarDebugShowInactiveProbes{ "gi.debug_show_inactive_probes", true };
+
+	inline CVarBool cvarDebugShowRays{ "gi.debug_show_rays", false };
+	inline CVarInt cvarDebugRayProbeIndex{ "gi.debug_ray_probe_index", -1 };
 
 	inline CVarFloat cvarRelocationBackfaceThreshold{ "gi.relocation_backface_threshold", 0.25f };
 	inline CVarFloat cvarRelocationMaxOffset{ "gi.relocation_max_offset", 0.45f };

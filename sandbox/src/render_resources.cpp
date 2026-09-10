@@ -139,6 +139,33 @@ namespace imp::app
 			return false;
 		}
 
+		gfx::ShaderDesc ddgiDebugProbesVertDesc;
+		ddgiDebugProbesVertDesc.stage = gfx::ShaderStage::Vertex;
+		ddgiDebugProbesVertDesc.path = assets.ddgiDebugProbesVertShader;
+		out.ddgiDebugProbesVertShader = ctx.gfx.createShader(ddgiDebugProbesVertDesc);
+
+		gfx::ShaderDesc ddgiDebugProbesFragDesc;
+		ddgiDebugProbesFragDesc.stage = gfx::ShaderStage::Fragment;
+		ddgiDebugProbesFragDesc.path = assets.ddgiDebugProbesFragShader;
+		out.ddgiDebugProbesFragShader = ctx.gfx.createShader(ddgiDebugProbesFragDesc);
+
+		gfx::ShaderDesc ddgiDebugRaysVertDesc;
+		ddgiDebugRaysVertDesc.stage = gfx::ShaderStage::Vertex;
+		ddgiDebugRaysVertDesc.path = assets.ddgiDebugRaysVertShader;
+		out.ddgiDebugRaysVertShader = ctx.gfx.createShader(ddgiDebugRaysVertDesc);
+
+		gfx::ShaderDesc ddgiDebugRaysFragDesc;
+		ddgiDebugRaysFragDesc.stage = gfx::ShaderStage::Fragment;
+		ddgiDebugRaysFragDesc.path = assets.ddgiDebugRaysFragShader;
+		out.ddgiDebugRaysFragShader = ctx.gfx.createShader(ddgiDebugRaysFragDesc);
+
+		if (!out.ddgiDebugProbesVertShader || !out.ddgiDebugProbesFragShader
+			|| !out.ddgiDebugRaysVertShader || !out.ddgiDebugRaysFragShader)
+		{
+			LOG_ERROR("Sandbox", "Failed to load DDGI debug visualisation shaders.");
+			return false;
+		}
+
 		gfx::VertexAttribute meshAttrs[4] = {
 			{ 0, static_cast<u32>( offsetof(gfx::ModelVertex, position) ), 3, true },
 			{ 1, static_cast<u32>( offsetof(gfx::ModelVertex, normal) ), 3, true },
@@ -220,7 +247,7 @@ namespace imp::app
 		shadowPipelineDesc.vertexLayout.attributes = shadowAttrs;
 		shadowPipelineDesc.vertexLayout.stride = sizeof(gfx::ModelVertex);
 		shadowPipelineDesc.instanceLayout = meshPipelineDesc.instanceLayout;
-		shadowPipelineDesc.rasterizerState.cullMode = gfx::CullMode::Front; // reduces acne on closed meshes
+		shadowPipelineDesc.rasterizerState.cullMode = gfx::CullMode::Back; // reduces acne on closed meshes
 		shadowPipelineDesc.depthStencilState.depthTestEnable = true;
 		shadowPipelineDesc.depthStencilState.depthWriteEnable = true;
 		shadowPipelineDesc.depthStencilState.depthCompareOp = gfx::CompareOp::Less;
@@ -298,6 +325,41 @@ namespace imp::app
 			return false;
 		}
 
+		gfx::PipelineDesc ddgiDebugProbesPipelineDesc{};
+		ddgiDebugProbesPipelineDesc.vertexShader = out.ddgiDebugProbesVertShader.get();
+		ddgiDebugProbesPipelineDesc.fragmentShader = out.ddgiDebugProbesFragShader.get();
+		ddgiDebugProbesPipelineDesc.rasterizerState.cullMode = gfx::CullMode::None;
+		ddgiDebugProbesPipelineDesc.depthStencilState.depthTestEnable = true;
+		ddgiDebugProbesPipelineDesc.depthStencilState.depthWriteEnable = false;
+		ddgiDebugProbesPipelineDesc.depthStencilState.depthCompareOp = gfx::CompareOp::Less;
+		ddgiDebugProbesPipelineDesc.blendState.blendEnable = false;
+		ddgiDebugProbesPipelineDesc.colourFormat = m_hdrColourFormat;
+		ddgiDebugProbesPipelineDesc.depthFormat = m_hdrDepthFormat;
+		ddgiDebugProbesPipelineDesc.sampleCount = kMsaaSampleCount;
+		ddgiDebugProbesPipelineDesc.hasInstanceBinding = false;
+		out.ddgiDebugProbesPipeline = ctx.gfx.createPipeline(ddgiDebugProbesPipelineDesc);
+
+		gfx::PipelineDesc ddgiDebugRaysPipelineDesc{};
+		ddgiDebugRaysPipelineDesc.vertexShader = out.ddgiDebugRaysVertShader.get();
+		ddgiDebugRaysPipelineDesc.fragmentShader = out.ddgiDebugRaysFragShader.get();
+		ddgiDebugRaysPipelineDesc.rasterizerState.cullMode = gfx::CullMode::None;
+		ddgiDebugRaysPipelineDesc.rasterizerState.topology = gfx::PrimitiveTopology::LineList;
+		ddgiDebugRaysPipelineDesc.depthStencilState.depthTestEnable = true;
+		ddgiDebugRaysPipelineDesc.depthStencilState.depthWriteEnable = false;
+		ddgiDebugRaysPipelineDesc.depthStencilState.depthCompareOp = gfx::CompareOp::LessOrEqual;
+		ddgiDebugRaysPipelineDesc.blendState.blendEnable = false;
+		ddgiDebugRaysPipelineDesc.colourFormat = m_hdrColourFormat;
+		ddgiDebugRaysPipelineDesc.depthFormat = m_hdrDepthFormat;
+		ddgiDebugRaysPipelineDesc.sampleCount = kMsaaSampleCount;
+		ddgiDebugRaysPipelineDesc.hasInstanceBinding = false;
+		out.ddgiDebugRaysPipeline = ctx.gfx.createPipeline(ddgiDebugRaysPipelineDesc);
+
+		if (!out.ddgiDebugProbesPipeline || !out.ddgiDebugRaysPipeline)
+		{
+			LOG_ERROR("Sandbox", "Failed to create DDGI debug visualisation pipelines");
+			return false;
+		}
+
 		return true;
 	}
 
@@ -318,6 +380,10 @@ namespace imp::app
 		m_blurFragShader = std::move(set.blurFragShader);
 		m_bloomDownsampleFragShader = std::move(set.bloomDownsampleFragShader);
 		m_bloomUpsampleFragShader = std::move(set.bloomUpsampleFragShader);
+		m_ddgiDebugProbesVertShader = std::move(set.ddgiDebugProbesVertShader);
+		m_ddgiDebugProbesFragShader = std::move(set.ddgiDebugProbesFragShader);
+		m_ddgiDebugRaysVertShader = std::move(set.ddgiDebugRaysVertShader);
+		m_ddgiDebugRaysFragShader = std::move(set.ddgiDebugRaysFragShader);
 
 		m_pipeline = std::move(set.pipeline);
 		m_blendPipeline = std::move(set.blendPipeline);
@@ -329,6 +395,8 @@ namespace imp::app
 		m_blurPipeline = std::move(set.blurPipeline);
 		m_bloomDownsamplePipeline = std::move(set.bloomDownsamplePipeline);
 		m_bloomUpsamplePipeline = std::move(set.bloomUpsamplePipeline);
+		m_ddgiDebugProbesPipeline = std::move(set.ddgiDebugProbesPipeline);
+		m_ddgiDebugRaysPipeline = std::move(set.ddgiDebugRaysPipeline);
 	}
 
 	bool RenderResources::reloadShaders(AppContext& ctx, const AssetManifest& assets)
@@ -649,6 +717,12 @@ namespace imp::app
 		m_thermalUpdateFallbackPipeline.reset();
 		m_thermalUpdateFallbackShader.reset();
 		m_thermalFallbackBuffer.reset();
+		m_ddgiDebugProbesPipeline.reset();
+		m_ddgiDebugProbesVertShader.reset();
+		m_ddgiDebugProbesFragShader.reset();
+		m_ddgiDebugRaysPipeline.reset();
+		m_ddgiDebugRaysVertShader.reset();
+		m_ddgiDebugRaysFragShader.reset();
 
 		for (auto& buf : m_cascadeUBOs) buf.reset();
 		for (auto& buf : m_lightUBOs) buf.reset();

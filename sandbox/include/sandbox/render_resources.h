@@ -71,6 +71,9 @@ namespace imp::app
 		[[nodiscard]] gfx::IPipeline* ddgiRayTracePipeline() const { return m_ddgiRayTracePipeline.get(); }
 		[[nodiscard]] gfx::IPipeline* ddgiClassifyPipeline() const { return m_ddgiClassifyPipeline.get(); };
 
+		[[nodiscard]] gfx::IPipeline* ddgiDebugProbesPipeline() const { return m_ddgiDebugProbesPipeline.get(); }
+		[[nodiscard]] gfx::IPipeline* ddgiDebugRaysPipeline() const { return m_ddgiDebugRaysPipeline.get(); }
+
 		[[nodiscard]] gfx::ITexture& ddgiFallbackTexture() const { return *m_ddgiFallbackTexture; }
 		[[nodiscard]] gfx::IBuffer& ddgiProbeStateFallbackBuffer() const { return *m_ddgiProbeStateFallbackBuffer; };
 		[[nodiscard]] gfx::IBuffer& ddgiVolumeUBO(u32 frame) const { return *m_ddgiVolumeUBOs[frame]; }
@@ -98,6 +101,9 @@ namespace imp::app
 			std::unique_ptr<gfx::IShader> blurFragShader;
 			std::unique_ptr<gfx::IShader> bloomDownsampleFragShader, bloomUpsampleFragShader;
 
+			std::unique_ptr<gfx::IShader> ddgiDebugProbesVertShader, ddgiDebugProbesFragShader;
+			std::unique_ptr<gfx::IShader> ddgiDebugRaysVertShader, ddgiDebugRaysFragShader;
+
 			std::unique_ptr<gfx::IPipeline> pipeline;
 			std::unique_ptr<gfx::IPipeline> blendPipeline;
 			std::unique_ptr<gfx::IPipeline> shadowPipeline;
@@ -107,6 +113,9 @@ namespace imp::app
 			std::unique_ptr<gfx::IPipeline> gtaoPipeline;
 			std::unique_ptr<gfx::IPipeline> blurPipeline;
 			std::unique_ptr<gfx::IPipeline> bloomDownsamplePipeline, bloomUpsamplePipeline;
+
+			std::unique_ptr<gfx::IPipeline> ddgiDebugProbesPipeline;
+			std::unique_ptr<gfx::IPipeline> ddgiDebugRaysPipeline;
 		};
 
 		bool buildShaderPipelineSet(AppContext& ctx, const AssetManifest& assets, ShaderPipelineSet& out) const;
@@ -167,6 +176,13 @@ namespace imp::app
 		std::unique_ptr<gfx::IShader> m_bloomDownsampleFragShader, m_bloomUpsampleFragShader;
 		std::unique_ptr<gfx::IPipeline> m_bloomDownsamplePipeline, m_bloomUpsamplePipeline;
 		std::unique_ptr<gfx::ITexture> m_bloomFallbackTexture;
+
+		// probe debug
+		std::unique_ptr<gfx::IShader> m_ddgiDebugProbesVertShader, m_ddgiDebugProbesFragShader;
+		std::unique_ptr<gfx::IPipeline> m_ddgiDebugProbesPipeline;
+		// this too
+		std::unique_ptr<gfx::IShader> m_ddgiDebugRaysVertShader, m_ddgiDebugRaysFragShader;
+		std::unique_ptr<gfx::IPipeline> m_ddgiDebugRaysPipeline;
 
 		gfx::ThermalVolume m_thermalVolume;
 		std::unique_ptr<gfx::IShader> m_thermalUpdateDdgiShader, m_thermalUpdateFallbackShader;

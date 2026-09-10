@@ -47,6 +47,12 @@ namespace imp::app
 			gfx::RGBufferHandle ddgiVolumeUBO;
 			gfx::RGBufferHandle ddgiProbeStates;
 
+			bool ddgiDebugProbesActive = false;
+			bool ddgiDebugRaysActive = false;
+			gfx::RGBufferHandle ddgiRayBuffer;
+			u32 ddgiDebugRayProbeIndex = 0;
+			u32 ddgiDebugRaysPerProbe = 0;
+
 			bool thermalActive = false;
 			gfx::RGBufferHandle thermalHeatBuffer;
 			gfx::RGBufferHandle thermalVolumeUBO;
@@ -626,7 +632,7 @@ namespace imp::app
 		return out;
 	}
 
-	gfx::RGTextureHandle addHdrPass(gfx::RenderGraph& graph, RenderResources& resources, SandboxScene& scene, AppContext& ctx, const SceneRenderParams& params, const ShadowCascadePasses& shadowPasses, gfx::RGTextureHandle aoTexture, gfx::RGTextureHandle ddgiIrradianceHandle, gfx::RGTextureHandle ddgiDepthHandle, gfx::RGBufferHandle thermalHeatBufferHandle)
+	gfx::RGTextureHandle addHdrPass(gfx::RenderGraph& graph, RenderResources& resources, SandboxScene& scene, AppContext& ctx, const SceneRenderParams& params, const ShadowCascadePasses& shadowPasses, gfx::RGTextureHandle aoTexture, gfx::RGTextureHandle ddgiIrradianceHandle, gfx::RGTextureHandle ddgiDepthHandle, gfx::RGBufferHandle thermalHeatBufferHandle, gfx::RGBufferHandle ddgiRayBuffer)
 	{
 		const auto& data = graph.addPass<HdrPassData>("HDR",
 			[&](gfx::RenderGraphBuilder& b, HdrPassData& d)
@@ -692,6 +698,42 @@ namespace imp::app
 				}
 				resources.ddgiVolumeUBO(params.currentFrame).update(&ddgiParams, sizeof(ddgiParams), 0);
 				d.ddgiVolumeUBO = b.readBuffer(b.importBuffer("DDGIVolumeUBO", &resources.ddgiVolumeUBO(params.currentFrame)));
+
+				d.ddgiDebugProbesActive = d.ddgiActive && gfx::gi::cvarShowProbes && resources.ddgiDebugProbesPipeline();
+				d.ddgiDebugRaysActive = d.ddgiActive && gfx::gi::cvarDebugShowRays && resources.ddgiDebugRaysPipeline() && ddgiRayBuffer.isValid();
+
+				if (d.ddgiDebugRaysActive)
+				{
+					d.ddgiRayBuffer = b.readBuffer(ddgiRayBuffer);
+					d.ddgiDebugRaysPerProbe = static_cast<u32>( std::max<i32>(1, gfx::gi::cvarRaysPerProbe) );
+
+					const i32 pinnedIndex = gfx::gi::cvarDebugRayProbeIndex;
+					if (pinnedIndex >= 0)
+					{
+						d.ddgiDebugRayProbeIndex = std::min<u32>(static_cast<u32>( pinnedIndex ), ddgiVolume.probeCount() - 1);
+					}
+					else
+					{
+						const math::Vec3f minCorner = ddgiVolume.desc().origin - ddgiVolume.desc().extents;
+						const float spacing = std::max(ddgiVolume.desc().probeSpacing, 0.0001f);
+						const math::Vec3f gridSpace = ( params.camera->position() - minCorner ) / spacing;
+
+						auto clampAxis = [](float v, u32 count) -> u32
+							{
+								return static_cast<u32>(
+									std::clamp<i32>(
+										static_cast<i32>( std::round(v) ),
+										0, static_cast<i32>( count ) - 1) );
+							};
+
+						const u32 px = clampAxis(gridSpace.x, ddgiVolume.probeCountX());
+						const u32 py = clampAxis(gridSpace.y, ddgiVolume.probeCountY());
+						const u32 pz = clampAxis(gridSpace.z, ddgiVolume.probeCountZ());
+
+						d.ddgiDebugRayProbeIndex = px + py * ddgiVolume.probeCountX()
+							+ pz * ddgiVolume.probeCountX() * ddgiVolume.probeCountY();
+					}
+				}
 
 				gfx::ThermalVolume& thermalVolume = resources.thermalVolume();
 				d.thermalActive = gfx::thermal::cvarEnabled && thermalVolume.heatBuffer() && thermalHeatBufferHandle.isValid();
@@ -782,6 +824,52 @@ namespace imp::app
 				}
 
 				d.ctx->layers.renderAll(rgCtx.cmd());
+
+				if (d.ddgiDebugProbesActive || d.ddgiDebugRaysActive)
+				{
+					gfx::DDGIVolume& volume = d.resources->ddgiVolume();
+					const math::Vec3f minCorner = volume.desc().origin - volume.desc().extents;
+
+					if (d.ddgiDebugProbesActive)
+					{
+						gfx::DDGIProbeDebugPushConstants probePC{};
+						probePC.viewProj = renderCtx.viewProj;
+						const math::Vec3f fwd = d.params.camera->forward();
+						probePC.cameraForwardAndRadius = math::Vec4f{ fwd.x, fwd.y, fwd.z,
+							std::max(0.01f, static_cast<float>( gfx::gi::cvarDebugProbeRadius )) };
+						probePC.minCornerAndSpacing = math::Vec4f{ minCorner.x, minCorner.y, minCorner.z, volume.desc().probeSpacing };
+						probePC.probeCountX = volume.probeCountX();
+						probePC.probeCountY = volume.probeCountY();
+						probePC.probeCountZ = volume.probeCountZ();
+						probePC.showInactive = gfx::gi::cvarDebugShowInactiveProbes ? 1u : 0u;
+
+						rgCtx.cmd().bindPipeline(*d.resources->ddgiDebugProbesPipeline());
+						rgCtx.cmd().bindStorageBuffer(rgCtx.buffer(d.ddgiProbeStates), 0);
+						rgCtx.cmd().bindTexture(rgCtx.texture(d.ddgiIrradianceAtlas), d.resources->ddgiSampler(), 1);
+						rgCtx.cmd().pushConstants(&probePC, sizeof(probePC), 0);
+						rgCtx.cmd().draw(6, volume.probeCount());
+					}
+
+					if (d.ddgiDebugRaysActive)
+					{
+						gfx::DDGIRayDebugPushConstants rayPC{};
+						rayPC.viewProj = renderCtx.viewProj;
+						rayPC.minCornerAndSpacing = 
+							math::Vec4f{ minCorner.x, minCorner.y, minCorner.z, volume.desc().probeSpacing };
+						rayPC.probeCountX = volume.probeCountX();
+						rayPC.probeCountY = volume.probeCountY();
+						rayPC.probeCountZ = volume.probeCountZ();
+						rayPC.probeIndex = d.ddgiDebugRayProbeIndex;
+						rayPC.rayBase = d.ddgiDebugRayProbeIndex * d.ddgiDebugRaysPerProbe;
+						rayPC.maxRayDistance = gfx::gi::cvarMaxRayDistance;
+
+						rgCtx.cmd().bindPipeline(*d.resources->ddgiDebugRaysPipeline());
+						rgCtx.cmd().bindStorageBuffer(rgCtx.buffer(d.ddgiRayBuffer), 0);
+						rgCtx.cmd().bindStorageBuffer(rgCtx.buffer(d.ddgiProbeStates), 1);
+						rgCtx.cmd().pushConstants(&rayPC, sizeof(rayPC), 0);
+						rgCtx.cmd().draw(d.ddgiDebugRaysPerProbe * 2, 1);
+					}
+				}
 			});
 
 		return data.hdrResolve;

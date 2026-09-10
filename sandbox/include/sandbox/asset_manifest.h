@@ -27,6 +27,11 @@ namespace imp::app
 		std::string thermalUpdateDdgiShader = "assets/shaders/ddgi_thermal_update.comp.spv";
 		std::string thermalUpdateFallbackShader = "assets/shaders/thermal_update_fallback.comp.spv";
 
+		std::string ddgiDebugProbesVertShader = "assets/shaders/ddgi_debug_probes.vert.spv";
+		std::string ddgiDebugProbesFragShader = "assets/shaders/ddgi_debug_probes.frag.spv";
+		std::string ddgiDebugRaysVertShader = "assets/shaders/ddgi_debug_rays.vert.spv";
+		std::string ddgiDebugRaysFragShader = "assets/shaders/ddgi_debug_rays.frag.spv";
+
 		std::string environmentModel = "assets/models/khr-sponza.glb";
 		std::string environmentTestModel = "assets/models/environment_test.glb";
 	};

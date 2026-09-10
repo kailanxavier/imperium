@@ -35,7 +35,7 @@ namespace imp::app
 		SandboxScene& scene, AppContext& ctx, const SceneRenderParams& params, 
 		const ShadowCascadePasses& shadowPasses, gfx::RGTextureHandle aoTexture, 
 		gfx::RGTextureHandle ddgiIrradianceHandle, gfx::RGTextureHandle ddgiDepthHandle, 
-		gfx::RGBufferHandle thermalHeatBufferHandle);
+		gfx::RGBufferHandle thermalHeatBufferHandle, gfx::RGBufferHandle ddgiRayBuffer);
 
 	void addTonemapPass(gfx::RenderGraph& graph, RenderResources& resources,
 		gfx::RGTextureHandle hdrResolve, gfx::RGTextureHandle bloomTexture, gfx::IRenderTarget& target, 

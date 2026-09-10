@@ -135,7 +135,7 @@ namespace imp::app
 		gfx::RGBufferHandle thermalBuffer = addThermalUpdatePass(graph, m_resources, m_scene, ctx, params, ddgiRayBuffer);
 
 		const gfx::RGTextureHandle hdrResolve = addHdrPass(graph, m_resources, m_scene, ctx, params, shadowPasses, 
-			aoTexture, ddgiIrradianceHandle, ddgiDepthHandle, thermalBuffer);
+			aoTexture, ddgiIrradianceHandle, ddgiDepthHandle, thermalBuffer, ddgiRayBuffer);
 
 		gfx::RGTextureHandle bloomTexture = addBloomPasses(graph, m_resources, ctx, hdrResolve);
 
