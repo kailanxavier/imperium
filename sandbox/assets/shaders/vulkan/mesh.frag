@@ -357,14 +357,26 @@ void main()
         result += (diffuse + specular) * radiance * NdotL * shadowFactor;
     }
 
-    if (thermalVolume.probeCounts.w != 0)
+    if (thermalVolume.probeCounts.w != 0u)
     {
         float heat = sampleThermalHeat(inPositionWS);
+        float blurRadius = thermalVolume.minCornerAndSpacing.w * 2.0;
+
+        heat += sampleThermalHeat(inPositionWS + vec3(blurRadius, 0.0, 0.0));
+        heat += sampleThermalHeat(inPositionWS - vec3(blurRadius, 0.0, 0.0));
+        heat += sampleThermalHeat(inPositionWS + vec3(0.0, blurRadius, 0.0));
+        heat += sampleThermalHeat(inPositionWS - vec3(0.0, blurRadius, 0.0));
+
+        heat /= 5.0; // close enough, welcome back terry davis
+
         float ignition = thermalVolume.glowParams.y;
-        if (heat > ignition)
+        float glowFactor = max(0.0, (heat - ignition) * thermalVolume.glowParams.x);
+
+        if (glowFactor > 0.0)
         {
-            float glowFactor = (heat - ignition) * thermalVolume.glowParams.x;
-            result += blackbodyGlowColour(heat) * glowFactor;
+            vec3 thermalColour = blackbodyGlowColour(heat);
+            vec3 emissive = thermalColour * glowFactor * albedo;
+            result += emissive;
         }
     }
 

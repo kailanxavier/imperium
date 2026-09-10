@@ -126,9 +126,9 @@ void main()
 	const uint probeY = (probeIndex / pc.probeCountX) % pc.probeCountY;
 	const uint probeZ = probeIndex / (pc.probeCountX * pc.probeCountY);
 
-	const vec3 probePos = vec3(pc.minCornerX, pc.minCornerY, pc.minCornerZ)
-						+ vec3(probeX, probeY, probeZ) * pc.probeSpacing
-						+ states[probeIndex].offsetAndState.xyz;
+	const vec3 gridPos = vec3(pc.minCornerX, pc.minCornerY, pc.minCornerZ)
+						+ vec3(probeX, probeY, probeZ) * pc.probeSpacing;
+	const vec3 probePos = gridPos + states[probeIndex].offsetAndState.xyz;
 
 	const vec3 localDir = sphericalFibonacci(rayIndex, pc.raysPerProbe);
 	const vec3 rayDir = normalize(quatToMat3(pc.randomRotation) * localDir);

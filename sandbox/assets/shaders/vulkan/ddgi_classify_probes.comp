@@ -51,6 +51,7 @@ void main()
 	bool anyCloseBackface = false;
 	float closestBackfaceDist = pc.maxRayDistance;
 	vec3 closestBackfaceDir = vec3(0.0);
+	float closestAnyHitDist = pc.maxRayDistance;
 
 	const float missDistanceEpsilon = 0.001;
 	const float closeBackfaceThreshold = pc.probeSpacing * pc.backfaceThreshold;
@@ -64,6 +65,7 @@ void main()
 			continue;
 
 		totalHits++;
+		closestAnyHitDist = min(closestAnyHitDist, hitDistance);
 
 		const bool isBackFace = r.radiance.a > 0.5;
 		if (!isBackFace)
@@ -88,9 +90,10 @@ void main()
 		const float pushAmount = ( closeBackfaceThreshold - closestBackfaceDist ) * pc.relocationStep;
 		offset += closestBackfaceDir * pushAmount;
 	}
-	else if (backfaceCount == 0)
+	else if (backfaceCount == 0 && ( totalHits == 0u || closestAnyHitDist > closeBackfaceThreshold * 2.0 ))
 	{
-		// This is an attempt at not allowing probes to become stale.
+		// We only easy the offset back toward zero once the probe has a genuine safety margin from
+		// the nearest surface
 		offset *= ( 1.0 - pc.relocationStep * 0.25 );
 	}
 
