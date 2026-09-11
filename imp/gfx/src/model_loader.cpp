@@ -13,9 +13,11 @@
 
 #include <cgltf.h>
 
+#include <cmath>
 #include <cstring>
 #include <fstream>
 #include <functional>
+#include <limits>
 #include <map>
 #include <unordered_map>
 
@@ -127,6 +129,130 @@ namespace imp::gfx
 		u32 readIndex(const cgltf_accessor* accessor, cgltf_size i)
 		{
 			return static_cast<u32>( cgltf_accessor_read_index(accessor, i) );
+		}
+
+		// thanks stephan: https://create.stephan-brumme.com/fnv-hash/
+		u64 fnv1aInit()
+		{
+			return 14695981039346656037ull;
+		}
+
+		void fnv1aAppend(u64& h, const void* data, size_t size)
+		{
+			const u8* bytes = static_cast<const u8*>( data );
+			for (size_t i{ 0 }; i < size; ++i)
+			{
+				h ^= bytes[i];
+				h *= 1099511628211ull;
+			}
+		}
+
+		template <typename T>
+		void fnv1aAppendPod(u64& h, const T& value)
+		{
+			fnv1aAppend(h, &value, sizeof(T));
+		}
+
+		i64 quantise(float v, float epsilon)
+		{
+			return static_cast<i64>( std::llround(static_cast<double>( v ) / static_cast<double>( epsilon )) );
+		}
+
+		u64 computeMeshContentHash(const cgltf_mesh& mesh, const cgltf_data* data)
+		{
+			constexpr float kPositionEpsilon = 1e-2f;
+			constexpr float kDirectionEpsilon = 1e-2f;
+
+			constexpr float kUvEpsilon = 1e-2f;
+
+			u64 h = fnv1aInit();
+			fnv1aAppendPod(h, mesh.primitives_count);
+
+			for (cgltf_size p = 0; p < mesh.primitives_count; ++p)
+			{
+				const cgltf_primitive& prim = mesh.primitives[p];
+
+				const cgltf_accessor* posAccessor = nullptr;
+				const cgltf_accessor* normalAccessor = nullptr;
+				const cgltf_accessor* uvAccessor = nullptr;
+
+				for (cgltf_size a = 0; a < prim.attributes_count; ++a)
+				{
+					const cgltf_attribute& attr = prim.attributes[a];
+					if (attr.type == cgltf_attribute_type_position) posAccessor = attr.data;
+					else if (attr.type == cgltf_attribute_type_normal) normalAccessor = attr.data;
+					else if (attr.type == cgltf_attribute_type_texcoord && !uvAccessor) uvAccessor = attr.data;
+				}
+
+				const i32 materialIndex = prim.material ? static_cast<i32>(prim.material - data->materials) : -1;
+				fnv1aAppendPod(h, materialIndex);
+
+				if (!posAccessor)
+				{
+					fnv1aAppendPod(h, static_cast<u64>( 0 ));
+					continue;
+				}
+
+				const cgltf_size vertexCount = posAccessor->count;
+				fnv1aAppendPod(h, vertexCount);
+
+				math::Vec3f boundsMin{ std::numeric_limits<float>::max() };
+				math::Vec3f boundsMax{ -std::numeric_limits<float>::max() };
+
+				for (cgltf_size i = 0; i < vertexCount; ++i)
+				{
+					float pos[3];
+					cgltf_accessor_read_float(posAccessor, i, pos, 3);
+
+					const math::Vec3f ps{ pos[0], pos[1], pos[2] };
+					boundsMin = math::min(boundsMin, ps);
+					boundsMax = math::max(boundsMax, ps);
+				}
+				const math::Vec3f centre = ( boundsMin + boundsMax ) * 0.5f;
+
+				for (cgltf_size i = 0; i < vertexCount; ++i)
+				{
+					float pos[3];
+					cgltf_accessor_read_float(posAccessor, i, pos, 3);
+
+					fnv1aAppendPod(h, quantise(pos[0] - centre.x, kPositionEpsilon));
+					fnv1aAppendPod(h, quantise(pos[1] - centre.y, kPositionEpsilon));
+					fnv1aAppendPod(h, quantise(pos[2] - centre.z, kPositionEpsilon));
+
+					if (normalAccessor)
+					{
+						float n[3];
+						cgltf_accessor_read_float(normalAccessor, i, n, 3);
+						fnv1aAppendPod(h, quantise(n[0], kDirectionEpsilon));
+						fnv1aAppendPod(h, quantise(n[1], kDirectionEpsilon));
+						fnv1aAppendPod(h, quantise(n[2], kDirectionEpsilon));
+					}
+
+					if (uvAccessor)
+					{
+						float uv[2];
+						cgltf_accessor_read_float(uvAccessor, i, uv, 2);
+						fnv1aAppendPod(h, quantise(uv[0], kUvEpsilon));
+						fnv1aAppendPod(h, quantise(uv[1], kUvEpsilon));
+					}
+				}
+
+				if (prim.indices)
+				{
+					fnv1aAppendPod(h, prim.indices->count);
+					for (cgltf_size i = 0; i < prim.indices->count; ++i)
+					{
+						const u32 idx = readIndex(prim.indices, i);
+						fnv1aAppendPod(h, idx);
+					}
+				}
+				else
+				{
+					fnv1aAppendPod(h, static_cast<u64>(0));
+				}
+			}
+
+			return h;
 		}
 
 		struct TextureSlotRequest
@@ -255,11 +381,11 @@ namespace imp::gfx
 			}
 
 			auto isValidNormal = [](const math::Vec3f& n)
-			{
-				if (!std::isfinite(n.x) || !std::isfinite(n.y) || !std::isfinite(n.z))
-					return false;
-				return math::lengthSq(n) > 1e-12f;
-			};
+				{
+					if (!std::isfinite(n.x) || !std::isfinite(n.y) || !std::isfinite(n.z))
+						return false;
+					return math::lengthSq(n) > 1e-12f;
+				};
 
 			std::vector<bool> vertexNeedsNormal(vertexCount, false);
 			bool anyInvalid = false;
@@ -307,7 +433,7 @@ namespace imp::gfx
 						continue;
 
 					const float len = math::length(vertices[i].normal);
-					vertices[i].normal = (len > 1e-8f) ? vertices[i].normal / len : math::Vec3f{ 0.f, 0.f, 1.f };
+					vertices[i].normal = ( len > 1e-8f ) ? vertices[i].normal / len : math::Vec3f{ 0.f, 0.f, 1.f };
 				}
 			}
 
@@ -385,7 +511,7 @@ namespace imp::gfx
 			return true;
 		}
 
-		void buildNodes(const cgltf_data* data, Model& outModel, std::unordered_map<const cgltf_node*, u32>& nodeIndexMap)
+		void buildNodes(const cgltf_data* data, Model& outModel, std::unordered_map<const cgltf_node*, u32>& nodeIndexMap, const std::vector<u32>& meshIndexRemap)
 		{
 			outModel.nodes.resize(data->nodes_count);
 
@@ -403,7 +529,10 @@ namespace imp::gfx
 				dstNode.localTransform = toMat4(local);
 
 				if (srcNode.mesh)
-					dstNode.meshIndex = static_cast<i32>( srcNode.mesh - data->meshes );
+				{
+					const cgltf_size srcMeshIndex = srcNode.mesh - data->meshes;
+					dstNode.meshIndex = static_cast<i32>( meshIndexRemap[srcMeshIndex] );
+				}
 
 				dstNode.children.reserve(srcNode.children_count);
 				for (cgltf_size c = 0; c < srcNode.children_count; ++c)
@@ -466,7 +595,8 @@ namespace imp::gfx
 					return -1;
 
 				const auto key = std::make_pair(image, isSrgb);
-				if (auto it = requestIndexByImageAndSpace.find(key); it != requestIndexByImageAndSpace.end())
+				auto it = requestIndexByImageAndSpace.find(key);
+				if (it != requestIndexByImageAndSpace.end())
 					return static_cast<i64>( it->second );
 
 				TextureSlotRequest req;
@@ -687,12 +817,34 @@ namespace imp::gfx
 
 		auto t4 = std::chrono::steady_clock::now();
 
-		outModel.meshes.resize(data->meshes_count);
+		// Deduplicate mesh by content before doing any expensive work.
+		// This issue arised from San Miguel loading 1:1 nodes:meshes, meaning even though
+		// there are many meshes in the scene that are the same, they were being treated as different.
+		std::vector<u32> meshIndexRemap(data->meshes_count);
+		std::unordered_map<u64, std::vector<u32>> meshHashToOutputIndices;
+		meshHashToOutputIndices.reserve(data->meshes_count);
+		outModel.meshes.reserve(data->meshes_count);
+
+		u32 duplicateMeshCount = 0;
 
 		for (cgltf_size i = 0; i < data->meshes_count; ++i)
 		{
 			const cgltf_mesh& srcMesh = data->meshes[i];
-			Mesh& dstMesh = outModel.meshes[i];
+			const u64 contentHash = computeMeshContentHash(srcMesh, data);
+
+			auto existing = meshHashToOutputIndices.find(contentHash);
+			if (existing != meshHashToOutputIndices.end())
+			{
+				// I'm not very good at math, but I'm pretty sure					Future me run the numbers again when you're
+				// there's a chance, however astronomically unlikely,				capable of real mathematics. San Miguel = ~1098 loaded meshes
+				// that a collision happens. So we trust that it won't happen		(1098 * 1097) / (2 * 2^64) = ~3.27*10^17
+				// and trust the first entry.										Or 1 in 30.6 quadrillion
+				meshIndexRemap[i] = existing->second.front();
+				duplicateMeshCount++;
+				continue;
+			}
+
+			Mesh dstMesh;
 			dstMesh.name = srcMesh.name ? srcMesh.name : "";
 
 			dstMesh.primitives.reserve(srcMesh.primitives_count);
@@ -707,10 +859,19 @@ namespace imp::gfx
 					dstMesh.primitives.push_back(std::move(primitive));
 				}
 			}
+
+			const u32 outputIndex = static_cast<u32>( outModel.meshes.size() );
+			outModel.meshes.push_back(std::move(dstMesh));
+			meshHashToOutputIndices[contentHash].push_back(outputIndex);
+			meshIndexRemap[i] = outputIndex;
 		}
 
+		if (duplicateMeshCount > 0)
+			LOG_INFO("Model Loader", "Deduplicated {} of {} mesh(es) into {} unique mesh(es)",
+				duplicateMeshCount, data->meshes_count, outModel.meshes.size());
+
 		std::unordered_map<const cgltf_node*, u32> nodeIndexMap;
-		buildNodes(data, outModel, nodeIndexMap);
+		buildNodes(data, outModel, nodeIndexMap, meshIndexRemap);
 
 		if (data->scene)
 		{
