@@ -33,7 +33,7 @@ namespace imp::app
 		void ensureInstanceBufferCapacity(AppContext& ctx, u32 instanceCount);
 		bool reloadShaders(AppContext& ctx, const AssetManifest& assets);
 
-		static constexpr gfx::SampleCount kMsaaSampleCount = gfx::SampleCount::Eight;
+		static constexpr gfx::SampleCount kMsaaSampleCount = gfx::SampleCount::Four;
 
 		gfx::IPipeline& meshPipeline() const { return *m_pipeline; }
 		gfx::IPipeline& blendPipeline() const { return *m_blendPipeline; }

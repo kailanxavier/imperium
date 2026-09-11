@@ -16,6 +16,7 @@ namespace imp::fwk
 		u32 width = 1280;
 		u32 height = 720;
 		bool resizable = true;
+		bool fullscreen = false;
 		bool startVisible = true;
 	};
 

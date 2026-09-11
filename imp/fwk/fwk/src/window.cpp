@@ -28,14 +28,23 @@ namespace imp::fwk
 		}
 		++s_glfwRefCount;
 
+		bool resizable = desc.resizable;
+		GLFWmonitor* primaryMonitor = nullptr;
+
+		if (desc.fullscreen)
+		{
+			primaryMonitor = glfwGetPrimaryMonitor();
+			resizable = false;
+		}
+
 		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-		glfwWindowHint(GLFW_RESIZABLE, desc.resizable ? GLFW_TRUE : GLFW_FALSE);
+		glfwWindowHint(GLFW_RESIZABLE, resizable ? GLFW_TRUE : GLFW_FALSE);
 
 		m_handle = glfwCreateWindow(
 			static_cast<int>( desc.width ), 
 			static_cast<int>( desc.height ), 
 			desc.title.c_str(), 
-			nullptr, nullptr);
+			primaryMonitor, nullptr);
 
 		if (!m_handle)
 		{
