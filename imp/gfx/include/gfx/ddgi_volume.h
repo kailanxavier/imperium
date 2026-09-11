@@ -44,6 +44,11 @@ namespace imp::gfx
 
 		[[nodiscard]] IBuffer* probeStateBuffer() const { return m_probeStateBuffer.get(); }
 
+		u32 beginProbeUpdateWindow(u32 requestedCount);
+
+		[[nodiscard]] u32 lastActiveProbeOffset() const { return m_lastActiveProbeOffset; }
+		[[nodiscard]] u32 lastActiveProbeCount() const { return m_lastActiveProbeCount; }
+
 	private:
 		DDGIVolumeDesc m_desc;
 		u32 m_probeCountX{ 0 };
@@ -57,6 +62,10 @@ namespace imp::gfx
 		u32 m_rayBufferCapacity{ 0 };
 
 		std::unique_ptr<IBuffer> m_probeStateBuffer;
+
+		u32 m_probeUpdateCursor{ 0 };
+		u32 m_lastActiveProbeOffset{ 0 };
+		u32 m_lastActiveProbeCount{ 0 };
 	};
 
 	struct DDGIRayTracePushConstants
@@ -71,8 +80,14 @@ namespace imp::gfx
 		float minCornerY{ 0.f };
 		float minCornerZ{ 0.f };
 		float viewBias{ 0.f };
+		float _pad0{ 0.f };
+		float _pad1{ 0.f };
 		math::Vec4f randomRotation{ 0.f, 0.f, 0.f, 1.f };
+		u32 probeOffset{ 0 };
+		u32 activeProbeCount{ 0 };
 	};
+	static_assert( sizeof(DDGIRayTracePushConstants) == 72
+		&& "DDGIRayTracePushConstants must match the std430 layout in ddgi_ray_trace.comp" );
 
 	struct DDGIProbeUpdatePushConstants
 	{
@@ -121,7 +136,11 @@ namespace imp::gfx
 		float relocationStep{ 0.f };
 		float backfaceRatioHigh{ 0.f };
 		float backfaceRatioLow{ 0.f };
+		u32 probeOffset{ 0 };
+		u32 activeProbeCount{ 0 };
 	};
+	static_assert( sizeof(DDGIClassifyPushConstants) == 52 &&
+		"DDGIClassifyPushConstants must match the std430 layout in ddgi_ray_trace.comp" );
 
 	struct DDGIVolumeUBO
 	{
@@ -142,8 +161,10 @@ namespace imp::gfx
 		u32 probeCountY{ 0 };
 		u32 probeCountZ{ 0 };
 		u32 showInactive{ 1 };
+		u32 activeWindowOffset{ 0 };
+		u32 activeWindowCount{ 0 };
 	};
-	static_assert( sizeof(DDGIProbeDebugPushConstants) == 112
+	static_assert( sizeof(DDGIProbeDebugPushConstants) == 120
 		&& "DDGIProbeDebugPushConstants must stay under the 128B push constant floor" );
 
 	struct DDGIRayDebugPushConstants

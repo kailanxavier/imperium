@@ -71,6 +71,8 @@ layout(push_constant) uniform PushConstants
 	float minCornerZ;
 	float viewBias;
 	vec4 randomRotation;
+	uint probeOffset;
+	uint activeProbeCount;
 } pc;
 
 const float PI = 3.14159265359;
@@ -114,13 +116,14 @@ bool isOccluded(vec3 origin, vec3 dir, float tMax)
 void main()
 {
 	const uint globalIndex = gl_GlobalInvocationID.x;
-	const uint probeCount = pc.probeCountX * pc.probeCountY * pc.probeCountZ;
-	const uint totalRays = probeCount * pc.raysPerProbe;
-	if (globalIndex >= totalRays)
+	const uint totalProbeCount = pc.probeCountX * pc.probeCountY * pc.probeCountZ;
+	const uint activeRays = pc.activeProbeCount * pc.raysPerProbe;
+	if (globalIndex >= activeRays)
 		return;
 
-	const uint probeIndex = globalIndex / pc.raysPerProbe;
+	const uint localProbeIndex = globalIndex / pc.raysPerProbe;
 	const uint rayIndex = globalIndex % pc.raysPerProbe;
+	const uint probeIndex = (pc.probeOffset + localProbeIndex) % totalProbeCount;
 
 	const uint probeX = probeIndex % pc.probeCountX;
 	const uint probeY = (probeIndex / pc.probeCountX) % pc.probeCountY;
@@ -178,6 +181,7 @@ void main()
 		radiance = direct;
 	}
 
-	rays[globalIndex].directionAndDistance = vec4(rayDir, hitDistance);
-	rays[globalIndex].radiance = vec4(radiance, isBackfaceHit ? 1.0 : 0.0);
+	const uint rayResultIndex = probeIndex * pc.raysPerProbe + rayIndex;
+	rays[rayResultIndex].directionAndDistance = vec4(rayDir, hitDistance);
+	rays[rayResultIndex].radiance = vec4(radiance, isBackfaceHit ? 1.0 : 0.0);
 }

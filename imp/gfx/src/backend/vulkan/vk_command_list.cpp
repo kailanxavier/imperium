@@ -220,6 +220,8 @@ namespace imp::gfx::vulkan
 		m_colourTargetCount = 0;
 
 		m_resolveTarget = nullptr;
+
+		flushBarriers();
 	}
 
 	void VulkanCommandList::bindPipeline(gfx::IPipeline& pipeline)
@@ -229,6 +231,7 @@ namespace imp::gfx::vulkan
 		m_currentBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
 		m_currentPipelineLayout = vkPipeline.layout();
 		m_currentDescriptorSetLayout = vkPipeline.descriptorSetLayout();
+		m_currentPushConstantStageFlags = vkPipeline.pushConstantStageFlags();
 		m_currentBindingLayout = &vkPipeline.bindingLayout();
 		m_currentDescriptorSet = VK_NULL_HANDLE;
 		m_pendingBindings.clear();
@@ -299,10 +302,7 @@ namespace imp::gfx::vulkan
 			vkCmdPushConstants(m_cmd, m_currentPipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, offset, size, data);
 			return;
 		}
-
-		// TODO: Always VK_SHADER_STAGE_VERTEX_BIT
-		// My simpleton mind was not aware of the implications when I wrote it
-		vkCmdPushConstants(m_cmd, m_currentPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, offset, size, data);
+		vkCmdPushConstants(m_cmd, m_currentPipelineLayout, m_currentPushConstantStageFlags, offset, size, data);
 	}
 
 	void VulkanCommandList::draw(u32 vertexCount, u32 instanceCount)

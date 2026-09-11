@@ -35,14 +35,18 @@ layout(push_constant) uniform PushConstants
 	float relocationStep;
 	float backfaceRatioHigh;
 	float backfaceRatioLow;
+	uint probeOffset;
+	uint activeProbeCount;
 } pc;
 
 void main()
 {
-	const uint probeIndex = gl_GlobalInvocationID.x;
+	const uint localIndex = gl_GlobalInvocationID.x;
 	const uint totalProbes = pc.probeCountX * pc.probeCountY * pc.probeCountZ;
-	if (probeIndex >= totalProbes)
+	if (localIndex >= pc.activeProbeCount)
 		return;
+
+	const uint probeIndex = (pc.probeOffset + localIndex) % totalProbes;
 
 	const uint rayBase = probeIndex * pc.raysPerProbe;
 

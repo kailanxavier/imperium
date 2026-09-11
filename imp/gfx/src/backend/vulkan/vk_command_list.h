@@ -100,6 +100,7 @@ namespace imp::gfx::vulkan
 		VkPipelineLayout m_currentPipelineLayout = VK_NULL_HANDLE;
 		VkDescriptorSetLayout m_currentDescriptorSetLayout = VK_NULL_HANDLE;
 		VkPipelineBindPoint m_currentBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+		VkShaderStageFlags m_currentPushConstantStageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
 		const std::unordered_map<u32, PipelineBindingInfo>* m_currentBindingLayout = nullptr;
 

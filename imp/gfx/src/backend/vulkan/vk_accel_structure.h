@@ -29,7 +29,7 @@ namespace imp::gfx::vulkan
 		// We're unsure wether we can use allocation callbacks for this,
 		// since technically the only thing we're allocating is the backing buffer,
 		// which does not use allocation callbacks.
-		VkAllocationCallbacks* m_allocationCallbacks = nullptr;
+		const VkAllocationCallbacks* m_allocationCallbacks = nullptr;
 	};
 
 	class VulkanTlas final : public gfx::ITlas
@@ -50,5 +50,7 @@ namespace imp::gfx::vulkan
 		VkAccelerationStructureKHR m_handle = VK_NULL_HANDLE;
 		VulkanBuffer m_backingBuffer;
 		VkDeviceAddress m_address = 0;
+
+		const VkAllocationCallbacks* m_allocationCallbacks = nullptr;
 	};
 }

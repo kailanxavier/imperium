@@ -11,11 +11,14 @@ layout(push_constant) uniform PushConstants
 	uint probeCountY;
 	uint probeCountZ;
 	uint showInactive;
+	uint activeWindowOffset;
+	uint activeWindowCount;
 } pc;
 
 layout(location = 0) in vec2 inLocalUV;
 layout(location = 1) in flat uint inProbeIndex;
 layout(location = 2) in flat float inActive;
+layout(location = 3) in flat float inInActiveWindow;
 
 layout(location = 0) out vec4 outColour;
 
@@ -48,10 +51,19 @@ void main()
 
 	float z = sqrt(1.0 - r2);
 
+	float windowRing = 0.0;
+	if (inInActiveWindow > 0.5)
+	{
+		float ringBand = smoothstep(0.78, 0.86, z) - smoothstep(0.86, 0.94, z);
+		windowRing = clamp(ringBand, 0.0, 1.0);
+	}
+
 	if (inActive < 0.5)
 	{
 		float shade = mix(0.25, 0.55, z);
-		outColour = vec4(shade, 0.03, 0.03, 1.0);
+		vec3 colour = vec3(shade, 0.03, 0.03);
+		colour = mix(colour, vec3(1.0, 1.0, 1.0), windowRing * 0.6);
+		outColour = vec4(colour, 1.0);
 		return;
 	}
 

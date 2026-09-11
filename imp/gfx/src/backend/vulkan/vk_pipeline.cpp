@@ -121,6 +121,7 @@ namespace imp::gfx::vulkan
 			pushConstantRange.stageFlags |= VK_SHADER_STAGE_VERTEX_BIT;
 		if (fragmentPushConstantSize > 0)
 			pushConstantRange.stageFlags |= VK_SHADER_STAGE_FRAGMENT_BIT;
+		m_pushConstantStageFlags = pushConstantRange.stageFlags;
 
 		m_bindingLayout.clear();
 

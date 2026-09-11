@@ -445,6 +445,7 @@ namespace imp::gfx::vulkan
 		}
 
 		blas->m_device = m_device;
+		blas->m_allocationCallbacks = allocationCallbacks();
 		buildInfo.dstAccelerationStructure = blas->m_handle;
 
 		VulkanBufferCreateInfo scratchInfo{};
@@ -597,6 +598,7 @@ namespace imp::gfx::vulkan
 				return nullptr;
 		}
 		tlas->m_device = m_device;
+		tlas->m_allocationCallbacks = allocationCallbacks();
 
 		buildInfo.dstAccelerationStructure = tlas->m_handle;
 

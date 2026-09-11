@@ -12,7 +12,7 @@ namespace imp::gfx::vulkan
 	VulkanTlas::~VulkanTlas()
 	{
 		if (m_handle != VK_NULL_HANDLE && m_device != VK_NULL_HANDLE)
-			vkDestroyAccelerationStructureKHR_(m_device, m_handle, nullptr);
+			vkDestroyAccelerationStructureKHR_(m_device, m_handle, m_allocationCallbacks);
 	}
 
 }

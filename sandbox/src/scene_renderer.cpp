@@ -135,6 +135,8 @@ namespace imp::app
 			float maxRayDistance = 0.f, probeSpacing = 0.f, viewBias = 0.f;
 			math::Vec3f minCorner;
 			math::Vec4f randomRotation;
+
+			u32 probeOffset = 0, activeProbeCount = 0;
 		};
 
 		struct DDGIClassifyPassData
@@ -145,6 +147,8 @@ namespace imp::app
 
 			u32 probeCountX = 0, probeCountY = 0, probeCountZ = 0, raysPerProbe = 0;
 			float maxRayDistance = 0.f, probeSpacing = 0.f;
+
+			u32 probeOffset = 0, activeProbeCount = 0;
 		};
 
 		struct ThermalUpdatePassData
@@ -225,6 +229,10 @@ namespace imp::app
 		if (!volume.ensureRayBufferCapacity(ctx.gfx, requiredRays) || !volume.rayBuffer())
 			return {};
 
+		const u32 probesPerFrame = static_cast<u32>( std::max<i32>(1, gfx::gi::cvarProbesPerFrame) );
+		const u32 probeOffset = volume.beginProbeUpdateWindow(probesPerFrame);
+		const u32 activeProbeCount = volume.lastActiveProbeCount();
+
 		const auto& data = graph.addPass<DDGIRayTracePassData>("DDGIRayTrace",
 			[&](gfx::RenderGraphBuilder& b, DDGIRayTracePassData& d)
 			{
@@ -244,7 +252,8 @@ namespace imp::app
 				d.viewBias = gfx::gi::cvarViewBias;
 				d.minCorner = volume.desc().origin - volume.desc().extents;
 				d.randomRotation = randomRayRotationQuaternion();
-				//b.hasSideEffect();
+				d.probeOffset = probeOffset;
+				d.activeProbeCount = activeProbeCount;
 			},
 			[](const DDGIRayTracePassData& d, gfx::RenderGraphContext& rgCtx)
 			{
@@ -268,10 +277,12 @@ namespace imp::app
 				pc.minCornerZ = d.minCorner.z;
 				pc.viewBias = d.viewBias;
 				pc.randomRotation = d.randomRotation;
+				pc.probeOffset = d.probeOffset;
+				pc.activeProbeCount = d.activeProbeCount;
 				rgCtx.cmd().pushConstants(&pc, sizeof(pc), 0);
 
-				const u32 totalRays = d.probeCountX * d.probeCountY * d.probeCountZ * d.raysPerProbe;
-				rgCtx.cmd().dispatch(( totalRays + 63 ) / 64, 1, 1);
+				const u32 activeRays = d.activeProbeCount * d.raysPerProbe;
+				rgCtx.cmd().dispatch(( activeRays + 63 ) / 64, 1, 1);
 			});
 
 		return data.rayBuffer;
@@ -290,6 +301,9 @@ namespace imp::app
 
 		const u32 raysPerProbe = static_cast<u32>( std::max<i32>(1, gfx::gi::cvarRaysPerProbe) );
 
+		const u32 probeOffset = volume.lastActiveProbeOffset();
+		const u32 activeProbeCount = volume.lastActiveProbeCount();
+
 		graph.addPass<DDGIClassifyPassData>("DDGIClassifyProbes",
 			[&](gfx::RenderGraphBuilder& b, DDGIClassifyPassData& d)
 			{
@@ -302,6 +316,8 @@ namespace imp::app
 				d.raysPerProbe = raysPerProbe;
 				d.maxRayDistance = gfx::gi::cvarMaxRayDistance;
 				d.probeSpacing = volume.desc().probeSpacing;
+				d.probeOffset = probeOffset;
+				d.activeProbeCount = activeProbeCount;
 				b.hasSideEffect();
 			},
 			[](const DDGIClassifyPassData& d, gfx::RenderGraphContext& rgCtx)
@@ -324,10 +340,11 @@ namespace imp::app
 				pc.relocationStep = gfx::gi::cvarRelocationStep;
 				pc.backfaceRatioHigh = gfx::gi::cvarClassifyBackfaceRatioHigh;
 				pc.backfaceRatioLow = gfx::gi::cvarClassifyBackfaceRatioLow;
+				pc.probeOffset = d.probeOffset;
+				pc.activeProbeCount = d.activeProbeCount;
 				rgCtx.cmd().pushConstants(&pc, sizeof(pc), 0);
 
-				const u32 totalProbes = d.probeCountX * d.probeCountY * d.probeCountZ;
-				rgCtx.cmd().dispatch(( totalProbes + 63 ) / 64, 1, 1);
+				rgCtx.cmd().dispatch(( d.activeProbeCount + 63 ) / 64, 1, 1);
 			});
 	}
 
@@ -851,6 +868,8 @@ namespace imp::app
 						probePC.probeCountY = volume.probeCountY();
 						probePC.probeCountZ = volume.probeCountZ();
 						probePC.showInactive = gfx::gi::cvarDebugShowInactiveProbes ? 1u : 0u;
+						probePC.activeWindowOffset = volume.lastActiveProbeOffset();
+						probePC.activeWindowCount = volume.lastActiveProbeCount();
 
 						rgCtx.cmd().bindPipeline(*d.resources->ddgiDebugProbesPipeline());
 						rgCtx.cmd().bindStorageBuffer(rgCtx.buffer(d.ddgiProbeStates), 0);

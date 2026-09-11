@@ -1,5 +1,6 @@
 #include <gfx/ddgi_volume.h>
 #include <core/log/log.h>
+#include <algorithm>
 
 namespace imp::gfx
 {
@@ -93,6 +94,25 @@ namespace imp::gfx
 			static_cast<float>( x ) * m_desc.probeSpacing,
 			static_cast<float>( y ) * m_desc.probeSpacing,
 			static_cast<float>( z ) * m_desc.probeSpacing);
+	}
+
+	u32 DDGIVolume::beginProbeUpdateWindow(u32 requestedCount)
+	{
+		const u32 total = probeCount();
+		if (total == 0)
+		{
+			m_lastActiveProbeOffset = 0;
+			m_lastActiveProbeCount = 0;
+			return 0;
+		}
+
+		const u32 count = std::min(requestedCount, total);
+		const u32 offset = m_probeUpdateCursor % total;
+		m_lastActiveProbeOffset = offset;
+		m_lastActiveProbeCount = count;
+		m_probeUpdateCursor = ( offset + count ) % total;
+
+		return offset;
 	}
 
 	bool DDGIVolume::ensureRayBufferCapacity(IDevice& device, u32 requiredRayCount)

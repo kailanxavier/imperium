@@ -66,6 +66,7 @@ namespace imp::gfx::vulkan
 		[[nodiscard]] VkDescriptorSetLayout descriptorSetLayout() const { return m_descriptorSetLayout; }
 		[[nodiscard]] bool isValid() const { return m_pipeline != VK_NULL_HANDLE; }
 		[[nodiscard]] const std::unordered_map<u32, PipelineBindingInfo>& bindingLayout() const { return m_bindingLayout; }
+		[[nodiscard]] VkShaderStageFlags pushConstantStageFlags() const { return m_pushConstantStageFlags; }
 
 	private:
 		VkDevice m_device = VK_NULL_HANDLE;
@@ -74,6 +75,7 @@ namespace imp::gfx::vulkan
 		VkDescriptorSetLayout m_descriptorSetLayout = VK_NULL_HANDLE;
 		const VkAllocationCallbacks* m_allocationCallbacks = nullptr;
 		std::unordered_map<u32, PipelineBindingInfo> m_bindingLayout;
+		VkShaderStageFlags m_pushConstantStageFlags = 0;
 	};
 
 	bool mergeReflectedBindings(std::unordered_map<u32, PipelineBindingInfo>& bindingLayout,

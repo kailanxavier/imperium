@@ -20,11 +20,14 @@ layout(push_constant) uniform PushConstants
 	uint probeCountY;
 	uint probeCountZ;
 	uint showInactive;
+	uint activeWindowOffset;
+	uint activeWindowCount;
 } pc;
 
 layout(location = 0) out vec2 outLocalUV;
 layout(location = 1) out flat uint outProbeIndex;
 layout(location = 2) out flat float outActive;
+layout(location = 3) out flat float outInActiveWindow;
 
 const vec2 kQuadCorners[6] = vec2[6](
 	vec2(-1.0, -1.0), vec2(1.0, -1.0), vec2(1.0, 1.0),
@@ -40,6 +43,10 @@ void main()
 
 	ProbeState state = states[probeIndex];
 	float isActive = state.offsetAndState.w;
+
+	uint totalProbes = pc.probeCountX * pc.probeCountY * pc.probeCountZ;
+	uint relativeIndex = (probeIndex + totalProbes - pc.activeWindowOffset) % totalProbes;
+	float inActiveWindow = (relativeIndex < pc.activeWindowCount) ? 1.0 : 0.0;
 
 	vec3 gridPos = pc.minCornerAndSpacing.xyz + vec3(x, y, z) * pc.minCornerAndSpacing.w;
 	vec3 probePosWS = gridPos + state.offsetAndState.xyz;
@@ -60,4 +67,5 @@ void main()
 	outLocalUV = corner;
 	outProbeIndex = probeIndex;
 	outActive = isActive;
+	outInActiveWindow = inActiveWindow;
 }
