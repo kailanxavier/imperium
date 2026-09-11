@@ -44,6 +44,9 @@ namespace imp::gfx
 		math::Mat4f sunViewProj = math::Mat4f::identity();
 
 		math::Vec3f sunDirection = math::Vec3f::zero();
+
+		// No longer used. Keeping this here to avoid
+		// having to repad LightUBO.
 		float shadowMapSize = 0.f;
 
 		GPULight lights[kMaxLights];
@@ -55,6 +58,7 @@ namespace imp::gfx
 		math::Mat4f viewProj[4];
 		math::Vec4f splitDepths;
 		math::Vec4f blendParams;
+		math::Vec4f shadowMapSizes;
 	};
 	static_assert( sizeof(CascadeUBO) % 16 == 0 && "CascadeUBO layout must stay std140 consistent" );
 }

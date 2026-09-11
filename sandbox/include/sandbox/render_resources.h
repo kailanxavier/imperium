@@ -48,9 +48,6 @@ namespace imp::app
 		[[nodiscard]] gfx::TextureFormat hdrColourFormat() const { return m_hdrColourFormat; }
 		[[nodiscard]] gfx::TextureFormat hdrDepthFormat() const { return m_hdrDepthFormat; }
 
-		[[nodiscard]] gfx::IRenderTarget& shadowCascadeTarget(u32 i) const { return *m_shadowCascadeTargets[i]; }
-		[[nodiscard]] gfx::ITexture* shadowArrayTexture() const { return m_shadowArrayTexture; }
-
 		[[nodiscard]] gfx::IBuffer& cascadeUBO(u32 frame) const { return *m_cascadeUBOs[frame]; }
 		[[nodiscard]] gfx::IBuffer& lightUBO(u32 frame) const { return *m_lightUBOs[frame]; }
 		[[nodiscard]] gfx::IBuffer& instanceBuffer(u32 frame) const { return *m_instanceBuffers[frame]; }
@@ -145,9 +142,6 @@ namespace imp::app
 
 		gfx::TextureFormat m_hdrColourFormat = gfx::TextureFormat::RGBA16Float;
 		gfx::TextureFormat m_hdrDepthFormat = gfx::TextureFormat::Depth32Float;
-
-		std::vector<std::unique_ptr<gfx::IRenderTarget>> m_shadowCascadeTargets;
-		gfx::ITexture* m_shadowArrayTexture = nullptr;
 
 		std::vector<std::unique_ptr<gfx::IBuffer>> m_cascadeUBOs;
 		std::vector<std::unique_ptr<gfx::IBuffer>> m_lightUBOs;

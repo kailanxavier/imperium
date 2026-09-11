@@ -94,7 +94,6 @@ namespace imp::app
 		extractRenderables(ctx.ecs, m_modelRegistry, camera.position(), m_extraction);
 
 		m_extraction.lightData.sunViewProj = m_sunViewProj;
-		m_extraction.lightData.shadowMapSize = static_cast<float>( m_cascadeConfig.shadowMapResolution );
 
 		updateDynamicTlas(ctx);
 	}

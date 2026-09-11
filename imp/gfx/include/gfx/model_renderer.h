@@ -1,5 +1,6 @@
 #pragma once
 #include <gfx/render_extraction.h>
+#include <gfx/cascade_shadow.h>
 #include <core/math/math.h>
 #include <gfx/resources.h>
 #include <array>
@@ -42,6 +43,8 @@ namespace imp::gfx
 
 		gfx::IBuffer* lightBuffer = nullptr;
 		gfx::IBuffer* instanceBuffer = nullptr;
+
+		std::array<ITexture*, kCascadeCount> cascadeShadowMaps{};
 
 		gfx::ITexture* shadowArrayTexture = nullptr;
 		gfx::IBuffer* cascadeBuffer = nullptr;

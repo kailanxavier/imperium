@@ -37,7 +37,7 @@ namespace imp::app
 			gfx::RGTextureHandle hdrResolve;
 			gfx::RGBufferHandle lightUBO;
 			gfx::RGBufferHandle cascadeUBO;
-			gfx::RGTextureHandle shadowArray;
+			std::array<gfx::RGTextureHandle, gfx::kCascadeCount> cascadeShadowMaps;
 			gfx::RGTextureHandle aoTexture;
 			gfx::RGBufferHandle screenParamsUBO;
 
@@ -590,6 +590,7 @@ namespace imp::app
 		{
 			cascadeData.viewProj[i] = cascades[i].viewProj;
 			cascadeData.splitDepths[i] = cascades[i].splitDepth;
+			cascadeData.shadowMapSizes[i] = static_cast<float>(cascades[i].shadowMapResolution);
 		}
 		cascadeData.blendParams = math::Vec4f{ params.camera->nearPlane, scene.cascadeConfig().blendFraction, 0.f, 0.f };
 		resources.cascadeUBO(params.currentFrame).update(&cascadeData, sizeof(cascadeData), 0);
@@ -605,7 +606,13 @@ namespace imp::app
 			const auto& data = graph.addPass<ShadowCascadePassData>(name,
 				[&, i](gfx::RenderGraphBuilder& b, ShadowCascadePassData& d)
 				{
-					d.target = b.importTexture(name, &resources.shadowCascadeTarget(i));
+					gfx::TextureDesc cascadeDesc{};
+					cascadeDesc.width = cascades[i].shadowMapResolution;
+					cascadeDesc.height = cascades[i].shadowMapResolution;
+					cascadeDesc.format = gfx::TextureFormat::Depth32Float;
+					cascadeDesc.sampleCount = gfx::SampleCount::One;
+					cascadeDesc.usage = gfx::TextureUsage::DepthStencil | gfx::TextureUsage::Sampled;
+					d.target = b.createTexture(name, cascadeDesc);
 					d.target = b.writeDepth(d.target, gfx::RGLoadOp::Clear, 1.f);
 
 					d.instanceBuffer = &resources.instanceBuffer(params.currentFrame);
@@ -667,9 +674,8 @@ namespace imp::app
 				d.lightUBO = b.readBuffer(b.importBuffer("LightUBO", &resources.lightUBO(params.currentFrame)));
 				d.cascadeUBO = b.readBuffer(b.importBuffer("CascadeUBO", &resources.cascadeUBO(params.currentFrame)));
 
-				d.shadowArray = b.readTexture(b.importTexture("ShadowArray", resources.shadowArrayTexture()));
-				for (const auto& cascadeTarget : shadowPasses.cascadeDepthTargets)
-					b.readTexture(cascadeTarget);
+				for (u32 i = 0; i < gfx::kCascadeCount; ++i)
+					d.cascadeShadowMaps[i] = b.readTexture(shadowPasses.cascadeDepthTargets[i]);
 
 				d.aoTexture = b.readTexture(aoTexture);
 				d.screenParamsUBO = b.readBuffer(b.importBuffer("ScreenParamsUBO", &resources.screenParamsUBO(params.currentFrame)));
@@ -772,7 +778,8 @@ namespace imp::app
 				renderCtx.lightBuffer = &rgCtx.buffer(d.lightUBO);
 				renderCtx.instanceBuffer = &d.resources->instanceBuffer(d.params.currentFrame);
 				renderCtx.viewProj = d.params.camera->projection(d.params.aspect) * d.params.camera->view();
-				renderCtx.shadowArrayTexture = &rgCtx.texture(d.shadowArray);
+				for (u32 i = 0; i < gfx::kCascadeCount; ++i)
+					renderCtx.cascadeShadowMaps[i] = &rgCtx.texture(d.cascadeShadowMaps[i]);
 				renderCtx.cascadeBuffer = &rgCtx.buffer(d.cascadeUBO);
 				renderCtx.shadowSampler = &d.resources->shadowSampler();
 				renderCtx.aoTexture = &rgCtx.texture(d.aoTexture);

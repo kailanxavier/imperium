@@ -50,12 +50,17 @@ layout(binding = 6) uniform MaterialFactorsUBO
     float alphaMode;
 } material;
 
-layout(binding = 5) uniform sampler2DArray shadowMap;
+layout(binding = 5) uniform sampler2D shadowMap0;
+layout(binding = 16) uniform sampler2D shadowMap1;
+layout(binding = 17) uniform sampler2D shadowMap2;
+layout(binding = 18) uniform sampler2D shadowMap3;
+
 layout(binding = 7) uniform CascadeUBO
 {
     mat4 viewProj[4];
     vec4 splitDepths;
     vec4 blendParams;
+    vec4 shadowMapSizes;
 } cascades;
 
 layout(binding = 8) uniform sampler2D aoTexture;
@@ -322,10 +327,11 @@ void main()
 #elif SHADOW_DEBUG_MODE == 2
             float sunShadowFactor = (shadowCoordsA.z > 1.0 || shadowCoordsA.x < 0.0 || shadowCoordsA.x > 1.0
                 || shadowCoordsA.y < 0.0 || shadowCoordsA.y > 1.0) ? 1.0
-                : (shadowCoordsA.z - sunBias > texture(shadowMap, vec3(shadowCoordsA.xy, float(cascadeIndex))).r ? 0.0 : 1.0);
+                : (shadowCoordsA.z - sunBias > sampleCascadeTexel(shadowMap0, shadowMap1, shadowMap2, shadowMap3, cascadeIndex, shadowCoordsA.xy) ? 0.0 : 1.0);
 #else
-            float sunShadowFactor = computeShadowFactor(shadowMap, lightData.shadowMapSize,
-                cascadeIndex, shadowCoordsA, nextCascadeIndex, shadowCoordsB, cascadeBlend, sunBias);
+            float sunShadowFactor = computeShadowFactor(shadowMap0, shadowMap1, shadowMap2, shadowMap3,
+                cascades.shadowMapSizes, gl_FragCoord.xy, cascadeIndex, shadowCoordsA, 
+                    nextCascadeIndex, shadowCoordsB, cascadeBlend, sunBias);
 #endif
 
     for (uint i = 0u; i < lightData.lightCount; ++i)

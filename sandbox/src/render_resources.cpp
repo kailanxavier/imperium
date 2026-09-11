@@ -432,19 +432,6 @@ namespace imp::app
 		samplerDesc.enableAnisotropy = true;
 		m_sampler = ctx.gfx.createSampler(samplerDesc);
 
-		gfx::TextureDesc cascadeDesc;
-		cascadeDesc.width = cascadeConfig.shadowMapResolution;
-		cascadeDesc.height = cascadeConfig.shadowMapResolution;
-		cascadeDesc.arrayLayers = gfx::kCascadeCount;
-		cascadeDesc.format = gfx::TextureFormat::Depth32Float;
-		cascadeDesc.usage = gfx::TextureUsage::DepthStencil | gfx::TextureUsage::Sampled;
-		m_shadowCascadeTargets = ctx.gfx.createCascadeRenderTargets(cascadeDesc, &m_shadowArrayTexture);
-		if (m_shadowCascadeTargets.size() != gfx::kCascadeCount)
-		{
-			LOG_ERROR("Sandbox", "createCascadeRenderTargets() returned {} targets, expected {}",
-				m_shadowCascadeTargets.size(), gfx::kCascadeCount);
-		}
-
 		gfx::SamplerDesc shadowSamplerDesc{};
 		shadowSamplerDesc.minFilter = gfx::FilterMode::Linear;
 		shadowSamplerDesc.magFilter = gfx::FilterMode::Linear;
@@ -689,7 +676,6 @@ namespace imp::app
 		m_shadowSampler.reset();
 		m_shadowFragShader.reset();
 		m_shadowVertShader.reset();
-		m_shadowCascadeTargets.clear();
 		m_skyFragShader.reset();
 		m_skyVertShader.reset();
 		m_skyPipeline.reset();

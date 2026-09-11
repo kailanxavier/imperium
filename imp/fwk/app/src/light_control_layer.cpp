@@ -1,5 +1,6 @@
 #include <app/light_control_layer.h>
 #include <imgui.h>
+#include <bit>
 
 namespace imp::app
 {
@@ -27,7 +28,21 @@ namespace imp::app
         ImGui::Begin("CSM");
         ImGui::SliderFloat("Lambda", &m_shadowConfig.splitLambda, 0.f, 1.f);
         ImGui::SliderFloat("Padding Z", &m_shadowConfig.zPadding, 0.f, 100.f);
-        ImGui::SliderInt("Shadow Map Resolution", reinterpret_cast<int*>( &m_shadowConfig.shadowMapResolution ), 1, 8192);
+        for (u32 i = 0; i < gfx::kCascadeCount; ++i)
+        {
+            char label[32];
+            std::snprintf(label, sizeof(label), "Resolution [%u]", i);
+
+            int exponent = std::countr_zero(m_shadowConfig.resolution[i]);
+            if (m_shadowConfig.resolution[i] == 0)
+                exponent = 7;
+
+            if (ImGui::SliderInt(label, &exponent, 7, 13, "Resolution: %d"))
+                m_shadowConfig.resolution[i] = 1u << exponent;
+
+            if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("2^%d = Resolution: %u", exponent, 1u << exponent);
+        }
         ImGui::End();
 
         m_sunDirection.x = std::cos(elevation) * std::sin(azimuth);

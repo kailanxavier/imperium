@@ -151,8 +151,15 @@ namespace imp::gfx
 						if (factors)
 							ctx.cmd->bindUniformBuffer(*factors, 6);
 
-						if (ctx.shadowArrayTexture)
-							ctx.cmd->bindTexture(*ctx.shadowArrayTexture, *ctx.shadowSampler, 5);
+						if (ctx.shadowSampler)
+						{
+							static constexpr u32 kCascadeShadowBindings[gfx::kCascadeCount] = { 5, 16, 17, 18 };
+							static_assert( gfx::kCascadeCount <= 4, "kCascadeShadowBindings needs to be update." );
+
+							for (u32 c = 0; c < gfx::kCascadeCount; c++) // he said it again
+								if (ctx.cascadeShadowMaps[c])
+									ctx.cmd->bindTexture(*ctx.cascadeShadowMaps[c], *ctx.shadowSampler, kCascadeShadowBindings[c]);
+						}
 						if (ctx.cascadeBuffer)
 							ctx.cmd->bindUniformBuffer(*ctx.cascadeBuffer, 7);
 
