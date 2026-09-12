@@ -92,6 +92,8 @@ namespace imp::gfx::vulkan
 				dstAccess |= VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT; // same as colour
 
 			const bool isSwapchainImage = depthTarget->kind() != VulkanRenderTargetKind::OwnedTexture;
+			LOG_ERROR("Vulkan", "beginRenderPass '{}': depth attachment image={:#x} layer{} isSampleOwned={}",
+				desc.debugName ? desc.debugName : "?", reinterpret_cast<uintptr_t>( depthTarget->image() ), depthTarget->layer(), depthTarget->isSampledOwned());
 			transitionImage(depthTarget->image(), VK_IMAGE_ASPECT_DEPTH_BIT,
 				VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
 				VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
@@ -589,6 +591,10 @@ namespace imp::gfx::vulkan
 		for (u32 layer = 0; layer < layerCount; ++layer)
 		{
 			ImageSyncState& state = m_imageStates[{texture.image(), layer}];
+
+			LOG_ERROR("Vulkan", "ensureReadableForSampling: image={:#x} layer={} trackedLayour={} (SHADER_READ_ONLY={})",
+				reinterpret_cast<uintptr_t>(texture.image()), layer, static_cast<int>(state.layout), static_cast<int>(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+
 			if (state.layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
 				continue;
 
