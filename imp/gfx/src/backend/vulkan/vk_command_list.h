@@ -43,6 +43,7 @@ namespace imp::gfx::vulkan
 		void transitionToPresent(gfx::IRenderTarget& target);
 		void resetImageTracking() { m_imageStates.clear(); }
 
+		void prepareTextureForSampling(gfx::ITexture& texture) override;
 		void computeToComputeBarrier() override;
 		void computeToGraphicsBarrier() override;
 

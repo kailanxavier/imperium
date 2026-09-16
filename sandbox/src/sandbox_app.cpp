@@ -149,12 +149,14 @@ namespace imp::app
 			return;
 		}
 
+#ifndef NDEBUG
 		static bool s_dumpedGraphOnce = false;
 		if (!s_dumpedGraphOnce)
 		{
 			LOG_DEBUG("Vulkan", "{}", graph.debugDump());
 			s_dumpedGraphOnce = true;
 		}
+#endif
 
 		graph.execute(cmd);
 	}

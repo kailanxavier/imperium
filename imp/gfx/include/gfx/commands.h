@@ -75,6 +75,7 @@ namespace imp::gfx
 
         virtual void dispatch(u32 groupCountX, u32 groupCountY, u32 groupCountZ) = 0;
 
+        virtual void prepareTextureForSampling(ITexture& texture) = 0;
         virtual void computeToComputeBarrier() = 0;
         virtual void computeToGraphicsBarrier() = 0;
     };

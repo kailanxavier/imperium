@@ -189,6 +189,13 @@ namespace imp::gfx
 		for (u32 passIndex : m_executionOrder)
 		{
 			RGPass& pass = m_passes[passIndex];
+
+			for (u32 readIndex : pass.reads)
+			{
+				if (m_resources[readIndex].type == RGResourceType::Texture)
+					cmd.prepareTextureForSampling(textureOf(readIndex));
+			}
+
 			const bool hasAttachments = !pass.colours.empty()
 				|| pass.depth.role != RGAttachmentRole::None;
 
