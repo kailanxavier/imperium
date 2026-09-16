@@ -23,4 +23,9 @@ namespace imp::gfx
 	{
 		math::Vec2f texelSize{ 0.f, 0.f };
 	};
+
+	struct GBufferDebugPushConstants
+	{
+		u32 mode = 0;
+	};
 }

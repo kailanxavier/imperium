@@ -69,10 +69,12 @@ namespace imp::gfx::vulkan
 		multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
 		multisampling.rasterizationSamples = info.sampleCount;
 
-		const u32 colourAttachmentCount = info.colourAttachmentFormat == VK_FORMAT_UNDEFINED ? 0u
-			: info.colourAttachmentFormat1 == VK_FORMAT_UNDEFINED ? 1u : 2u;
+		const u32 colourAttachmentCount = 
+			  info.colourAttachmentFormat == VK_FORMAT_UNDEFINED ? 0u
+			: info.colourAttachmentFormat1 == VK_FORMAT_UNDEFINED ? 1u
+			: info.colourAttachmentFormat2 == VK_FORMAT_UNDEFINED ? 2u : 3u;
 
-		VkPipelineColorBlendAttachmentState blendAttachments[2]{};
+		VkPipelineColorBlendAttachmentState blendAttachments[3]{};
 		for (u32 i = 0; i < colourAttachmentCount; ++i)
 		{
 			VkPipelineColorBlendAttachmentState& blendAttachment = blendAttachments[i];
@@ -149,7 +151,8 @@ namespace imp::gfx::vulkan
 
 		VK_CHECK(vkCreatePipelineLayout(m_device, &layoutInfo, m_allocationCallbacks, &m_layout));
 
-		VkFormat colourAttachmentFormats[2] = { info.colourAttachmentFormat, info.colourAttachmentFormat1 };
+		VkFormat colourAttachmentFormats[3] = { 
+			info.colourAttachmentFormat, info.colourAttachmentFormat1, info.colourAttachmentFormat2 };
 
 		VkPipelineRenderingCreateInfo renderingCreateInfo{};
 		renderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;

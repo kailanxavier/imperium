@@ -5,6 +5,7 @@
 #include <gfx/ddgi_volume.h>
 #include <gfx/thermal_volume.h>
 #include <core/types/int_types.h>
+#include <core/math/math.h>
 #include <memory>
 #include <vector>
 
@@ -56,10 +57,14 @@ namespace imp::app
 		gfx::IPipeline& prepassPipeline() { return *m_prepassPipeline; }
 		gfx::IPipeline& gtaoPipeline() { return *m_gtaoPipeline; }
 		gfx::IPipeline& blurPipeline() { return *m_blurPipeline; }
+		gfx::IPipeline& gbufferDebugPipeline() { return *m_gbufferDebugPipeline; }
 
 		[[nodiscard]] gfx::IBuffer& aoParamsUBO(u32 frame) const { return *m_aoParamsUBOs[frame]; }
 		[[nodiscard]] gfx::IBuffer& screenParamsUBO(u32 frame) const { return *m_screenParamsUBOs[frame]; }
 		[[nodiscard]] gfx::IBuffer& blurParamsUBO(u32 frame) const { return *m_blurParamsUBOs[frame]; }
+		[[nodiscard]] gfx::IBuffer& prevViewProjUBO(u32 frame) const { return *m_prevViewProjUBOs[frame]; }
+		[[nodiscard]] const math::Mat4f& previousViewProj() const { return m_previousViewProj; }
+		void setPreviousViewProj(const math::Mat4f& viewProj) { m_previousViewProj = viewProj; }
 
 		[[nodiscard]] gfx::RenderGraphResourcePool& graphPool() const { return *m_graphPool; }
 
@@ -96,6 +101,7 @@ namespace imp::app
 			std::unique_ptr<gfx::IShader> fullscreenVertShader;
 			std::unique_ptr<gfx::IShader> gtaoFragShader;
 			std::unique_ptr<gfx::IShader> blurFragShader;
+			std::unique_ptr<gfx::IShader> gbufferDebugFragShader;
 			std::unique_ptr<gfx::IShader> bloomDownsampleFragShader, bloomUpsampleFragShader;
 
 			std::unique_ptr<gfx::IShader> ddgiDebugProbesVertShader, ddgiDebugProbesFragShader;
@@ -109,6 +115,7 @@ namespace imp::app
 			std::unique_ptr<gfx::IPipeline> prepassPipeline;
 			std::unique_ptr<gfx::IPipeline> gtaoPipeline;
 			std::unique_ptr<gfx::IPipeline> blurPipeline;
+			std::unique_ptr<gfx::IPipeline> gbufferDebugPipeline;
 			std::unique_ptr<gfx::IPipeline> bloomDownsamplePipeline, bloomUpsamplePipeline;
 
 			std::unique_ptr<gfx::IPipeline> ddgiDebugProbesPipeline;
@@ -126,6 +133,7 @@ namespace imp::app
 		std::unique_ptr<gfx::IShader> m_fullscreenVertShader;
 		std::unique_ptr<gfx::IShader> m_gtaoFragShader;
 		std::unique_ptr<gfx::IShader> m_blurFragShader;
+		std::unique_ptr<gfx::IShader> m_gbufferDebugFragShader;
 
 		std::unique_ptr<gfx::IPipeline> m_pipeline;
 		std::unique_ptr<gfx::IPipeline> m_blendPipeline;
@@ -135,6 +143,7 @@ namespace imp::app
 		std::unique_ptr<gfx::IPipeline> m_prepassPipeline;
 		std::unique_ptr<gfx::IPipeline> m_gtaoPipeline;
 		std::unique_ptr<gfx::IPipeline> m_blurPipeline;
+		std::unique_ptr<gfx::IPipeline> m_gbufferDebugPipeline;
 
 		std::unique_ptr<gfx::ISampler> m_sampler;
 		std::unique_ptr<gfx::ISampler> m_shadowSampler;
@@ -149,6 +158,8 @@ namespace imp::app
 		std::vector<std::unique_ptr<gfx::IBuffer>> m_aoParamsUBOs;
 		std::vector<std::unique_ptr<gfx::IBuffer>> m_screenParamsUBOs;
 		std::vector<std::unique_ptr<gfx::IBuffer>> m_blurParamsUBOs;
+		std::vector<std::unique_ptr<gfx::IBuffer>> m_prevViewProjUBOs;
+		math::Mat4f m_previousViewProj;
 		u32 m_instanceCapacity = 16;
 
 		std::unique_ptr<gfx::RenderGraphResourcePool> m_graphPool;

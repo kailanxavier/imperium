@@ -123,6 +123,17 @@ namespace imp::app
 			return false;
 		}
 
+		gfx::ShaderDesc gbufferDebugFragDesc;
+		gbufferDebugFragDesc.stage = gfx::ShaderStage::Fragment;
+		gbufferDebugFragDesc.path = assets.gbufferDebugFragShader;
+		out.gbufferDebugFragShader = ctx.gfx.createShader(gbufferDebugFragDesc);
+
+		if (!out.gbufferDebugFragShader)
+		{
+			LOG_ERROR("Sandbox", "Failed to load G-Buffer debug view shader.");
+			return false;
+		}
+
 		gfx::ShaderDesc bloomDownsampleFragDesc;
 		bloomDownsampleFragDesc.stage = gfx::ShaderStage::Fragment;
 		bloomDownsampleFragDesc.path = assets.bloomDownsampleFragShader;
@@ -262,17 +273,18 @@ namespace imp::app
 			return false;
 		}
 
-		gfx::VertexAttribute prepassAttrs[3] = {
+		gfx::VertexAttribute prepassAttrs[4] = {
 			{ 0, static_cast<u32>( offsetof(gfx::ModelVertex, position) ), 3, true },
 			{ 1, static_cast<u32>( offsetof(gfx::ModelVertex, normal) ), 3, true },
 			{ 2, static_cast<u32>( offsetof(gfx::ModelVertex, uv) ), 2, true },
+			{ 3, static_cast<u32>( offsetof(gfx::ModelVertex, tangent) ), 4, true},
 		};
 
 		gfx::PipelineDesc prepassPipelineDesc{};
 		prepassPipelineDesc.vertexShader = out.prepassVertShader.get();
 		prepassPipelineDesc.fragmentShader = out.prepassFragShader.get();
 		prepassPipelineDesc.vertexLayout.stride = sizeof(gfx::ModelVertex);
-		prepassPipelineDesc.vertexLayout.attributeCount = 3;
+		prepassPipelineDesc.vertexLayout.attributeCount = 4;
 		prepassPipelineDesc.vertexLayout.attributes = prepassAttrs;
 		prepassPipelineDesc.instanceLayout = meshPipelineDesc.instanceLayout;
 		prepassPipelineDesc.rasterizerState.cullMode = gfx::CullMode::Back;
@@ -282,6 +294,7 @@ namespace imp::app
 		prepassPipelineDesc.blendState.blendEnable = false;
 		prepassPipelineDesc.colourFormat = gfx::TextureFormat::RGBA16Float;
 		prepassPipelineDesc.colourFormat1 = gfx::TextureFormat::RGBA8Unorm;
+		prepassPipelineDesc.colourFormat2 = gfx::TextureFormat::RG16Float;
 		prepassPipelineDesc.depthFormat = gfx::TextureFormat::Depth32Float;
 		prepassPipelineDesc.sampleCount = gfx::SampleCount::One;
 		prepassPipelineDesc.hasInstanceBinding = true;
@@ -322,6 +335,21 @@ namespace imp::app
 		if (!out.bloomDownsamplePipeline || !out.bloomUpsamplePipeline)
 		{
 			LOG_ERROR("Sandbox", "Failed to create bloom pipelines");
+			return false;
+		}
+
+		gfx::PipelineDesc gbufferDebugPipelineDesc{};
+		gbufferDebugPipelineDesc.vertexShader = out.fullscreenVertShader.get();
+		gbufferDebugPipelineDesc.fragmentShader = out.gbufferDebugFragShader.get();
+		gbufferDebugPipelineDesc.colourFormat = ctx.gfx.backBuffer().format();
+		gbufferDebugPipelineDesc.depthFormat = gfx::TextureFormat::Unknown;
+		gbufferDebugPipelineDesc.sampleCount = gfx::SampleCount::One;
+		gbufferDebugPipelineDesc.hasInstanceBinding = false;
+		out.gbufferDebugPipeline = ctx.gfx.createPipeline(gbufferDebugPipelineDesc);
+
+		if (!out.gbufferDebugPipeline)
+		{
+			LOG_ERROR("Sandbox", "Failed to create G-buffer debug view pipeline.");
 			return false;
 		}
 
@@ -378,6 +406,7 @@ namespace imp::app
 		m_fullscreenVertShader = std::move(set.fullscreenVertShader);
 		m_gtaoFragShader = std::move(set.gtaoFragShader);
 		m_blurFragShader = std::move(set.blurFragShader);
+		m_gbufferDebugFragShader = std::move(set.gbufferDebugFragShader);
 		m_bloomDownsampleFragShader = std::move(set.bloomDownsampleFragShader);
 		m_bloomUpsampleFragShader = std::move(set.bloomUpsampleFragShader);
 		m_ddgiDebugProbesVertShader = std::move(set.ddgiDebugProbesVertShader);
@@ -393,6 +422,7 @@ namespace imp::app
 		m_prepassPipeline = std::move(set.prepassPipeline);
 		m_gtaoPipeline = std::move(set.gtaoPipeline);
 		m_blurPipeline = std::move(set.blurPipeline);
+		m_gbufferDebugPipeline = std::move(set.gbufferDebugPipeline);
 		m_bloomDownsamplePipeline = std::move(set.bloomDownsamplePipeline);
 		m_bloomUpsamplePipeline = std::move(set.bloomUpsamplePipeline);
 		m_ddgiDebugProbesPipeline = std::move(set.ddgiDebugProbesPipeline);
@@ -485,6 +515,14 @@ namespace imp::app
 		m_blurParamsUBOs.resize(gfx::kMaxFramesInFlight);
 		for (auto& buf : m_blurParamsUBOs)
 			buf = ctx.gfx.createBuffer(blurParamsDesc);
+
+		gfx::BufferDesc prevViewProjDesc{};
+		prevViewProjDesc.size = sizeof(gfx::PrevViewProjUBO);
+		prevViewProjDesc.usage = gfx::BufferUsage::Uniform;
+		prevViewProjDesc.memoryAccess = gfx::MemoryAccess::HostVisible;
+		m_prevViewProjUBOs.resize(gfx::kMaxFramesInFlight);
+		for (auto& buf : m_prevViewProjUBOs)
+			buf = ctx.gfx.createBuffer(prevViewProjDesc);
 
 		{
 			const u8 kBlackTexel[4] = { 0, 0, 0, 0 };
@@ -682,11 +720,13 @@ namespace imp::app
 		m_prepassPipeline.reset();
 		m_gtaoPipeline.reset();
 		m_blurPipeline.reset();
+		m_gbufferDebugPipeline.reset();
 		m_prepassVertShader.reset();
 		m_prepassFragShader.reset();
 		m_fullscreenVertShader.reset();
 		m_gtaoFragShader.reset();
 		m_blurFragShader.reset();
+		m_gbufferDebugFragShader.reset();
 		m_ddgiProbeUpdatePipeline.reset();
 		m_ddgiProbeUpdateShader.reset();
 		m_ddgiRayTracePipeline.reset();
@@ -715,6 +755,7 @@ namespace imp::app
 		for (auto& buf : m_instanceBuffers) buf.reset();
 		for (auto& buf : m_aoParamsUBOs) buf.reset();
 		for (auto& buf : m_screenParamsUBOs) buf.reset();
+		for (auto& buf : m_prevViewProjUBOs) buf.reset();
 		for (auto& buf : m_blurParamsUBOs) buf.reset();
 		for (auto& buf : m_thermalVolumeUBOs) buf.reset();
 

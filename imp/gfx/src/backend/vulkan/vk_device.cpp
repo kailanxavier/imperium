@@ -1023,6 +1023,7 @@ namespace imp::gfx::vulkan
 		info.depthCompareOp = toVkCompareOp(desc.depthStencilState.depthCompareOp);
 		info.colourAttachmentFormat = toVkFormat(desc.colourFormat);
 		info.colourAttachmentFormat1 = toVkFormat(desc.colourFormat1);
+		info.colourAttachmentFormat2 = toVkFormat(desc.colourFormat2);
 		info.depthAttachmentFormat = toVkFormat(desc.depthFormat);
 		info.sampleCount = toVkSampleCount(desc.sampleCount);
 		info.instanceBinding.binding = 1;

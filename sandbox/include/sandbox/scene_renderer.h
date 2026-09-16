@@ -52,10 +52,14 @@ namespace imp::app
 		gfx::RGTextureHandle normalTarget;
 		gfx::RGTextureHandle depthTarget;
 		gfx::RGTextureHandle albedoRoughnessTarget;
+		gfx::RGTextureHandle velocityTarget;
 	};
 
 	PrepassOutputs addDepthNormalPrepass(gfx::RenderGraph& graph, RenderResources& resources,
 		SandboxScene& scene, AppContext& ctx, const SceneRenderParams& params);
+
+	void addGBufferDebugPass(gfx::RenderGraph& graph, RenderResources& resources,
+		AppContext& ctx, const PrepassOutputs& prepass, gfx::IRenderTarget& target);
 
 	gfx::RGTextureHandle addGTAOPass(gfx::RenderGraph& graph, RenderResources& resources,
 		AppContext& ctx, const PrepassOutputs& prepass, const SceneRenderParams& params);

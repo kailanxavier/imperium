@@ -10,6 +10,7 @@
 #include <gfx/thermal_cvars.h>
 #include <gfx/bloom_cvars.h>
 #include <gfx/post_process_types.h>
+#include <gfx/gbuffer_debug_cvars.h>
 
 #include <core/math/math.h>
 #include <random>
@@ -78,9 +79,11 @@ namespace imp::app
 		{
 			gfx::RGTextureHandle normalTarget;
 			gfx::RGTextureHandle albedoRoughnessTarget;
+			gfx::RGTextureHandle velocityTarget;
 			gfx::RGTextureHandle depthTarget;
 
 			gfx::IBuffer* instanceBuffer = nullptr;
+			gfx::IBuffer* prevViewProjBuffer = nullptr;
 			math::Mat4f viewProj;
 
 			gfx::CullVolume cullVolume;
@@ -88,6 +91,17 @@ namespace imp::app
 
 			RenderResources* resources = nullptr;
 			SandboxScene* scene = nullptr;
+		};
+
+		struct GBufferDebugPassData
+		{
+			gfx::RGTextureHandle normalIn;
+			gfx::RGTextureHandle albedoRoughnessIn;
+			gfx::RGTextureHandle velocityIn;
+			gfx::RGTextureHandle output;
+
+			u32 mode = 0;
+			RenderResources* resources = nullptr;
 		};
 
 		struct GTAOPassData
@@ -960,6 +974,10 @@ namespace imp::app
 				albedoDesc.format = gfx::TextureFormat::RGBA8Unorm;
 				d.albedoRoughnessTarget = b.createTexture("PrepassAlbedoRoughness", albedoDesc);
 
+				gfx::TextureDesc velocityDesc = normalDesc;
+				velocityDesc.format = gfx::TextureFormat::RG16Float;
+				d.velocityTarget = b.createTexture("PrepassVelocity", velocityDesc);
+
 				gfx::TextureDesc depthDesc{};
 				depthDesc.width = w; depthDesc.height = h;
 				depthDesc.format = gfx::TextureFormat::Depth32Float;
@@ -969,6 +987,7 @@ namespace imp::app
 
 				d.normalTarget = b.writeColour(d.normalTarget, gfx::RGLoadOp::Clear, { 1.f, 1.f, 1.f, 1.f });
 				d.albedoRoughnessTarget = b.writeColour(d.albedoRoughnessTarget, gfx::RGLoadOp::Clear, { 1.f, 1.f, 1.f, 1.f });
+				d.velocityTarget = b.writeColour(d.velocityTarget, gfx::RGLoadOp::Clear, { 0.f, 0.f, 0.f, 0.f });
 				d.depthTarget = b.writeDepth(d.depthTarget, gfx::RGLoadOp::Clear, 1.f);
 
 				d.instanceBuffer = &resources.instanceBuffer(params.currentFrame);
@@ -978,6 +997,13 @@ namespace imp::app
 
 				d.enableFrustumCulling = params.enableFrustumCulling;
 				d.cullVolume = {};
+
+				gfx::PrevViewProjUBO prevViewProjData{};
+				prevViewProjData.prevViewProj = resources.previousViewProj();
+				resources.prevViewProjUBO(params.currentFrame).update(&prevViewProjData, sizeof(prevViewProjData), 0);
+				d.prevViewProjBuffer = &resources.prevViewProjUBO(params.currentFrame);
+
+				resources.setPreviousViewProj(d.viewProj);
 			},
 			[](const PrepassData& d, gfx::RenderGraphContext& rgCtx)
 			{
@@ -988,6 +1014,7 @@ namespace imp::app
 				prepassCtx.viewProj = d.viewProj;
 				prepassCtx.sampler = &d.resources->sampler();
 				prepassCtx.alphaTestOnly = true;
+				prepassCtx.prevViewProjBuffer = d.prevViewProjBuffer;
 
 				gfx::CullVolume execCullVolume = d.cullVolume;
 				if (d.enableFrustumCulling)
@@ -996,13 +1023,44 @@ namespace imp::app
 					execCullVolume.frustumPlanes = gfx::extractFrustumPlanes(d.viewProj);
 				}
 				prepassCtx.cullVolume = &execCullVolume;
-				// no light or shadow bindings needed, this is a normals only pass
+				// no light or shadow bindings needed, this is a normals/albedo/velocity only pass
 
 				rgCtx.cmd().bindPipeline(d.resources->prepassPipeline());
 				drawModelBatches(prepassCtx, d.scene->extraction());
 			});
 
-		return { data.normalTarget, data.depthTarget, data.albedoRoughnessTarget };
+		return { data.normalTarget, data.depthTarget, data.albedoRoughnessTarget, data.velocityTarget };
+	}
+
+	void addGBufferDebugPass(gfx::RenderGraph& graph, RenderResources& resources, AppContext& ctx, const PrepassOutputs& prepass, gfx::IRenderTarget& target)
+	{
+		graph.addPass<GBufferDebugPassData>("GBufferDebugView",
+			[&](gfx::RenderGraphBuilder& b, GBufferDebugPassData& d)
+			{
+				d.normalIn = b.readTexture(prepass.normalTarget);
+				d.albedoRoughnessIn = b.readTexture(prepass.albedoRoughnessTarget);
+				d.velocityIn = b.readTexture(prepass.velocityTarget);
+
+				d.output = b.importTexture("GBufferDebugView", &target);
+				d.output = b.writeColour(d.output, gfx::RGLoadOp::DontCare);
+
+				d.mode = static_cast<u32>( std::max<i32>(0, gfx::gbufferdebug::cvarMode) );
+				d.resources = &resources;
+				b.hasSideEffect();
+			},
+			[](const GBufferDebugPassData& d, gfx::RenderGraphContext& rgCtx)
+			{
+				rgCtx.cmd().bindPipeline(d.resources->gbufferDebugPipeline());
+				rgCtx.cmd().bindTexture(rgCtx.texture(d.normalIn), d.resources->sampler(), 0);
+				rgCtx.cmd().bindTexture(rgCtx.texture(d.albedoRoughnessIn), d.resources->sampler(), 1);
+				rgCtx.cmd().bindTexture(rgCtx.texture(d.velocityIn), d.resources->sampler(), 2);
+
+				gfx::GBufferDebugPushConstants pc{};
+				pc.mode = d.mode;
+				rgCtx.cmd().pushConstants(&pc, sizeof(pc), 0);
+
+				rgCtx.cmd().draw(3, 1);
+			});
 	}
 
 	gfx::RGTextureHandle addGTAOPass(gfx::RenderGraph& graph, RenderResources& resources, AppContext& ctx, const PrepassOutputs& prepass, const SceneRenderParams& params)

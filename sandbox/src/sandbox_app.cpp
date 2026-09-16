@@ -10,6 +10,7 @@
 #include <memory>
 
 #include <gfx/ao_cvars.h>
+#include <gfx/gbuffer_debug_cvars.h>
 
 namespace imp::app
 {
@@ -118,6 +119,20 @@ namespace imp::app
 		gfx::RenderGraph graph(ctx.gfx, m_resources.graphPool());
 
 		const PrepassOutputs prepass = addDepthNormalPrepass(graph, m_resources, m_scene, ctx, params);
+
+		if (gfx::gbufferdebug::cvarMode > 0)
+		{
+			addGBufferDebugPass(graph, m_resources, ctx, prepass, ctx.gfx.backBuffer());
+			if (!graph.compile())
+			{
+				LOG_ERROR("Sandbox", "RenderGraph::compile() failed");
+				return;
+			}
+
+			graph.execute(cmd);
+			return;
+		}
+
 		const gfx::RGTextureHandle rawAO = addGTAOPass(graph, m_resources, ctx, prepass, params);
 		const gfx::RGTextureHandle aoTexture = gfx::ao::cvarBlurEnabled
 			? addBilateralBlurPass(graph, m_resources, ctx, prepass, rawAO)

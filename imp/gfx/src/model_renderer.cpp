@@ -192,6 +192,12 @@ namespace imp::gfx
 						gfx::IBuffer* factors = ( mat && mat->factorsBuffer ) ? mat->factorsBuffer.get() : model.defaultMaterialFactorsBuffer.get();
 						if (factors)
 							ctx.cmd->bindUniformBuffer(*factors, 1);
+
+						if (gfx::ITexture* normal = resolveTexture(mat ? mat->normalTextureIndex : -1, model.fallbackNormalTextureIndex))
+							ctx.cmd->bindTexture(*normal, *ctx.sampler, 2);
+
+						if (ctx.prevViewProjBuffer)
+							ctx.cmd->bindUniformBuffer(*ctx.prevViewProjBuffer, 3);
 					}
 
 					ctx.cmd->bindVertexBuffer(*prim.vertexBuffer, 0);

@@ -22,4 +22,9 @@ namespace imp::gfx
     {
         math::Vec4f texelSizeAndSigmas;
     };
+
+    struct PrevViewProjUBO
+    {
+        math::Mat4f prevViewProj;
+    };
 }
