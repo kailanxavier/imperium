@@ -19,6 +19,19 @@ namespace imp::app
 		std::string gtaoFragShader = "assets/shaders/gtao.frag.spv";
 		std::string blurFragShader = "assets/shaders/bilateral_blur.frag.spv";
 
+		std::string ddgiProbeUpdateShader = "assets/shaders/ddgi_probe_update.comp.spv";
+		std::string ddgiRayTraceShader = "assets/shaders/ddgi_ray_trace.comp.spv";
+		std::string ddgiClassifyShader = "assets/shaders/ddgi_classify_probes.comp.spv";
+		std::string bloomDownsampleFragShader = "assets/shaders/bloom_down_sample.frag.spv";
+		std::string bloomUpsampleFragShader = "assets/shaders/bloom_up_sample.frag.spv";
+		std::string thermalUpdateDdgiShader = "assets/shaders/ddgi_thermal_update.comp.spv";
+		std::string thermalUpdateFallbackShader = "assets/shaders/thermal_update_fallback.comp.spv";
+
+		std::string ddgiDebugProbesVertShader = "assets/shaders/ddgi_debug_probes.vert.spv";
+		std::string ddgiDebugProbesFragShader = "assets/shaders/ddgi_debug_probes.frag.spv";
+		std::string ddgiDebugRaysVertShader = "assets/shaders/ddgi_debug_rays.vert.spv";
+		std::string ddgiDebugRaysFragShader = "assets/shaders/ddgi_debug_rays.frag.spv";
+
 		std::string environmentModel = "assets/models/khr-sponza.glb";
 		std::string environmentTestModel = "assets/models/environment_test.glb";
 	};

@@ -53,7 +53,7 @@ namespace imp::gfx
 			radius = std::ceil(radius * 16.f) / 16.f;
 			radius *= config.radiusMultiplier[i];
 
-			const float worldUnitsPerTexel = ( radius * 2.f ) / static_cast<float>( config.shadowMapResolution );
+			const float worldUnitsPerTexel = ( radius * 2.f ) / static_cast<float>( config.resolution[i] );
 			const math::Mat4f lookAtNoSnap = math::makeLookAtLH(centre - lightDir * radius, centre, upHint);
 
 			math::Vec4f originLS = lookAtNoSnap * math::Vec4f{ centre, 1.f };
@@ -77,6 +77,7 @@ namespace imp::gfx
 			out[i].boxMax = math::Vec3f{ radius, radius, 2.f * radius + 2.f * config.zPadding };
 			out[i].splitDepth = sliceFar;
 			out[i].worldUnitsPerTexel = worldUnitsPerTexel;
+			out[i].shadowMapResolution = config.resolution[i];
 		}
 
 		return out;

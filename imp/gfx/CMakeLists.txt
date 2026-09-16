@@ -43,6 +43,8 @@ target_sources(imp_gfx PRIVATE
 		src/backend/vulkan/vk_allocator.cpp
 		src/backend/vulkan/vk_vma_impl.cpp
 		src/backend/vulkan/vk_debug_utils.cpp
+		src/backend/vulkan/vk_accel_structure.cpp
+		src/backend/vulkan/vk_accel_structure_functions.cpp
 )
 target_link_libraries(imp_gfx PRIVATE Vulkan::Vulkan glfw PUBLIC imgui)
 target_include_directories(imp_gfx SYSTEM PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third_party/vma)
@@ -69,6 +71,8 @@ target_sources(imp_gfx PRIVATE
 	src/render_graph_resource_pool.cpp
 	src/shader_compiler.cpp
 	src/shader_hot_reload.cpp
+	src/ddgi_volume.cpp
+	src/thermal_volume.cpp
 )
 
 if(IMP_VULKAN_MEM_TEST)

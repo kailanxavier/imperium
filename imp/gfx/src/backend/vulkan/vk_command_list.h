@@ -10,6 +10,7 @@ namespace imp::gfx::vulkan
 {
 	class VulkanRenderTarget;
 	class VulkanDescriptorAllocator;
+	class VulkanTexture;
 
 	class VulkanCommandList final : public gfx::ICommandList
 	{
@@ -30,10 +31,21 @@ namespace imp::gfx::vulkan
 		void draw(u32 vertexCount, u32 instanceCount) override;
 		void drawIndexed(u32 indexCount, u32 instanceCount, u32 firstInstance) override;
 
+		void bindComputePipeline(gfx::IPipeline& pipeline) override;
+		void bindStorageImage(gfx::ITexture& texture, u32 binding) override;
+		void bindStorageBuffer(gfx::IBuffer& buffer, u32 binding) override;
+		void bindAccelerationStructure(const gfx::ITlas& tlas, u32 binding) override;
+		void dispatch(u32 groupCountX, u32 groupCountY, u32 groupCountZ) override;
+
+		void flushBarriers();
 		[[nodiscard]] VkCommandBuffer commandBuffer() const { return m_cmd; }
 
 		void transitionToPresent(gfx::IRenderTarget& target);
 		void resetImageTracking() { m_imageStates.clear(); }
+
+		void prepareTextureForSampling(gfx::ITexture& texture) override;
+		void computeToComputeBarrier() override;
+		void computeToGraphicsBarrier() override;
 
 	private:
 		struct ImageStateKey
@@ -67,12 +79,16 @@ namespace imp::gfx::vulkan
 			VkDeviceSize range = 0;
 			VkImageView imageView = VK_NULL_HANDLE;
 			VkSampler sampler = VK_NULL_HANDLE;
+			VkImageLayout imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			VkAccelerationStructureKHR accelStruct = VK_NULL_HANDLE;
 		};
 
 		void setPendingBinding(const PendingBinding& pb);
 		void flushDescriptorBindings();
 		[[nodiscard]] u64 hashPendingBindings() const;
 		[[nodiscard]] bool validatePendingBindings() const;
+
+		void ensureReadableForSampling(VulkanTexture& texture);
 
 		std::unordered_map<ImageStateKey, ImageSyncState, ImageStateKeyHash> m_imageStates;
 
@@ -84,10 +100,14 @@ namespace imp::gfx::vulkan
 		VkDevice m_device = VK_NULL_HANDLE;
 		VkPipelineLayout m_currentPipelineLayout = VK_NULL_HANDLE;
 		VkDescriptorSetLayout m_currentDescriptorSetLayout = VK_NULL_HANDLE;
+		VkPipelineBindPoint m_currentBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+		VkShaderStageFlags m_currentPushConstantStageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
 		const std::unordered_map<u32, PipelineBindingInfo>* m_currentBindingLayout = nullptr;
 
-		VulkanRenderTarget* m_colourTarget = nullptr;
+		VulkanRenderTarget* m_colourTargets[gfx::RenderPassDesc::kMaxColourAttachments]{};
+		u32 m_colourTargetCount = 0;
+
 		VulkanRenderTarget* m_depthTarget = nullptr;
 		VulkanRenderTarget* m_resolveTarget = nullptr;
 
@@ -98,5 +118,8 @@ namespace imp::gfx::vulkan
 
 		std::vector<PendingBinding> m_pendingBindings;
 		std::unordered_map<u64, VkDescriptorSet> m_descriptorSetCache;
+
+		std::vector<VkImageMemoryBarrier2> m_pendingImageBarriers;
+		std::vector<VkMemoryBarrier2> m_pendingMemoryBarriers;
 	};
 }

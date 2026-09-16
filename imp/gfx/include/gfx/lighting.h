@@ -36,7 +36,7 @@ namespace imp::gfx
 	struct LightUBO
 	{
 		math::Vec4f cameraPositionWS{ 0.f, 0.f, 0.f, 0.f };
-		math::Vec4f ambientColour{ 0.08f, 0.08f, 0.1f, 0.f };
+		math::Vec4f ambientColour{ 0.1f, 0.1f, 0.15f, 0.f };
 		float specularStrength = 0.5f;
 		float shininess = 32.f;
 		u32 lightCount = 0;
@@ -44,6 +44,9 @@ namespace imp::gfx
 		math::Mat4f sunViewProj = math::Mat4f::identity();
 
 		math::Vec3f sunDirection = math::Vec3f::zero();
+
+		// No longer used. Keeping this here to avoid
+		// having to repad LightUBO.
 		float shadowMapSize = 0.f;
 
 		GPULight lights[kMaxLights];
@@ -55,6 +58,7 @@ namespace imp::gfx
 		math::Mat4f viewProj[4];
 		math::Vec4f splitDepths;
 		math::Vec4f blendParams;
+		math::Vec4f shadowMapSizes;
 	};
 	static_assert( sizeof(CascadeUBO) % 16 == 0 && "CascadeUBO layout must stay std140 consistent" );
 }

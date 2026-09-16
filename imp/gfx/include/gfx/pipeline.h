@@ -83,6 +83,12 @@ namespace imp::gfx
         BlendStateDesc blendState;
 
         TextureFormat colourFormat = TextureFormat::Unknown;
+
+        // Optional second colour attachment (for multiple render targets),
+        // leaving it as unknown for the current single-target pipelines *shouldn't*
+        // do any harm.
+        TextureFormat colourFormat1 = TextureFormat::Unknown;
+
         TextureFormat depthFormat = TextureFormat::Unknown;
 
         SampleCount sampleCount = SampleCount::One;
@@ -94,5 +100,10 @@ namespace imp::gfx
     {
     public:
         virtual ~IPipeline() = default;
+    };
+
+    struct ComputePipelineDesc
+    {
+        IShader* computeShader = nullptr;
     };
 }

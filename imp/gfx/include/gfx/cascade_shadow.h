@@ -17,12 +17,13 @@ namespace imp::gfx
 		math::Vec3f boxMax;
 		float splitDepth = 0.f;
 		float worldUnitsPerTexel = 0.f;
+		u32 shadowMapResolution = 0;
 	};
 
 	struct CascadeConfig
 	{
-		u32 shadowMapResolution = 4096;
-		float splitLambda = 0.95f;
+		std::array<u32, kCascadeCount> resolution = { 4096, 2048, 2048, 1024 };
+		float splitLambda = 0.75f;
 		float zPadding = 25.f;
 		float blendFraction = 0.15f;
 		std::array<float, kCascadeCount> radiusMultiplier = { 1.f, 1.f, 1.f, 1.f };

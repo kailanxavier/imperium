@@ -124,17 +124,39 @@ namespace imp::app
 			: rawAO;
 
 		const ShadowCascadePasses shadowPasses = addShadowCascadePasses(graph, m_resources, m_scene, params);
-		const gfx::RGTextureHandle hdrResolve = addHdrPass(graph, m_resources, m_scene, ctx, params, shadowPasses, aoTexture);
 
-		addTonemapPass(graph, m_resources, hdrResolve, ctx.gfx.backBuffer(), "Tonemap");
+		gfx::RGTextureHandle ddgiIrradianceHandle{};
+		gfx::RGTextureHandle ddgiDepthHandle{};
+
+		const gfx::RGBufferHandle ddgiRayBuffer = addDDGIRayTracePass(graph, m_resources, m_scene, ctx, params);
+		addDDGIClassifyPass(graph, m_resources, m_scene, ctx, params, ddgiRayBuffer);
+		addDDGIProbeUpdatePass(graph, m_resources, m_scene, ctx, params, ddgiRayBuffer, ddgiIrradianceHandle, ddgiDepthHandle);
+
+		gfx::RGBufferHandle thermalBuffer = addThermalUpdatePass(graph, m_resources, m_scene, ctx, params, ddgiRayBuffer);
+
+		const gfx::RGTextureHandle hdrResolve = addHdrPass(graph, m_resources, m_scene, ctx, params, shadowPasses, 
+			aoTexture, ddgiIrradianceHandle, ddgiDepthHandle, thermalBuffer, ddgiRayBuffer);
+
+		gfx::RGTextureHandle bloomTexture = addBloomPasses(graph, m_resources, ctx, hdrResolve);
+
+		addTonemapPass(graph, m_resources, hdrResolve, bloomTexture, ctx.gfx.backBuffer(), "Tonemap");
 		if (m_readbackTarget)
-			addTonemapPass(graph, m_resources, hdrResolve, *m_readbackTarget, "Tonemap Readback");
+			addTonemapPass(graph, m_resources, hdrResolve, bloomTexture, *m_readbackTarget, "Tonemap Readback");
 
 		if (!graph.compile())
 		{
 			LOG_ERROR("Sandbox", "RenderGraph::compile() failed");
 			return;
 		}
+
+#ifndef NDEBUG
+		static bool s_dumpedGraphOnce = false;
+		if (!s_dumpedGraphOnce)
+		{
+			LOG_DEBUG("Vulkan", "{}", graph.debugDump());
+			s_dumpedGraphOnce = true;
+		}
+#endif
 
 		graph.execute(cmd);
 	}

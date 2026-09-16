@@ -427,3 +427,5 @@ CMakeCache.txt
 /.vscode
 /.vs
 /.idea
+
+profiling/

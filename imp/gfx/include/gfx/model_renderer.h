@@ -1,7 +1,12 @@
 #pragma once
 #include <gfx/render_extraction.h>
+#include <gfx/cascade_shadow.h>
 #include <core/math/math.h>
+#include <gfx/resources.h>
 #include <array>
+
+#include "model_registry.h"
+#include "ddgi_volume.h"
 
 namespace imp::gfx
 {
@@ -39,6 +44,8 @@ namespace imp::gfx
 		gfx::IBuffer* lightBuffer = nullptr;
 		gfx::IBuffer* instanceBuffer = nullptr;
 
+		std::array<ITexture*, kCascadeCount> cascadeShadowMaps{};
+
 		gfx::ITexture* shadowArrayTexture = nullptr;
 		gfx::IBuffer* cascadeBuffer = nullptr;
 		gfx::ISampler* shadowSampler = nullptr;
@@ -47,6 +54,15 @@ namespace imp::gfx
 		gfx::IBuffer* screenParamsBuffer = nullptr;
 		bool alphaTestOnly = false;
 
+		gfx::ITexture* ddgiIrradianceTexture = nullptr;
+		gfx::ITexture* ddgiDepthTexture = nullptr;
+		gfx::IBuffer* ddgiVolumeBuffer = nullptr;
+		gfx::IBuffer* ddgiProbeStateBuffer = nullptr;
+		gfx::ISampler* ddgiSampler = nullptr;
+
+		gfx::IBuffer* thermalHeatBuffer = nullptr;
+		gfx::IBuffer* thermalVolumeBuffer = nullptr;
+
 		math::Mat4f viewProj;
 
 		const CullVolume* cullVolume = nullptr;
@@ -54,4 +70,5 @@ namespace imp::gfx
 
 	void drawModelBatches(const ModelRenderContext& ctx, const RenderExtraction& extraction);
 	void drawBlendInstances(const ModelRenderContext& ctx, const RenderExtraction& extraction);
+	std::vector<TlasInstanceDesc> gatherTlasInstances(const ModelRegistry& modelRegistry, const RenderExtraction& extraction, std::vector<DDGIInstanceMaterial>* outMaterials = nullptr);
 }

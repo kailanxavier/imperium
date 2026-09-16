@@ -20,6 +20,51 @@ namespace imp::gfx
 				&& centre.z >= boxMin.z - radius && centre.z <= boxMax.z + radius;
 		}
 
+		void gatherNodeTlasInstances(const gfx::Model& model, u32 nodeIdx, const math::Mat4f& parentNodeWorld,
+			const math::Mat4f& instanceWorld, std::vector<TlasInstanceDesc>& out, std::vector<DDGIInstanceMaterial>* outMaterials)
+		{
+			const gfx::ModelNode& node = model.nodes[nodeIdx];
+			const math::Mat4f nodeWorld = parentNodeWorld * node.localTransform;
+
+			if (node.meshIndex >= 0)
+			{
+				for (const gfx::MeshPrimitive& prim : model.meshes[node.meshIndex].primitives)
+				{
+					if (!prim.blas)
+					{
+						LOG_WARN("Model Renderer", "BLAS not built for {}", model.meshes[node.meshIndex].name.c_str());
+						continue;
+					}
+
+					const gfx::Material* mat = (prim.materialIndex >= 0 ) ? &model.materials[prim.materialIndex] : nullptr;
+					const gfx::AlphaMode alphaMode = mat ? mat->alphaMode : gfx::AlphaMode::Opaque;
+					if (alphaMode == gfx::AlphaMode::Blend)
+						continue;
+
+					gfx::TlasInstanceDesc instanceDesc{};
+					instanceDesc.blas = prim.blas.get();
+					instanceDesc.transformWS = instanceWorld * nodeWorld;
+
+					if (outMaterials)
+					{
+						instanceDesc.customIndex = static_cast<u32>( outMaterials->size() );
+						gfx::DDGIInstanceMaterial material{};
+						if (mat)
+						{
+							material.baseColour = mat->baseColourFactor;
+							material.metallicRoughness = math::Vec4f(mat->metallicFactor, mat->roughnessFactor, 0.f, 0.f);
+						}
+						outMaterials->push_back(material);
+					}
+
+					out.push_back(instanceDesc);
+				}
+			}
+
+			for (u32 child : node.children)
+				gatherNodeTlasInstances(model, child, nodeWorld, instanceWorld, out, outMaterials);
+		}
+
 		void drawNodeInstanced(const ModelRenderContext& ctx, const gfx::Model& model, u32 nodeIdx,
 			const math::Mat4f parentNodeWorld, u32 firstInstance, u32 instanceCount,
 			gfx::AlphaModePass passKind, const math::Mat4f* singleInstanceWorld = nullptr)
@@ -106,8 +151,15 @@ namespace imp::gfx
 						if (factors)
 							ctx.cmd->bindUniformBuffer(*factors, 6);
 
-						if (ctx.shadowArrayTexture)
-							ctx.cmd->bindTexture(*ctx.shadowArrayTexture, *ctx.shadowSampler, 5);
+						if (ctx.shadowSampler)
+						{
+							static constexpr u32 kCascadeShadowBindings[gfx::kCascadeCount] = { 5, 16, 17, 18 };
+							static_assert( gfx::kCascadeCount <= 4, "kCascadeShadowBindings needs to be update." );
+
+							for (u32 c = 0; c < gfx::kCascadeCount; c++) // he said it again
+								if (ctx.cascadeShadowMaps[c])
+									ctx.cmd->bindTexture(*ctx.cascadeShadowMaps[c], *ctx.shadowSampler, kCascadeShadowBindings[c]);
+						}
 						if (ctx.cascadeBuffer)
 							ctx.cmd->bindUniformBuffer(*ctx.cascadeBuffer, 7);
 
@@ -115,6 +167,22 @@ namespace imp::gfx
 							ctx.cmd->bindTexture(*ctx.aoTexture, *ctx.sampler, 8);
 						if (ctx.screenParamsBuffer)
 							ctx.cmd->bindUniformBuffer(*ctx.screenParamsBuffer, 9);
+
+						gfx::ISampler& ddgiSampler = ctx.ddgiSampler ? *ctx.ddgiSampler : *ctx.sampler;
+						if (ctx.ddgiIrradianceTexture)
+							ctx.cmd->bindTexture(*ctx.ddgiIrradianceTexture, ddgiSampler, 10);
+						if (ctx.ddgiDepthTexture)
+							ctx.cmd->bindTexture(*ctx.ddgiDepthTexture, ddgiSampler, 11);
+						if (ctx.ddgiVolumeBuffer)
+							ctx.cmd->bindUniformBuffer(*ctx.ddgiVolumeBuffer, 12);
+
+						if (ctx.thermalVolumeBuffer)
+							ctx.cmd->bindUniformBuffer(*ctx.thermalVolumeBuffer, 13);
+						if (ctx.thermalHeatBuffer)
+							ctx.cmd->bindStorageBuffer(*ctx.thermalHeatBuffer, 14);
+
+						if (ctx.ddgiProbeStateBuffer)
+							ctx.cmd->bindStorageBuffer(*ctx.ddgiProbeStateBuffer, 15);
 					}
 					else if (ctx.alphaTestOnly)
 					{
@@ -233,5 +301,32 @@ namespace imp::gfx
 				drawNodeInstanced(ctx, *model, root, math::Mat4f::identity(),
 					blend.instanceOffset, 1, gfx::AlphaModePass::Blend, instanceWorld);
 		}
+	}
+
+	std::vector<TlasInstanceDesc> gatherTlasInstances(const ModelRegistry &modelRegistry, const RenderExtraction &extraction, std::vector<DDGIInstanceMaterial>* outMaterials)
+	{
+		std::vector<gfx::TlasInstanceDesc> instances;
+		if (outMaterials)
+			outMaterials->clear();
+
+		for (const ModelBatch& batch : extraction.batches)
+		{
+			const gfx::Model* model = modelRegistry.tryGet(batch.model);
+			if (!model)
+				continue;
+
+			for (u32 i = 0; i < batch.instanceCount; ++i)
+			{
+				const u32 instanceIdx = batch.firstInstance + i;
+				if (instanceIdx >= extraction.instanceData.size())
+					break;
+
+				const math::Mat4f& instanceWorld = extraction.instanceData[instanceIdx];
+				for (u32 root : model->rootNodes)
+					gatherNodeTlasInstances(*model, root, math::Mat4f::identity(), instanceWorld, instances, outMaterials);
+			}
+		}
+
+		return instances;
 	}
 }

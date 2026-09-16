@@ -54,7 +54,7 @@ namespace imp::gfx
 		bool hasSideEffect = false;
 		bool culled = false;
 
-		RGPassAttachment colour;
+		std::vector<RGPassAttachment> colours;
 		RGPassAttachment depth;
 		RGPassAttachment resolve;
 

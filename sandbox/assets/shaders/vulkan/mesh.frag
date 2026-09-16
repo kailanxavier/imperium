@@ -50,12 +50,17 @@ layout(binding = 6) uniform MaterialFactorsUBO
     float alphaMode;
 } material;
 
-layout(binding = 5) uniform sampler2DArray shadowMap;
+layout(binding = 5) uniform sampler2D shadowMap0;
+layout(binding = 16) uniform sampler2D shadowMap1;
+layout(binding = 17) uniform sampler2D shadowMap2;
+layout(binding = 18) uniform sampler2D shadowMap3;
+
 layout(binding = 7) uniform CascadeUBO
 {
     mat4 viewProj[4];
     vec4 splitDepths;
     vec4 blendParams;
+    vec4 shadowMapSizes;
 } cascades;
 
 layout(binding = 8) uniform sampler2D aoTexture;
@@ -64,6 +69,76 @@ layout(binding = 9) uniform ScreenParamsUBO
     vec4 resolutionAndInv;
     vec4 flags;
 } screen;
+
+layout(binding = 10) uniform sampler2D ddgiIrradianceAtlas;
+layout(binding = 11) uniform sampler2D ddgiDepthAtlas;
+layout(binding = 12) uniform DDGIVolumeUBO
+{
+    vec4 minCornerAndSpacing;
+    uvec4 probeCounts;
+} ddgi;
+
+layout(binding = 13) uniform ThermalVolumeUBO
+{
+    vec4 minCornerAndSpacing;
+    uvec4 probeCounts;
+    vec4 glowParams;
+} thermalVolume;
+
+layout(std430, binding = 14) readonly buffer ThermalHeatBuffer
+{
+    float heatValues[];
+} thermalHeat;
+
+layout(std430, binding = 15) readonly buffer DDGIProbeStates
+{
+    vec4 ddgiProbeStateData[];
+};
+
+float sampleThermalHeat(vec3 posWS)
+{
+    vec3 minCorner = thermalVolume.minCornerAndSpacing.xyz;
+    float spacing = max(thermalVolume.minCornerAndSpacing.w, 0.00000001);
+    uvec3 probeCounts = thermalVolume.probeCounts.xyz;
+
+    vec3 gridSpace = (posWS - minCorner) / spacing;
+    vec3 baseCoord = floor(gridSpace);
+    vec3 frac = clamp(gridSpace - baseCoord, 0.0, 1.0);
+
+    float heat = 0.0;
+    float totalWeight = 0.0;
+
+    for (uint i = 0u; i < 8u; ++i)
+    {
+        uvec3 offset = uvec3(i & 1u, (i >> 1u) & 1u, (i >> 2u) & 1u);
+        ivec3 probeCoord = ivec3(baseCoord) + ivec3(offset);
+        if (any(lessThan(probeCoord, ivec3(0))) || any(greaterThanEqual(probeCoord, ivec3(probeCounts))))
+            continue;
+
+        vec3 trilinear = mix(1.0 - frac, frac, vec3(offset));
+        float weight = trilinear.x * trilinear.y * trilinear.z;
+        if (weight <= 0.0)
+            continue;
+
+        uint index = uint(probeCoord.x) + uint(probeCoord.y) * probeCounts.x + uint(probeCoord.z) * probeCounts.x * probeCounts.y;
+        heat += thermalHeat.heatValues[index] * weight;
+        totalWeight += weight;
+    }
+
+    return (totalWeight > 0.0) ? (heat / totalWeight) : 0.0;
+}
+
+vec3 blackbodyGlowColour(float heat)
+{
+    vec3 dimRed = vec3(0.6, 0.05, 0.0);
+    vec3 orange = vec3(1.0, 0.35, 0.05);
+    vec3 paleYellow = vec3(1.0, 0.85, 0.55);
+
+    float t = clamp(heat, 0.0, 1.0);
+    vec3 lowMix = mix(dimRed, orange, clamp(t * 2.0, 0.0, 1.0));
+    vec3 highMix = mix(orange, paleYellow, clamp(t * 2.0 - 1.0, 0.0, 1.0));
+    return mix(lowMix, highMix, step(0.5, t));
+}
 
 int selectCascade(float viewSpaceDepth, out float blend, out int nextCascade)
 {
@@ -121,6 +196,85 @@ vec3 fresnelSchlick(float cosTheta, vec3 F0)
     return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
 }
 
+// NOTE: This MUST stay the same as the constants in ddgi_volume.h, if you fail
+//       to do so, you WILL explode.
+const uint kDDGIIrradianceInteriorTexels = 6u;
+const uint kDDGIIrradianceTileTexels = kDDGIIrradianceInteriorTexels + 2u;
+const uint kDDGIDepthInteriorTexels = 14u;
+const uint kDDGIDepthTileTexels = kDDGIDepthInteriorTexels + 2u;
+
+vec2 octEncode(vec3 n)
+{
+    vec2 p = n.xy * (1.0 / (abs(n.x) + abs(n.y) + abs(n.z)));
+    return (n.z <= 0.0) ? ((1.0 - abs(p.yx)) * vec2(p.x >= 0.0 ? 1.0 : -1.0, p.y >= 0.0 ? 1.0 : -1.0)) : p;
+}
+
+vec3 sampleProbeTile(sampler2D atlas, uvec2 atlasProbeCoord, uint tileTexels, uint interiorTexels, vec3 dir)
+{
+    vec2 oct = octEncode(dir) * 0.5 + 0.5;
+    oct = clamp(oct, vec2(0.5 / float(interiorTexels)), vec2(1.0 - 0.5 / float(interiorTexels)));
+
+    vec2 texel = vec2(atlasProbeCoord) * float(tileTexels) + 1.0 + oct * float(interiorTexels);
+    vec2 atlasSize = vec2(textureSize(atlas, 0));
+    return textureLod(atlas, texel / atlasSize, 0.0).rgb;
+}
+
+vec3 sampleDDGIIrradiance(vec3 posWS, vec3 N)
+{
+    vec3 minCorner = ddgi.minCornerAndSpacing.xyz;
+    float spacing = max(ddgi.minCornerAndSpacing.w, 0.0001);
+    uvec3 probeCounts = ddgi.probeCounts.xyz;
+
+    vec3 gridSpace = (posWS - minCorner) / spacing;
+    vec3 baseCoord = floor(gridSpace);
+    vec3 frac = clamp(gridSpace - baseCoord, 0.0, 1.0);
+
+    vec3 irradiance = vec3(0.0);
+    float totalWeight = 0.0;
+
+    for (uint i = 0u; i < 8u; ++i)
+    {
+        uvec3 offset = uvec3(i & 1u, (i >> 1u) & 1u, (i >> 2u) & 1u);
+        ivec3 probeCoord = ivec3(baseCoord) + ivec3(offset);
+        if (any(lessThan(probeCoord, ivec3(0))) || any(greaterThanEqual(probeCoord, ivec3(probeCounts))))
+            continue;
+
+        // Inverse of DDGIVolume::probeAtlasColumn(x, y) = x + y * probeCountX.
+        uint tileCol = uint(probeCoord.x) + uint(probeCoord.y) * probeCounts.x;
+        uint tileRow = uint(probeCoord.z);
+        uvec2 atlasProbeCoord = uvec2(tileCol, tileRow);
+        uint probeIndex = tileCol + tileRow * probeCounts.x * probeCounts.y;
+
+        vec4 probeState = ddgiProbeStateData[probeIndex];
+        if (probeState.w < 0.5)
+            continue; // We're probably inside geometry. Key word is probably so let us come back to this
+                      // if any weird behaviour is observed.
+
+        vec3 probePosWS = minCorner + vec3(probeCoord) * spacing + probeState.xyz;
+        vec3 toProbe = probePosWS - posWS;
+        float distToProbe = max(length(toProbe), 0.0001);
+        vec3 dirToProbe = toProbe / distToProbe;
+
+        vec3 trilinear = mix(1.0 - frac, frac, vec3(offset));
+        float weight = trilinear.x * trilinear.y * trilinear.z;
+        weight *= max(0.05, dot(N, dirToProbe)); // fade out probes behind the surface
+
+        vec2 moments = sampleProbeTile(ddgiDepthAtlas, atlasProbeCoord, kDDGIDepthTileTexels, kDDGIDepthInteriorTexels, -dirToProbe).rg;
+        float mean = moments.x;
+        float variance = max(moments.y - mean * mean, 0.0001);
+        float diff = distToProbe - mean;
+        float chebyshev = (diff <= 0.0) ? 1.0 : clamp(variance / (variance + diff * diff), 0.0, 1.0);
+        weight *= max(chebyshev, 0.05); // never fully zero, avoids hard seams between probes
+
+        weight = max(weight, 0.0001);
+
+        irradiance += sampleProbeTile(ddgiIrradianceAtlas, atlasProbeCoord, kDDGIIrradianceTileTexels, kDDGIIrradianceInteriorTexels, N) * weight;
+        totalWeight += weight;
+    }
+
+    return (totalWeight > 0.0) ? (irradiance / totalWeight) : vec3(0.0);
+}
+
 void main()
 {
     vec4 albedoSample = texture(diffuseTexture, inUV);
@@ -139,20 +293,22 @@ void main()
     ssao = mix(1.0, ssao, screen.flags.x);
     occlusion *= ssao;
 
-    vec3 N = normalize(inNormalWS);
+    vec3 geometricN = normalize(inNormalWS);
     vec3 T = normalize(inTangentWS);
 
-    vec3 B = normalize(cross(N, T)) * inTangentSign;
-    mat3 TBN = mat3(T, B, N);
+    vec3 B = normalize(cross(geometricN, T)) * inTangentSign;
+    mat3 TBN = mat3(T, B, geometricN);
     vec3 tangentNormal = texture(normalTexture, inUV).xyz;
     tangentNormal = tangentNormal * 2.0 - 1.0;
-    N = normalize(TBN * tangentNormal);
+    vec3 N = normalize(TBN * tangentNormal);
 
     vec3 V = normalize(lightData.cameraPositionWS.xyz - inPositionWS);
 
     vec3 F0 = mix(vec3(0.04), albedo, metallic);
 
-    vec3 result = lightData.ambientColour.rgb * albedo * occlusion;
+    vec3 indirectDiffuse = (ddgi.probeCounts.w != 0u) ? sampleDDGIIrradiance(inPositionWS, geometricN) : lightData.ambientColour.rgb;
+
+    vec3 result = indirectDiffuse * albedo * occlusion;
     vec3 sunL = normalize(-lightData.sunDirection);
     float sunBias = max(0.0025 * (1.0 - dot(N, sunL)), 0.00005);
     float viewSpaceDepth = length(lightData.cameraPositionWS.xyz - inPositionWS);
@@ -171,10 +327,11 @@ void main()
 #elif SHADOW_DEBUG_MODE == 2
             float sunShadowFactor = (shadowCoordsA.z > 1.0 || shadowCoordsA.x < 0.0 || shadowCoordsA.x > 1.0
                 || shadowCoordsA.y < 0.0 || shadowCoordsA.y > 1.0) ? 1.0
-                : (shadowCoordsA.z - sunBias > texture(shadowMap, vec3(shadowCoordsA.xy, float(cascadeIndex))).r ? 0.0 : 1.0);
+                : (shadowCoordsA.z - sunBias > sampleCascadeTexel(shadowMap0, shadowMap1, shadowMap2, shadowMap3, cascadeIndex, shadowCoordsA.xy) ? 0.0 : 1.0);
 #else
-            float sunShadowFactor = computeShadowFactor(shadowMap, lightData.shadowMapSize,
-                cascadeIndex, shadowCoordsA, nextCascadeIndex, shadowCoordsB, cascadeBlend, sunBias);
+            float sunShadowFactor = computeShadowFactor(shadowMap0, shadowMap1, shadowMap2, shadowMap3,
+                cascades.shadowMapSizes, gl_FragCoord.xy, cascadeIndex, shadowCoordsA, 
+                    nextCascadeIndex, shadowCoordsB, cascadeBlend, sunBias);
 #endif
 
     for (uint i = 0u; i < lightData.lightCount; ++i)
@@ -206,7 +363,29 @@ void main()
         result += (diffuse + specular) * radiance * NdotL * shadowFactor;
     }
 
+    if (thermalVolume.probeCounts.w != 0u)
+    {
+        float heat = sampleThermalHeat(inPositionWS);
+        float blurRadius = thermalVolume.minCornerAndSpacing.w * 2.0;
+
+        heat += sampleThermalHeat(inPositionWS + vec3(blurRadius, 0.0, 0.0));
+        heat += sampleThermalHeat(inPositionWS - vec3(blurRadius, 0.0, 0.0));
+        heat += sampleThermalHeat(inPositionWS + vec3(0.0, blurRadius, 0.0));
+        heat += sampleThermalHeat(inPositionWS - vec3(0.0, blurRadius, 0.0));
+
+        heat /= 5.0; // close enough, welcome back terry davis
+
+        float ignition = thermalVolume.glowParams.y;
+        float glowFactor = max(0.0, (heat - ignition) * thermalVolume.glowParams.x);
+
+        if (glowFactor > 0.0)
+        {
+            vec3 thermalColour = blackbodyGlowColour(heat);
+            vec3 emissive = thermalColour * glowFactor * albedo;
+            result += emissive;
+        }
+    }
+
     float outAlpha = (material.alphaMode > 1.5) ? alpha : 1.0;
     outColour = vec4(result, outAlpha);
-    //outColour = vec4(vec3(ssao), 1.0);
 }

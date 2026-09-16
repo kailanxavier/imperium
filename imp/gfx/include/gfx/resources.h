@@ -1,5 +1,7 @@
 #pragma once
+#include <vector>
 #include <core/types/int_types.h>
+#include <core/math/math.h>
 
 namespace imp::gfx
 {
@@ -9,6 +11,7 @@ namespace imp::gfx
         Index = 1u << 1,
         Uniform = 1u << 2,
         Storage = 1u << 3,
+        AccelStructBuildInput = 1u << 4,
     };
 
     inline BufferUsage operator|(BufferUsage a, BufferUsage b)
@@ -49,6 +52,47 @@ namespace imp::gfx
         [[nodiscard]] virtual IndexFormat indexFormat() const = 0;
 
         virtual bool update(const void* data, u64 size, u64 offset) = 0;
+        [[nodiscard]] virtual u64 deviceAddress() const { return 0; }
+    };
+
+    class IBlas
+    {
+    public:
+        virtual ~IBlas() = default;
+        [[nodiscard]] virtual u64 deviceAddress() const = 0;
+    };
+
+    struct BlasBuildDesc
+    {
+        IBuffer* vertexBuffer = nullptr;
+        u32 vertexCount = 0;
+        u32 vertexStride = 0;
+
+        IBuffer* indexBuffer = nullptr;
+        u32 indexCount = 0;
+        IndexFormat indexFormat = IndexFormat::Uint16;
+
+        const char* debugName = nullptr;
+    };
+
+    class ITlas
+    {
+    public:
+        virtual ~ITlas() = default;
+        [[nodiscard]] virtual u64 deviceAddress() const = 0;
+    };
+
+    struct TlasInstanceDesc
+    {
+        const IBlas* blas = nullptr;
+        math::Mat4f transformWS = math::Mat4f::identity();
+        u32 customIndex = 0;
+    };
+
+    struct TlasBuildDesc
+    {
+        std::vector<TlasInstanceDesc> instances;
+        const char* debugName = nullptr;
     };
 
     enum class TextureFormat
@@ -59,6 +103,7 @@ namespace imp::gfx
         BGRA8Srgb,
         RGBA16Float,
         Depth32Float,
+        RG16Float,
     };
 
     enum class TextureUsage : u32
@@ -67,6 +112,7 @@ namespace imp::gfx
         RenderTarget = 1u << 1, // writable as a colour attachment
         DepthStencil = 1u << 2, // writable as a depth/stencil attachment
         TransferSrc = 1u << 3, // readable back to CPU
+        Storage = 1u << 4, // writes them directly, no rasterization involved
     };
 
     inline TextureUsage operator|(TextureUsage a, TextureUsage b)

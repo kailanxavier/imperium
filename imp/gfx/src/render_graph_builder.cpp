@@ -106,10 +106,13 @@ namespace imp::gfx
 		const u32 newVersion = m_graph->recordWrite(m_passIndex, handle.index);
 
 		RGPass& pass = m_graph->m_passes[m_passIndex];
-		pass.colour.role = RGAttachmentRole::Colour;
-		pass.colour.resourceIndex = handle.index;
-		pass.colour.loadOp = loadOp;
-		pass.colour.clearColour = clear;
+
+		RGPassAttachment attachment{};
+		attachment.role = RGAttachmentRole::Colour;
+		attachment.resourceIndex = handle.index;
+		attachment.loadOp = loadOp;
+		attachment.clearColour = clear;
+		pass.colours.push_back(attachment);
 
 		RGTextureHandle out = handle;
 		out.version = newVersion;
@@ -147,6 +150,26 @@ namespace imp::gfx
 		pass.resolve.resolveSourceIndex = msaaColourSource.index;
 
 		RGTextureHandle out = handle;
+		out.version = newVersion;
+		return out;
+	}
+
+	RGTextureHandle RenderGraphBuilder::writeStorageTexture(RGTextureHandle handle)
+	{
+		m_graph->recordRead(m_passIndex, handle.index);
+		const u32 newVersion = m_graph->recordWrite(m_passIndex, handle.index);
+
+		RGTextureHandle out = handle;
+		out.version = newVersion;
+		return out;
+	}
+
+	RGBufferHandle RenderGraphBuilder::writeStorageBuffer(RGBufferHandle handle)
+	{
+		m_graph->recordRead(m_passIndex, handle.index);
+		const u32 newVersion = m_graph->recordWrite(m_passIndex, handle.index);
+
+		RGBufferHandle out = handle;
 		out.version = newVersion;
 		return out;
 	}

@@ -36,7 +36,7 @@ namespace imp::gfx::vulkan
 
 		gfx::SampleCount sampleCount() const override;
 
-		[[nodiscard]] virtual bool isSampledOwnedDepth() const;
+		[[nodiscard]] virtual bool isSampledOwned() const;
 		[[nodiscard]] virtual VkImage image() const;
 		[[nodiscard]] virtual VkImageView imageView() const;
 		[[nodiscard]] virtual VkFormat vkFormat() const;
@@ -57,7 +57,7 @@ namespace imp::gfx::vulkan
 		[[nodiscard]] u32 layer() const override { return m_layer; }
 		[[nodiscard]] VkImage image() const override { return m_owner->image(); }
 		[[nodiscard]] VkImageView imageView() const override { return m_owner->layerView(m_layer); }
-		[[nodiscard]] bool isSampledOwnedDepth() const override { return true; }
+		[[nodiscard]] bool isSampledOwned() const override { return true; }
 
 	private:
 		std::shared_ptr<VulkanTexture> m_owner;

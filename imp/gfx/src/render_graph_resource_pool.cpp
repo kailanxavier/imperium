@@ -2,6 +2,10 @@
 #include "gfx/device.h"
 #include "gfx/config.h"
 
+#include <core/log/log.h>
+
+#include <algorithm>
+
 namespace imp::gfx
 {
 	namespace
@@ -114,6 +118,17 @@ namespace imp::gfx
 			entry.everFreed = true;
 			entry.freedFrame = m_frameCounter;
 		}
+
+		constexpr u32 kStaleThreshold = 60;
+		auto isStale = [this](const auto& entry) -> bool
+			{
+				return entry.everFreed
+					&& !entry.inUse
+					&& ( m_frameCounter - entry.freedFrame ) > kStaleThreshold;
+			};
+
+		std::erase_if(m_textures, isStale);
+		std::erase_if(m_buffers, isStale);
 
 		++m_frameCounter;
 	}

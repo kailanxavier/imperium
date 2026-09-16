@@ -29,6 +29,9 @@ namespace imp::app
 
 		gfx::ModelRegistry& modelRegistry() { return m_modelRegistry; }
 
+		const gfx::ITlas* staticTlas() const { return m_staticTlas.get(); }
+		gfx::IBuffer* ddgiInstanceMaterials() const { return m_ddgiInstanceMaterials.get(); }
+
 		const std::array<gfx::CascadeData, gfx::kCascadeCount>& cascades() const { return m_cascades; }
 		void recomputeCascades(const fwk::Camera& camera, float aspect);
 
@@ -43,7 +46,9 @@ namespace imp::app
 		const ecs::Transform& pointLightTransform() const { return m_localLightTransform; }
 
 	private:
+		void syncSunTransform(AppContext& ctx) const;
 		void updateSunViewProj();
+		void updateDynamicTlas(AppContext& ctx);
 
 		gfx::ModelRegistry m_modelRegistry;
 		ecs::ModelHandle m_environmentHandle{};
@@ -61,5 +66,9 @@ namespace imp::app
 		std::array<gfx::CascadeData, gfx::kCascadeCount> m_cascades{};
 
 		gfx::RenderExtraction m_extraction;
+		std::shared_ptr<gfx::ITlas> m_staticTlas;
+		//bool m_staticTlasBuildAttempted = false;
+
+		std::shared_ptr<gfx::IBuffer> m_ddgiInstanceMaterials;
 	};
 }

@@ -159,6 +159,8 @@ namespace imp::app
 		m_device->shutdownImGui();
 		ImGui::DestroyContext();
 
+		m_device->waitIdle();
+
 		if (m_app)
 			m_app->onShutdown(*m_ctx);
 

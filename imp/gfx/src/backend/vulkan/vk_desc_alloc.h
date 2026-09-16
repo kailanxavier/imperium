@@ -17,6 +17,9 @@ namespace imp::gfx::vulkan
 	inline constexpr DescriptorBindingCount kDescriptorBindingTable[] = {
 		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 3 },
 		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 5 },
+		{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 4 },
+		{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 4 },
+		{ VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1 },
 	};
 
 	class VulkanDescriptorAllocator

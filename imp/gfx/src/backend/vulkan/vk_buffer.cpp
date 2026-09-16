@@ -15,12 +15,14 @@ namespace imp::gfx::vulkan
 		, m_mappedData(other.m_mappedData)
 		, m_indexFormat(other.m_indexFormat)
 		, m_size(other.m_size)
+		, m_device(other.m_device)
 	{
 		other.m_allocator = VK_NULL_HANDLE;
 		other.m_buffer = VK_NULL_HANDLE;
 		other.m_allocation = VK_NULL_HANDLE;
 		other.m_mappedData = nullptr;
 		other.m_size = 0;
+		other.m_device = VK_NULL_HANDLE;
 	}
 
 	VulkanBuffer& VulkanBuffer::operator=(VulkanBuffer&& other) noexcept
@@ -36,12 +38,14 @@ namespace imp::gfx::vulkan
 		m_mappedData = other.m_mappedData;
 		m_indexFormat = other.m_indexFormat;
 		m_size = other.m_size;
+		m_device = other.m_device;
 
 		other.m_allocator = VK_NULL_HANDLE;
 		other.m_buffer = VK_NULL_HANDLE;
 		other.m_allocation = VK_NULL_HANDLE;
 		other.m_mappedData = nullptr;
 		other.m_size = 0;
+		other.m_device = VK_NULL_HANDLE;
 
 		return *this;
 	}
@@ -51,6 +55,7 @@ namespace imp::gfx::vulkan
 		m_allocator = info.allocator;
 		m_size = info.size;
 		m_indexFormat = info.indexFormat;
+		m_device = info.deviceForAddressQueries;
 
 		VkBufferCreateInfo bufferInfo{};
 		bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -102,5 +107,16 @@ namespace imp::gfx::vulkan
 
 		std::memcpy(static_cast<std::byte*>( m_mappedData ) + offset, data, size);
 		return true;
+	}
+
+	u64 VulkanBuffer::deviceAddress() const
+	{
+		if (m_device == VK_NULL_HANDLE || m_buffer == VK_NULL_HANDLE)
+			return 0;
+
+		VkBufferDeviceAddressInfo info{};
+		info.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
+		info.buffer = m_buffer;
+		return static_cast<u64>( vkGetBufferDeviceAddress(m_device, &info) );
 	}
 }

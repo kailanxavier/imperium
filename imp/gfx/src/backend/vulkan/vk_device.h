@@ -44,6 +44,8 @@ namespace imp::gfx::vulkan
 		void shutdown() override;
 
 		[[nodiscard]] std::unique_ptr<gfx::IBuffer> createBuffer(const gfx::BufferDesc& desc) override;
+		[[nodiscard]] std::unique_ptr<gfx::IBlas> createBlas(const gfx::BlasBuildDesc& desc) override;
+		[[nodiscard]] std::unique_ptr<gfx::ITlas> createTlas(const gfx::TlasBuildDesc& desc) override;
 
 		[[nodiscard]] std::unique_ptr<gfx::ITexture> createTexture(const gfx::TextureDesc& desc) override;
 		[[nodiscard]] std::vector<std::unique_ptr<ITexture>> createTextures(const std::vector<gfx::TextureDesc>& descs) override;
@@ -51,6 +53,7 @@ namespace imp::gfx::vulkan
 		[[nodiscard]] std::unique_ptr<gfx::ISampler> createSampler(const gfx::SamplerDesc& desc) override;
 		[[nodiscard]] std::unique_ptr<gfx::IShader> createShader(const gfx::ShaderDesc& desc) override;
 		[[nodiscard]] std::unique_ptr<gfx::IPipeline> createPipeline(const gfx::PipelineDesc& desc) override;
+		[[nodiscard]] std::unique_ptr<gfx::IPipeline> createComputePipeline(const gfx::ComputePipelineDesc& desc) override;
 
 		[[nodiscard]] std::unique_ptr<gfx::IRenderTarget> createRenderTarget(const gfx::TextureDesc& desc) override;
 		[[nodiscard]] std::vector<std::unique_ptr<IRenderTarget>> createCascadeRenderTargets(
@@ -73,6 +76,8 @@ namespace imp::gfx::vulkan
 
 		gfx::GraphicsApi api() const override { return gfx::GraphicsApi::Vulkan; }
 		const char* apiName() const override { return "Vulkan"; }
+
+		[[nodiscard]] bool supportsRayTracing() const override { return m_rayQuerySupported; }
 
 		[[nodiscard]] const fs::VirtualFileSystem& getVfs() const { return *m_vfs; }
 	private:
@@ -138,6 +143,9 @@ namespace imp::gfx::vulkan
 
 		bool m_anisotropySupported = false;
 		float m_maxSamplerAnisotropy = 1.f;
+
+		bool m_rayQuerySupported = false;
+		std::vector<const char*> m_enabledDeviceExtensions;
 
 		const fs::VirtualFileSystem* m_vfs = nullptr;
 

@@ -1,0 +1,140 @@
+#include <gfx/ddgi_volume.h>
+#include <core/log/log.h>
+#include <algorithm>
+
+namespace imp::gfx
+{
+	bool DDGIVolume::create(IDevice& device, const DDGIVolumeDesc& desc)
+	{
+		if (!device.supportsRayTracing())
+			return false;
+
+		if (desc.probeSpacing <= 0.f)
+		{
+			LOG_ERROR("Global Illumination", "DDGIVolume::create(): probeSpacing must be > 0");
+			return false;
+		}
+
+		m_desc = desc;
+
+		m_probeCountX = static_cast<u32>( ( desc.extents.x * 2.f ) / desc.probeSpacing ) + 1;
+		m_probeCountY = static_cast<u32>( ( desc.extents.y * 2.f ) / desc.probeSpacing ) + 1;
+		m_probeCountZ = static_cast<u32>( ( desc.extents.z * 2.f ) / desc.probeSpacing ) + 1;
+
+		if (probeCount() == 0)
+		{
+			LOG_ERROR("Global Illumination", "DDGIVolume::create(): No probes found. Check extent size and probe spacing");
+			return false;
+		}
+
+		const u32 irrWidth = m_probeCountX * m_probeCountY * kIrradianceTileTexels;
+		const u32 irrHeight = m_probeCountZ * kIrradianceTileTexels;
+
+		TextureDesc irrandianceDesc{};
+		irrandianceDesc.width = irrWidth;
+		irrandianceDesc.height = irrHeight;
+		irrandianceDesc.format = TextureFormat::RGBA16Float;
+		irrandianceDesc.usage = TextureUsage::Storage | TextureUsage::Sampled;
+		irrandianceDesc.mipLevels = 1;
+		irrandianceDesc.debugName = "DDGI Irradiance Atlas";
+
+		m_irradianceAtlas = device.createTexture(irrandianceDesc);
+		if (!m_irradianceAtlas)
+		{
+			LOG_ERROR("Global Illumination", "DDGIVolume::create(): irradiance atlas allocation failed ({}x{})", 
+				irrWidth, irrHeight);
+			return false;
+		}
+
+		const u32 depthWidth = m_probeCountX * m_probeCountY * kDepthTileTexels;
+		const u32 depthHeight = m_probeCountZ * kDepthTileTexels;
+
+		TextureDesc depthDesc{};
+		depthDesc.width = depthWidth;
+		depthDesc.height = depthHeight;
+		depthDesc.format = TextureFormat::RG16Float;
+		depthDesc.usage = TextureUsage::Storage | TextureUsage::Sampled;
+		depthDesc.debugName = "DDGI Depth Atlas";
+
+		m_depthAtlas = device.createTexture(depthDesc);
+		if (!m_depthAtlas)
+		{
+			LOG_ERROR("Global Illumination", "DDGIVolume::create(): depth atlas allocation failed ({}x{})",
+				depthWidth, depthHeight);
+			return false;
+		}
+
+		LOG_INFO("Global Illumination", "DDGIVolume created: {}x{}x{} probes, ({} total). Irradiance Atlas: {}x{}. Depth Atlas: {}x{}",
+			m_probeCountX, m_probeCountY, m_probeCountZ, probeCount(), irrWidth, irrHeight, depthWidth, depthHeight);
+
+		{
+			std::vector<DDGIProbeState> initialStates(probeCount());
+			BufferDesc probeStateDesc{};
+			probeStateDesc.size = static_cast<u64>( initialStates.size() ) * sizeof(DDGIProbeState);
+			probeStateDesc.usage = BufferUsage::Storage;
+			probeStateDesc.memoryAccess = MemoryAccess::HostVisible;
+			probeStateDesc.debugName = "DDGI probe states";
+
+			m_probeStateBuffer = device.createBuffer(probeStateDesc);
+			if (!m_probeStateBuffer)
+			{
+				LOG_ERROR("Global Illumination", "DDGIVolume::create(): probe state buffer allocation failed ({} probes)", probeCount());
+				return false;
+			}
+			m_probeStateBuffer->update(initialStates.data(), probeStateDesc.size, 0);
+		}
+
+		return true;
+	}
+
+	math::Vec3f DDGIVolume::probePosition(u32 x, u32 y, u32 z) const
+	{
+		const math::Vec3f minCorner = m_desc.origin - m_desc.extents;
+		return minCorner + math::Vec3f(
+			static_cast<float>( x ) * m_desc.probeSpacing,
+			static_cast<float>( y ) * m_desc.probeSpacing,
+			static_cast<float>( z ) * m_desc.probeSpacing);
+	}
+
+	u32 DDGIVolume::beginProbeUpdateWindow(u32 requestedCount)
+	{
+		const u32 total = probeCount();
+		if (total == 0)
+		{
+			m_lastActiveProbeOffset = 0;
+			m_lastActiveProbeCount = 0;
+			return 0;
+		}
+
+		const u32 count = std::min(requestedCount, total);
+		const u32 offset = m_probeUpdateCursor % total;
+		m_lastActiveProbeOffset = offset;
+		m_lastActiveProbeCount = count;
+		m_probeUpdateCursor = ( offset + count ) % total;
+
+		return offset;
+	}
+
+	bool DDGIVolume::ensureRayBufferCapacity(IDevice& device, u32 requiredRayCount)
+	{
+		if (m_rayBuffer && requiredRayCount <= m_rayBufferCapacity)
+			return true;
+
+		if (requiredRayCount == 0)
+			return true;
+
+		BufferDesc desc{};
+		desc.size = static_cast<u64>( requiredRayCount ) * sizeof(DDGIRayResult);
+		desc.usage = BufferUsage::Storage;
+		desc.memoryAccess = MemoryAccess::DeviceOnly;
+		desc.debugName = "DDGI ray results";
+
+		auto newBuffer = device.createBuffer(desc);
+		if (!newBuffer)
+			return false;
+
+		m_rayBuffer = std::move(newBuffer);
+		m_rayBufferCapacity = requiredRayCount;
+		return true;
+	}
+}

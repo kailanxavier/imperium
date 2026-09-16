@@ -33,7 +33,21 @@ IMP_COMPILE_SHADERS(
 		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/depth_normal_prepass.frag
 		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/gtao.frag
 		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/bilateral_blur.frag
+		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/ddgi_probe_update.comp
+		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/ddgi_ray_trace.comp
+		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/ddgi_thermal_update.comp
+		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/ddgi_classify_probes.comp
+		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/thermal_update_fallback.comp
 		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/fullscreen.vert
+
+		# DDGI probe dbg
+		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/ddgi_debug_probes.vert
+		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/ddgi_debug_probes.frag
+		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/ddgi_debug_rays.vert
+		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/ddgi_debug_rays.frag
+
+		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/bloom_down_sample.frag
+		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/bloom_up_sample.frag
 )
 
 IMP_COPY_ASSETS(sandbox)

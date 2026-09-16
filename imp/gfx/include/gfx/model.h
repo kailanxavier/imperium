@@ -11,6 +11,7 @@ namespace imp::gfx
 {
 	class IBuffer;
 	class ITexture;
+	class IBlas;
 
 	struct ModelVertex
 	{
@@ -29,6 +30,8 @@ namespace imp::gfx
 
 		math::Vec3f boundsCentreLocal = math::Vec3f::zero();
 		float boundsRadiusLocal = 0.f;
+
+		std::unique_ptr<IBlas> blas;
 	};
 
 	struct Mesh

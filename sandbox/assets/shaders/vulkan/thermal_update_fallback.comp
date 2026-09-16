@@ -1,0 +1,88 @@
+#version 460
+layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+
+const int MAX_LIGHTS = 16;
+
+struct GPULight
+{
+    vec4 positionOrDirWS;
+    vec4 colourIntensity;
+};
+
+layout(binding = 0) uniform LightUBO
+{
+    vec4 cameraPositionWS;
+    vec4 ambientColour;
+    float specularStrength;
+    float shininess;
+    uint lightCount;
+    uint _pad0;
+    mat4 sunViewProj;
+
+    vec3 sunDirection;
+    float shadowMapSize;
+
+    GPULight lights[MAX_LIGHTS];
+} lightData;
+
+layout(std430, binding = 1) buffer HeatBuffer
+{
+	float heat[];
+};
+
+layout(push_constant) uniform PushConstants
+{
+	uint probeCountX;
+	uint probeCountY;
+	uint probeCountZ;
+	uint raysPerProbe; // we don't use this here
+	float hysteresis;
+	float inputScale;
+	float maxHeat;
+	float _pad0;
+	vec3 minCorner;
+	float probeSpacing;
+} pc;
+
+const vec3 kLuminance = vec3(0.2126, 0.7152, 0.0722);
+
+void main()
+{
+	uint probeIndex = gl_GlobalInvocationID.x;
+	uint probeCount = pc.probeCountX * pc.probeCountY * pc.probeCountZ;
+	if (probeIndex >= probeCount)
+		return;
+
+	uint px = probeIndex % pc.probeCountX;
+	uint py = (probeIndex / pc.probeCountX) % pc.probeCountY;
+	uint pz = probeIndex / (pc.probeCountX * pc.probeCountY);
+	vec3 probePosWS = pc.minCorner + vec3(px, py, pz) * pc.probeSpacing;
+
+	const vec3 worldUp = vec3(0.0, 1.0, 0.0);
+	vec3 totalRadiance = vec3(0.0);
+
+	for (uint i = 0u; i < lightData.lightCount; ++i)
+	{
+		GPULight light = lightData.lights[i];
+		bool isPoint = light.positionOrDirWS.w > 0.5;
+		vec3 radiance = light.colourIntensity.rgb * light.colourIntensity.w;
+
+		if (isPoint)
+		{
+			vec3 toLight = light.positionOrDirWS.xyz - probePosWS;
+			float distSq = max(dot(toLight, toLight), 1.0);
+			totalRadiance += radiance / distSq;
+		}
+		else
+		{
+			vec3 L = normalize(-light.positionOrDirWS.xyz);
+			totalRadiance += radiance * max(dot(worldUp, L), 0.0);
+		}
+	}
+
+	float heatInput = dot(totalRadiance, kLuminance) * pc.inputScale;
+
+	float oldHeat = heat[probeIndex];
+	float newHeat = mix(heatInput, oldHeat, pc.hysteresis);
+	heat[probeIndex] = clamp(newHeat, 0.0, pc.maxHeat);
+}

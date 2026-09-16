@@ -26,6 +26,7 @@ int main()
 #endif
 	desc.window.width = 1280;
 	desc.window.height = 720;
+	desc.window.fullscreen = false;
 	desc.enableValidation = true;
 	desc.vsync = true;
 
