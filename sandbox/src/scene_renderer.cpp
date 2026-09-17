@@ -15,6 +15,8 @@
 #include <core/math/math.h>
 #include <random>
 
+#include <algorithm>
+
 namespace imp::app
 {
 	namespace
@@ -439,6 +441,9 @@ namespace imp::app
 
 	gfx::RGBufferHandle addThermalUpdatePass(gfx::RenderGraph& graph, RenderResources& resources, SandboxScene& scene, AppContext& ctx, const SceneRenderParams& params, gfx::RGBufferHandle ddgiRayBuffer)
 	{
+		if (!ctx.gfx.supportsRayTracing())
+			return {};
+
 		if (!gfx::thermal::cvarEnabled)
 			return {};
 
