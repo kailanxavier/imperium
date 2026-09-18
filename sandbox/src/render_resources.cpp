@@ -229,7 +229,7 @@ namespace imp::app
 		meshPipelineDesc.rasterizerState.cullMode = gfx::CullMode::Back;
 		meshPipelineDesc.depthStencilState.depthTestEnable = true;
 		meshPipelineDesc.depthStencilState.depthWriteEnable = true;
-		meshPipelineDesc.depthStencilState.depthCompareOp = gfx::CompareOp::Less;
+		meshPipelineDesc.depthStencilState.depthCompareOp = gfx::CompareOp::LessOrEqual;
 		meshPipelineDesc.blendState.blendEnable = false;
 		meshPipelineDesc.colourFormat = m_hdrColourFormat;
 		meshPipelineDesc.depthFormat = m_hdrDepthFormat;
@@ -277,7 +277,7 @@ namespace imp::app
 			{ 0, static_cast<u32>( offsetof(gfx::ModelVertex, position) ), 3, true },
 			{ 1, static_cast<u32>( offsetof(gfx::ModelVertex, normal) ), 3, true },
 			{ 2, static_cast<u32>( offsetof(gfx::ModelVertex, uv) ), 2, true },
-			{ 3, static_cast<u32>( offsetof(gfx::ModelVertex, tangent) ), 4, true},
+			{ 3, static_cast<u32>( offsetof(gfx::ModelVertex, tangent) ), 4, true },
 		};
 
 		gfx::PipelineDesc prepassPipelineDesc{};
@@ -319,6 +319,21 @@ namespace imp::app
 			return false;
 		}
 
+		gfx::PipelineDesc gbufferDebugPipelineDesc{};
+		gbufferDebugPipelineDesc.vertexShader = out.fullscreenVertShader.get();
+		gbufferDebugPipelineDesc.fragmentShader = out.gbufferDebugFragShader.get();
+		gbufferDebugPipelineDesc.colourFormat = ctx.gfx.backBuffer().format();
+		gbufferDebugPipelineDesc.depthFormat = gfx::TextureFormat::Unknown;
+		gbufferDebugPipelineDesc.sampleCount = gfx::SampleCount::One;
+		gbufferDebugPipelineDesc.hasInstanceBinding = false;
+		out.gbufferDebugPipeline = ctx.gfx.createPipeline(gbufferDebugPipelineDesc);
+
+		if (!out.gbufferDebugPipeline)
+		{
+			LOG_ERROR("Sandbox", "Failed to create G-buffer debug view pipeline.");
+			return false;
+		}
+
 		gfx::PipelineDesc bloomDownsamplePipelineDesc{};
 		bloomDownsamplePipelineDesc.vertexShader = out.fullscreenVertShader.get();
 		bloomDownsamplePipelineDesc.fragmentShader = out.bloomDownsampleFragShader.get();
@@ -335,21 +350,6 @@ namespace imp::app
 		if (!out.bloomDownsamplePipeline || !out.bloomUpsamplePipeline)
 		{
 			LOG_ERROR("Sandbox", "Failed to create bloom pipelines");
-			return false;
-		}
-
-		gfx::PipelineDesc gbufferDebugPipelineDesc{};
-		gbufferDebugPipelineDesc.vertexShader = out.fullscreenVertShader.get();
-		gbufferDebugPipelineDesc.fragmentShader = out.gbufferDebugFragShader.get();
-		gbufferDebugPipelineDesc.colourFormat = ctx.gfx.backBuffer().format();
-		gbufferDebugPipelineDesc.depthFormat = gfx::TextureFormat::Unknown;
-		gbufferDebugPipelineDesc.sampleCount = gfx::SampleCount::One;
-		gbufferDebugPipelineDesc.hasInstanceBinding = false;
-		out.gbufferDebugPipeline = ctx.gfx.createPipeline(gbufferDebugPipelineDesc);
-
-		if (!out.gbufferDebugPipeline)
-		{
-			LOG_ERROR("Sandbox", "Failed to create G-buffer debug view pipeline.");
 			return false;
 		}
 

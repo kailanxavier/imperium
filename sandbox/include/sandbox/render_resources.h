@@ -34,7 +34,9 @@ namespace imp::app
 		void ensureInstanceBufferCapacity(AppContext& ctx, u32 instanceCount);
 		bool reloadShaders(AppContext& ctx, const AssetManifest& assets);
 
-		static constexpr gfx::SampleCount kMsaaSampleCount = gfx::SampleCount::Four;
+		// We're retiring MSAA completely in favour of a more performant
+		// deferred rendering solution, paired with TAA for anti-aliasing.
+		static constexpr gfx::SampleCount kMsaaSampleCount = gfx::SampleCount::One;
 
 		gfx::IPipeline& meshPipeline() const { return *m_pipeline; }
 		gfx::IPipeline& blendPipeline() const { return *m_blendPipeline; }

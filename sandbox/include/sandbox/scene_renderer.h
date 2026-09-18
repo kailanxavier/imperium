@@ -33,7 +33,7 @@ namespace imp::app
 
 	gfx::RGTextureHandle addHdrPass(gfx::RenderGraph& graph, RenderResources& resources, 
 		SandboxScene& scene, AppContext& ctx, const SceneRenderParams& params, 
-		const ShadowCascadePasses& shadowPasses, gfx::RGTextureHandle aoTexture, 
+		const ShadowCascadePasses& shadowPasses, gfx::RGTextureHandle prepassDepth, gfx::RGTextureHandle aoTexture, 
 		gfx::RGTextureHandle ddgiIrradianceHandle, gfx::RGTextureHandle ddgiDepthHandle, 
 		gfx::RGBufferHandle thermalHeatBufferHandle, gfx::RGBufferHandle ddgiRayBuffer);
 

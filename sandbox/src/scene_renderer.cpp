@@ -678,7 +678,7 @@ namespace imp::app
 		return out;
 	}
 
-	gfx::RGTextureHandle addHdrPass(gfx::RenderGraph& graph, RenderResources& resources, SandboxScene& scene, AppContext& ctx, const SceneRenderParams& params, const ShadowCascadePasses& shadowPasses, gfx::RGTextureHandle aoTexture, gfx::RGTextureHandle ddgiIrradianceHandle, gfx::RGTextureHandle ddgiDepthHandle, gfx::RGBufferHandle thermalHeatBufferHandle, gfx::RGBufferHandle ddgiRayBuffer)
+	gfx::RGTextureHandle addHdrPass(gfx::RenderGraph& graph, RenderResources& resources, SandboxScene& scene, AppContext& ctx, const SceneRenderParams& params, const ShadowCascadePasses& shadowPasses, gfx::RGTextureHandle prepassDepth, gfx::RGTextureHandle aoTexture, gfx::RGTextureHandle ddgiIrradianceHandle, gfx::RGTextureHandle ddgiDepthHandle, gfx::RGBufferHandle thermalHeatBufferHandle, gfx::RGBufferHandle ddgiRayBuffer)
 	{
 		const auto& data = graph.addPass<HdrPassData>("HDR",
 			[&](gfx::RenderGraphBuilder& b, HdrPassData& d)
@@ -690,22 +690,11 @@ namespace imp::app
 				colourDesc.width = w; colourDesc.height = h;
 				colourDesc.format = resources.hdrColourFormat();
 				colourDesc.sampleCount = RenderResources::kMsaaSampleCount;
-				colourDesc.usage = gfx::TextureUsage::RenderTarget;
+				colourDesc.usage = gfx::TextureUsage::RenderTarget | gfx::TextureUsage::Sampled;
 				d.hdrColour = b.createTexture("HdrColour", colourDesc);
-
-				gfx::TextureDesc depthDesc = colourDesc;
-				depthDesc.format = resources.hdrDepthFormat();
-				depthDesc.usage = gfx::TextureUsage::DepthStencil;
-				d.hdrDepth = b.createTexture("HdrDepth", depthDesc);
-
-				gfx::TextureDesc resolveDesc = colourDesc;
-				resolveDesc.sampleCount = gfx::SampleCount::One;
-				resolveDesc.usage = gfx::TextureUsage::RenderTarget | gfx::TextureUsage::Sampled;
-				d.hdrResolve = b.createTexture("HdrResolve", resolveDesc);
-
 				d.hdrColour = b.writeColour(d.hdrColour, gfx::RGLoadOp::Clear, { /* default ClearColour */ });
-				d.hdrDepth = b.writeDepth(d.hdrDepth, gfx::RGLoadOp::Clear);
-				d.hdrResolve = b.writeResolve(d.hdrResolve, d.hdrColour);
+				d.hdrDepth = b.writeDepth(prepassDepth, gfx::RGLoadOp::Load);
+				d.hdrResolve = d.hdrColour;
 
 				d.lightUBO = b.readBuffer(b.importBuffer("LightUBO", &resources.lightUBO(params.currentFrame)));
 				d.cascadeUBO = b.readBuffer(b.importBuffer("CascadeUBO", &resources.cascadeUBO(params.currentFrame)));
