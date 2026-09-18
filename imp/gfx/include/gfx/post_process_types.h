@@ -28,4 +28,9 @@ namespace imp::gfx
 	{
 		u32 mode = 0;
 	};
+
+	struct DeferredLightingPushConstants
+	{
+		math::Mat4f invViewProj;
+	};
 }

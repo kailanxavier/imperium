@@ -31,22 +31,6 @@ namespace imp::app
 	ShadowCascadePasses addShadowCascadePasses(gfx::RenderGraph& graph, RenderResources& resources,
 		SandboxScene& scene, const SceneRenderParams& params);
 
-	gfx::RGTextureHandle addHdrPass(gfx::RenderGraph& graph, RenderResources& resources, 
-		SandboxScene& scene, AppContext& ctx, const SceneRenderParams& params, 
-		const ShadowCascadePasses& shadowPasses, gfx::RGTextureHandle prepassDepth, gfx::RGTextureHandle aoTexture, 
-		gfx::RGTextureHandle ddgiIrradianceHandle, gfx::RGTextureHandle ddgiDepthHandle, 
-		gfx::RGBufferHandle thermalHeatBufferHandle, gfx::RGBufferHandle ddgiRayBuffer);
-
-	void addTonemapPass(gfx::RenderGraph& graph, RenderResources& resources,
-		gfx::RGTextureHandle hdrResolve, gfx::RGTextureHandle bloomTexture, gfx::IRenderTarget& target, 
-		const char* passName);
-
-	gfx::RGBufferHandle addThermalUpdatePass(gfx::RenderGraph& graph, RenderResources& resources,
-		SandboxScene& scene, AppContext& ctx, const SceneRenderParams& params, gfx::RGBufferHandle ddgiRayBuffer);
-
-	gfx::RGTextureHandle addBloomPasses(gfx::RenderGraph& graph, RenderResources& resources,
-		AppContext& ctx, gfx::RGTextureHandle hdrResolve);
-
 	struct PrepassOutputs
 	{
 		gfx::RGTextureHandle normalTarget;
@@ -66,6 +50,27 @@ namespace imp::app
 
 	gfx::RGTextureHandle addBilateralBlurPass(gfx::RenderGraph& graph, RenderResources& resources,
 		AppContext& ctx, const PrepassOutputs& prepass, gfx::RGTextureHandle rawAO);
+
+	gfx::RGTextureHandle addDeferredLightingPass(gfx::RenderGraph& graph, RenderResources& resources, AppContext& ctx,
+		const SceneRenderParams& params, const PrepassOutputs& prepass, const ShadowCascadePasses& shadowPasses,
+		gfx::RGTextureHandle aoTexture, gfx::RGTextureHandle ddgiIrradianceHandle, gfx::RGTextureHandle ddgiDepthHandle,
+		gfx::RGBufferHandle thermalHeatBufferHandle);
+
+	gfx::RGTextureHandle addHdrPass(gfx::RenderGraph& graph, RenderResources& resources, SandboxScene& scene, AppContext& ctx, 
+		const SceneRenderParams& params, const ShadowCascadePasses& shadowPasses, gfx::RGTextureHandle prepassDepth, 
+		gfx::RGTextureHandle hdrColourIn, gfx::RGTextureHandle aoTexture,
+		gfx::RGTextureHandle ddgiIrradianceHandle, gfx::RGTextureHandle ddgiDepthHandle, 
+		gfx::RGBufferHandle thermalHeatBufferHandle, gfx::RGBufferHandle ddgiRayBuffer);
+
+	void addTonemapPass(gfx::RenderGraph& graph, RenderResources& resources,
+		gfx::RGTextureHandle hdrResolve, gfx::RGTextureHandle bloomTexture, gfx::IRenderTarget& target, 
+		const char* passName);
+
+	gfx::RGBufferHandle addThermalUpdatePass(gfx::RenderGraph& graph, RenderResources& resources,
+		SandboxScene& scene, AppContext& ctx, const SceneRenderParams& params, gfx::RGBufferHandle ddgiRayBuffer);
+
+	gfx::RGTextureHandle addBloomPasses(gfx::RenderGraph& graph, RenderResources& resources,
+		AppContext& ctx, gfx::RGTextureHandle hdrResolve);
 
 	gfx::RGBufferHandle addDDGIRayTracePass(gfx::RenderGraph& graph, RenderResources& resources, SandboxScene& scene, AppContext& ctx, const SceneRenderParams& params);
 

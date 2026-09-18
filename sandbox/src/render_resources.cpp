@@ -134,6 +134,17 @@ namespace imp::app
 			return false;
 		}
 
+		gfx::ShaderDesc deferredLightingFragDesc;
+		deferredLightingFragDesc.stage = gfx::ShaderStage::Fragment;
+		deferredLightingFragDesc.path = assets.deferredLightingFragShader;
+		out.deferredLightingFragShader = ctx.gfx.createShader(deferredLightingFragDesc);
+
+		if (!out.deferredLightingFragShader)
+		{
+			LOG_ERROR("Sandbox", "Failed to load deferred lighting shader.");
+			return false;
+		}
+
 		gfx::ShaderDesc bloomDownsampleFragDesc;
 		bloomDownsampleFragDesc.stage = gfx::ShaderStage::Fragment;
 		bloomDownsampleFragDesc.path = assets.bloomDownsampleFragShader;
@@ -334,6 +345,21 @@ namespace imp::app
 			return false;
 		}
 
+		gfx::PipelineDesc deferredLightingPipelineDesc{};
+		deferredLightingPipelineDesc.vertexShader = out.fullscreenVertShader.get();
+		deferredLightingPipelineDesc.fragmentShader = out.deferredLightingFragShader.get();
+		deferredLightingPipelineDesc.colourFormat = m_hdrColourFormat;
+		deferredLightingPipelineDesc.depthFormat = gfx::TextureFormat::Unknown;
+		deferredLightingPipelineDesc.sampleCount = kMsaaSampleCount;
+		deferredLightingPipelineDesc.hasInstanceBinding = false;
+		out.deferredLightingPipeline = ctx.gfx.createPipeline(deferredLightingPipelineDesc);
+
+		if (!out.deferredLightingPipeline)
+		{
+			LOG_ERROR("Sandbox", "Failed to create deferred lighting pipeline");
+			return false;
+		}
+
 		gfx::PipelineDesc bloomDownsamplePipelineDesc{};
 		bloomDownsamplePipelineDesc.vertexShader = out.fullscreenVertShader.get();
 		bloomDownsamplePipelineDesc.fragmentShader = out.bloomDownsampleFragShader.get();
@@ -407,6 +433,7 @@ namespace imp::app
 		m_gtaoFragShader = std::move(set.gtaoFragShader);
 		m_blurFragShader = std::move(set.blurFragShader);
 		m_gbufferDebugFragShader = std::move(set.gbufferDebugFragShader);
+		m_deferredLightingFragShader = std::move(set.deferredLightingFragShader);
 		m_bloomDownsampleFragShader = std::move(set.bloomDownsampleFragShader);
 		m_bloomUpsampleFragShader = std::move(set.bloomUpsampleFragShader);
 		m_ddgiDebugProbesVertShader = std::move(set.ddgiDebugProbesVertShader);
@@ -423,6 +450,7 @@ namespace imp::app
 		m_gtaoPipeline = std::move(set.gtaoPipeline);
 		m_blurPipeline = std::move(set.blurPipeline);
 		m_gbufferDebugPipeline = std::move(set.gbufferDebugPipeline);
+		m_deferredLightingPipeline = std::move(set.deferredLightingPipeline);
 		m_bloomDownsamplePipeline = std::move(set.bloomDownsamplePipeline);
 		m_bloomUpsamplePipeline = std::move(set.bloomUpsamplePipeline);
 		m_ddgiDebugProbesPipeline = std::move(set.ddgiDebugProbesPipeline);
@@ -721,12 +749,14 @@ namespace imp::app
 		m_gtaoPipeline.reset();
 		m_blurPipeline.reset();
 		m_gbufferDebugPipeline.reset();
+		m_deferredLightingPipeline.reset();
 		m_prepassVertShader.reset();
 		m_prepassFragShader.reset();
 		m_fullscreenVertShader.reset();
 		m_gtaoFragShader.reset();
 		m_blurFragShader.reset();
 		m_gbufferDebugFragShader.reset();
+		m_deferredLightingFragShader.reset();
 		m_ddgiProbeUpdatePipeline.reset();
 		m_ddgiProbeUpdateShader.reset();
 		m_ddgiRayTracePipeline.reset();
