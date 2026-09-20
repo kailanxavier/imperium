@@ -87,9 +87,7 @@ layout(push_constant) uniform PushConstants
 
 vec3 reconstructWorldPos(vec2 uv, float depth)
 {
-    vec4 clip = vec4(uv * 2.0 - 1.0, depth, 1.0);
-    clip.y = -clip.y; // i'm so tired of this hack
-                      // it's genuinely so awful (but it works)
+    vec4 clip = vec4(uvToNdc(uv), depth, 1.0);
     vec4 world = pc.invViewProj * clip;
     return world.xyz / world.w;
 }

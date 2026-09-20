@@ -1,11 +1,12 @@
+#include "clip_space.glsl"
+
 vec3 getShadowCoords(mat4 lightViewProj, vec3 worldPos)
 {
     vec4 lightSpace = lightViewProj * vec4(worldPos, 1.0);
     lightSpace.xyz /= lightSpace.w;
 
     vec3 coords;
-    coords.x = lightSpace.x * 0.5 + 0.5;
-    coords.y = 0.5 - lightSpace.y * 0.5;
+    coords.xy = ndcToUv(lightSpace.xy);
     coords.z = lightSpace.z;
     return coords;
 }
