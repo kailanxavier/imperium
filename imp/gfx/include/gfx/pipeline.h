@@ -84,10 +84,10 @@ namespace imp::gfx
 
         TextureFormat colourFormat = TextureFormat::Unknown;
 
-        // Optional second colour attachment (for multiple render targets),
-        // leaving it as unknown for the current single-target pipelines *shouldn't*
-        // do any harm.
+        // Optional second and third colour attachment (for multiple render targets),
+        // leaving it as unknown for the current single-target pipelines *shouldn't* do any harm.
         TextureFormat colourFormat1 = TextureFormat::Unknown;
+        TextureFormat colourFormat2 = TextureFormat::Unknown;
 
         TextureFormat depthFormat = TextureFormat::Unknown;
 

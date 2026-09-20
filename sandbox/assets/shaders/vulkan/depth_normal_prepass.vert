@@ -3,6 +3,7 @@
 layout(location = 0) in vec3 inPosition;
 layout(location = 1) in vec3 inNormal;
 layout(location = 2) in vec2 inUV;
+layout(location = 3) in vec4 inTangent;
 
 layout(location = 4) in vec4 inInstanceModelRow0;
 layout(location = 5) in vec4 inInstanceModelRow1;
@@ -11,12 +12,21 @@ layout(location = 7) in vec4 inInstanceModelRow3;
 
 layout(location = 0) out vec3 outNormalWS;
 layout(location = 1) out vec2 outUV;
+layout(location = 2) out vec3 outTangentWS;
+layout(location = 3) out float outTangentSign;
+layout(location = 4) out vec4 outCurrClipPos;
+layout(location = 5) out vec4 outPrevClipPos;
 
 layout(push_constant) uniform PushConstants
 {
     mat4 viewProj;
     mat4 nodeWorld;
 } pc;
+
+layout(binding = 3) uniform PrevViewProjUBO
+{
+    mat4 prevViewProj;
+} prevFrame;
 
 void main()
 {
@@ -25,9 +35,20 @@ void main()
 
     vec4 worldPos = world * vec4(inPosition, 1.0);
 
-    mat3 normalMatrix = transpose(inverse(mat3(world)));
-    outNormalWS = normalize(normalMatrix * inNormal);
-    outUV = inUV;
+    mat3 linearMatrix = mat3(world);
+    mat3 normalMatrix = transpose(inverse(linearMatrix));
 
-    gl_Position = pc.viewProj * worldPos;
+    vec3 N = normalize(normalMatrix * inNormal);
+    vec3 T = normalize(linearMatrix * inTangent.xyz);
+    T = normalize(T - N * dot(N, T));
+
+    outNormalWS = N; 
+    outUV = inUV;
+    outTangentWS = T;
+    outTangentSign = inTangent.w;
+
+    outCurrClipPos = pc.viewProj * worldPos;
+    outPrevClipPos = prevFrame.prevViewProj * worldPos;
+
+    gl_Position = outCurrClipPos;
 }

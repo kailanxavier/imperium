@@ -3,12 +3,7 @@
 
 #define SHADOW_DEBUG_MODE 0
 
-layout(location = 0) in vec3 inNormalWS;
-layout(location = 1) in vec3 inPositionWS;
-layout(location = 2) in vec2 inUV;
-layout(location = 3) in vec3 inTangentWS;
-layout(location = 4) in float inTangentSign;
-
+layout(location = 0) in vec2 inUV;
 layout(location = 0) out vec4 outColour;
 
 const int MAX_LIGHTS = 16;
@@ -36,19 +31,9 @@ layout(binding = 0) uniform LightUBO
     GPULight lights[MAX_LIGHTS];
 } lightData;
 
-layout(binding = 1) uniform sampler2D diffuseTexture;
-layout(binding = 2) uniform sampler2D metallicRoughnessTexture;
-layout(binding = 3) uniform sampler2D normalTexture;
-layout(binding = 4) uniform sampler2D occlusionTexture;
-
-layout(binding = 6) uniform MaterialFactorsUBO
-{
-    vec4 baseColourFactor;
-    float metallicFactor;
-    float roughnessFactor;
-    float alphaCutoff;
-    float alphaMode;
-} material;
+layout(binding = 1) uniform sampler2D normalMetallicTex;
+layout(binding = 2) uniform sampler2D albedoRoughnessTex;
+layout(binding = 3) uniform sampler2D depthTex;
 
 layout(binding = 5) uniform sampler2D shadowMap0;
 layout(binding = 16) uniform sampler2D shadowMap1;
@@ -94,6 +79,18 @@ layout(std430, binding = 15) readonly buffer DDGIProbeStates
 {
     vec4 ddgiProbeStateData[];
 };
+
+layout(push_constant) uniform PushConstants
+{
+    mat4 invViewProj;
+} pc;
+
+vec3 reconstructWorldPos(vec2 uv, float depth)
+{
+    vec4 clip = vec4(uvToNdc(uv), depth, 1.0);
+    vec4 world = pc.invViewProj * clip;
+    return world.xyz / world.w;
+}
 
 float sampleThermalHeat(vec3 posWS)
 {
@@ -277,36 +274,27 @@ vec3 sampleDDGIIrradiance(vec3 posWS, vec3 N)
 
 void main()
 {
-    vec4 albedoSample = texture(diffuseTexture, inUV);
-    vec3 albedo = albedoSample.rgb * material.baseColourFactor.rgb;
-    float alpha = albedoSample.a * material.baseColourFactor.a;
-
-    if (material.alphaMode > 0.5 && material.alphaMode < 1.5 && alpha < material.alphaCutoff)
+    float depth = texture(depthTex, inUV).r;
+    if (depth >= 1.0)
         discard;
 
-    vec3 mrSample = texture(metallicRoughnessTexture, inUV).rgb;
-    float roughness = clamp(material.roughnessFactor * mrSample.g, 0.045, 1.0); // floor avoids a2==0 degenerate GGX
-    float metallic = clamp(material.metallicFactor * mrSample.b, 0.0, 1.0);
+    vec3 inPositionWS = reconstructWorldPos(inUV, depth);
 
-    float occlusion = texture(occlusionTexture, inUV).r;
-    float ssao = texture(aoTexture, gl_FragCoord.xy * screen.resolutionAndInv.zw).r;
-    ssao = mix(1.0, ssao, screen.flags.x);
-    occlusion *= ssao;
+    vec4 normalMetallicSample = texture(normalMetallicTex, inUV);
+    vec3 N = normalize(normalMetallicSample.xyz);
+    float metallic = clamp(normalMetallicSample.a, 0.0, 1.0);
 
-    vec3 geometricN = normalize(inNormalWS);
-    vec3 T = normalize(inTangentWS);
+    vec4 albedoRoughnessSample = texture(albedoRoughnessTex, inUV);
+    vec3 albedo = albedoRoughnessSample.rgb;
+    float roughness = clamp(albedoRoughnessSample.a, 0.045, 1.0); // floor avoids a2==0 degenerate GGX
 
-    vec3 B = normalize(cross(geometricN, T)) * inTangentSign;
-    mat3 TBN = mat3(T, B, geometricN);
-    vec3 tangentNormal = texture(normalTexture, inUV).xyz;
-    tangentNormal = tangentNormal * 2.0 - 1.0;
-    vec3 N = normalize(TBN * tangentNormal);
+    float ssao = texture(aoTexture, inUV).r;
+    float occlusion = mix(1.0, ssao, screen.flags.x);
 
     vec3 V = normalize(lightData.cameraPositionWS.xyz - inPositionWS);
-
     vec3 F0 = mix(vec3(0.04), albedo, metallic);
 
-    vec3 indirectDiffuse = (ddgi.probeCounts.w != 0u) ? sampleDDGIIrradiance(inPositionWS, geometricN) : lightData.ambientColour.rgb;
+    vec3 indirectDiffuse = (ddgi.probeCounts.w != 0u) ? sampleDDGIIrradiance(inPositionWS, N) : lightData.ambientColour.rgb;
 
     vec3 result = indirectDiffuse * albedo * occlusion;
     vec3 sunL = normalize(-lightData.sunDirection);
@@ -386,6 +374,5 @@ void main()
         }
     }
 
-    float outAlpha = (material.alphaMode > 1.5) ? alpha : 1.0;
-    outColour = vec4(vec3(0), outAlpha);
+    outColour = vec4(result, 1.0);
 }

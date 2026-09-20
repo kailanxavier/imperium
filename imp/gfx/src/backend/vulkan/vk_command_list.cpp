@@ -163,7 +163,7 @@ namespace imp::gfx::vulkan
 
 		VkViewport viewport{};
 		viewport.x = 0.f;
-		viewport.y = static_cast<float>( extent.height );;
+		viewport.y = static_cast<float>( extent.height );
 		viewport.width = static_cast<float>( extent.width );
 		viewport.height = -static_cast<float>( extent.height );
 		viewport.minDepth = 0.f;

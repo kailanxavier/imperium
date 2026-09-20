@@ -1,4 +1,5 @@
 #version 450
+#include "include/clip_space.glsl"
 
 layout(location = 0) in vec2 inUV;
 layout(location = 0) out vec4 outAO;
@@ -19,7 +20,7 @@ const float PI = 3.14159265359;
 
 vec3 reconstructViewPos(vec2 uv, float depth)
 {
-    vec4 clip = vec4(uv * 2.0 - 1.0, depth, 1.0);
+    vec4 clip = vec4(uvToNdc(uv), depth, 1.0);
     vec4 view = ao.invProj * clip;
     return view.xyz / view.w;
 }

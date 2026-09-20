@@ -10,9 +10,12 @@
 #include <gfx/thermal_cvars.h>
 #include <gfx/bloom_cvars.h>
 #include <gfx/post_process_types.h>
+#include <gfx/gbuffer_debug_cvars.h>
 
 #include <core/math/math.h>
 #include <random>
+
+#include <algorithm>
 
 namespace imp::app
 {
@@ -28,6 +31,33 @@ namespace imp::app
 
 			RenderResources* resources = nullptr;
 			SandboxScene* scene = nullptr;
+		};
+
+		struct DeferredLightingPassData
+		{
+			gfx::RGTextureHandle normalIn;
+			gfx::RGTextureHandle albedoRoughnessIn;
+			gfx::RGTextureHandle depthIn;
+			gfx::RGTextureHandle output;
+
+			gfx::RGBufferHandle lightUBO;
+			gfx::RGBufferHandle cascadeUBO;
+			std::array<gfx::RGTextureHandle, gfx::kCascadeCount> cascadeShadowMaps;
+			gfx::RGTextureHandle aoTexture;
+			gfx::RGBufferHandle screenParamsUBO;
+
+			bool ddgiActive = false;
+			gfx::RGTextureHandle ddgiIrradianceAtlas;
+			gfx::RGTextureHandle ddgiDepthAtlas;
+			gfx::RGBufferHandle ddgiVolumeUBO;
+			gfx::RGBufferHandle ddgiProbeStates;
+
+			bool thermalActive = false;
+			gfx::RGBufferHandle thermalHeatBuffer;
+			gfx::RGBufferHandle thermalVolumeUBO;
+
+			math::Mat4f invViewProj;
+			RenderResources* resources = nullptr;
 		};
 
 		struct HdrPassData
@@ -78,9 +108,11 @@ namespace imp::app
 		{
 			gfx::RGTextureHandle normalTarget;
 			gfx::RGTextureHandle albedoRoughnessTarget;
+			gfx::RGTextureHandle velocityTarget;
 			gfx::RGTextureHandle depthTarget;
 
 			gfx::IBuffer* instanceBuffer = nullptr;
+			gfx::IBuffer* prevViewProjBuffer = nullptr;
 			math::Mat4f viewProj;
 
 			gfx::CullVolume cullVolume;
@@ -88,6 +120,17 @@ namespace imp::app
 
 			RenderResources* resources = nullptr;
 			SandboxScene* scene = nullptr;
+		};
+
+		struct GBufferDebugPassData
+		{
+			gfx::RGTextureHandle normalIn;
+			gfx::RGTextureHandle albedoRoughnessIn;
+			gfx::RGTextureHandle velocityIn;
+			gfx::RGTextureHandle output;
+
+			u32 mode = 0;
+			RenderResources* resources = nullptr;
 		};
 
 		struct GTAOPassData
@@ -425,6 +468,9 @@ namespace imp::app
 
 	gfx::RGBufferHandle addThermalUpdatePass(gfx::RenderGraph& graph, RenderResources& resources, SandboxScene& scene, AppContext& ctx, const SceneRenderParams& params, gfx::RGBufferHandle ddgiRayBuffer)
 	{
+		if (!ctx.gfx.supportsRayTracing())
+			return {};
+
 		if (!gfx::thermal::cvarEnabled)
 			return {};
 
@@ -659,7 +705,135 @@ namespace imp::app
 		return out;
 	}
 
-	gfx::RGTextureHandle addHdrPass(gfx::RenderGraph& graph, RenderResources& resources, SandboxScene& scene, AppContext& ctx, const SceneRenderParams& params, const ShadowCascadePasses& shadowPasses, gfx::RGTextureHandle aoTexture, gfx::RGTextureHandle ddgiIrradianceHandle, gfx::RGTextureHandle ddgiDepthHandle, gfx::RGBufferHandle thermalHeatBufferHandle, gfx::RGBufferHandle ddgiRayBuffer)
+	gfx::RGTextureHandle addDeferredLightingPass(gfx::RenderGraph& graph, RenderResources& resources, AppContext& ctx, const SceneRenderParams& params, const PrepassOutputs& prepass, const ShadowCascadePasses& shadowPasses, gfx::RGTextureHandle aoTexture, gfx::RGTextureHandle ddgiIrradianceHandle, gfx::RGTextureHandle ddgiDepthHandle, gfx::RGBufferHandle thermalHeatBufferHandle)
+	{
+		const auto& data = graph.addPass<DeferredLightingPassData>("DeferredLighting",
+			[&](gfx::RenderGraphBuilder& b, DeferredLightingPassData& d)
+			{
+				const u32 w = ctx.gfx.backBuffer().width();
+				const u32 h = ctx.gfx.backBuffer().height();
+
+				d.normalIn = b.readTexture(prepass.normalTarget);
+				d.albedoRoughnessIn = b.readTexture(prepass.albedoRoughnessTarget);
+				d.depthIn = b.readTexture(prepass.depthTarget);
+
+				gfx::TextureDesc colourDesc{};
+				colourDesc.width = w; colourDesc.height = h;
+				colourDesc.format = resources.hdrColourFormat();
+				colourDesc.sampleCount = RenderResources::kMsaaSampleCount;
+				colourDesc.usage = gfx::TextureUsage::RenderTarget | gfx::TextureUsage::Sampled;
+				d.output = b.createTexture("HdrColour", colourDesc);
+				d.output = b.writeColour(d.output, gfx::RGLoadOp::Clear, { /* default ClearColour */ });
+
+				d.lightUBO = b.readBuffer(b.importBuffer("LightUBO", &resources.lightUBO(params.currentFrame)));
+				d.cascadeUBO = b.readBuffer(b.importBuffer("CascadeUBO", &resources.cascadeUBO(params.currentFrame)));
+
+				for (u32 i = 0; i < gfx::kCascadeCount; ++i)
+					d.cascadeShadowMaps[i] = b.readTexture(shadowPasses.cascadeDepthTargets[i]);
+
+				d.aoTexture = b.readTexture(aoTexture);
+				d.screenParamsUBO = b.readBuffer(b.importBuffer("ScreenParamsUBO", &resources.screenParamsUBO(params.currentFrame)));
+
+				gfx::DDGIVolume& ddgiVolume = resources.ddgiVolume();
+				d.ddgiActive = ctx.gfx.supportsRayTracing() && gfx::gi::cvarEnabled
+					&& ddgiVolume.irradianceAtlas() && ddgiVolume.depthAtlas()
+					&& ddgiIrradianceHandle.isValid() && ddgiDepthHandle.isValid();
+
+				gfx::DDGIVolumeUBO ddgiParams{};
+				if (d.ddgiActive)
+				{
+					const math::Vec3f minCorner = ddgiVolume.desc().origin - ddgiVolume.desc().extents;
+					ddgiParams.minCornerAndSpacing = math::Vec4f{ minCorner.x, minCorner.y, minCorner.z, ddgiVolume.desc().probeSpacing };
+					ddgiParams.probeCountX = ddgiVolume.probeCountX();
+					ddgiParams.probeCountY = ddgiVolume.probeCountY();
+					ddgiParams.probeCountZ = ddgiVolume.probeCountZ();
+					ddgiParams.enabled = 1u;
+
+					d.ddgiIrradianceAtlas = b.readTexture(ddgiIrradianceHandle);
+					d.ddgiDepthAtlas = b.readTexture(ddgiDepthHandle);
+					d.ddgiProbeStates = b.readBuffer(b.importBuffer("DDGIProbeStates", ddgiVolume.probeStateBuffer()));
+				}
+				resources.ddgiVolumeUBO(params.currentFrame).update(&ddgiParams, sizeof(ddgiParams), 0);
+				d.ddgiVolumeUBO = b.readBuffer(b.importBuffer("DDGIVolumeUBO", &resources.ddgiVolumeUBO(params.currentFrame)));
+
+				gfx::ThermalVolume& thermalVolume = resources.thermalVolume();
+				d.thermalActive = gfx::thermal::cvarEnabled && thermalVolume.heatBuffer() && thermalHeatBufferHandle.isValid();
+
+				gfx::ThermalVolumeUBO thermalParams{};
+				if (d.thermalActive)
+				{
+					const math::Vec3f minCorner = thermalVolume.minCorner();
+					thermalParams.minCornerAndSpacing = math::Vec4f{ minCorner.x, minCorner.y, minCorner.z, thermalVolume.desc().probeSpacing };
+					thermalParams.probeCountX = thermalVolume.probeCountX();
+					thermalParams.probeCountY = thermalVolume.probeCountY();
+					thermalParams.probeCountZ = thermalVolume.probeCountZ();
+					thermalParams.enabled = 1u;
+					thermalParams.glowIntensity = gfx::thermal::cvarGlowIntensity;
+					thermalParams.ignitionThreshold = gfx::thermal::cvarIgnitionThreshold;
+
+					d.thermalHeatBuffer = b.readBuffer(thermalHeatBufferHandle);
+				}
+				resources.thermalVolumeUBO(params.currentFrame).update(&thermalParams, sizeof(thermalParams), 0);
+				d.thermalVolumeUBO = b.readBuffer(b.importBuffer("ThermalVolumeUBO", &resources.thermalVolumeUBO(params.currentFrame)));
+
+				const math::Mat4f viewProj = params.camera->projection(params.aspect) * params.camera->view();
+				d.invViewProj = math::inverse(viewProj);
+
+				d.resources = &resources;
+			},
+			[](const DeferredLightingPassData& d, gfx::RenderGraphContext& rgCtx)
+			{
+				rgCtx.cmd().bindPipeline(d.resources->deferredLightingPipeline());
+
+				rgCtx.cmd().bindUniformBuffer(rgCtx.buffer(d.lightUBO), 0);
+				rgCtx.cmd().bindTexture(rgCtx.texture(d.normalIn), d.resources->sampler(), 1);
+				rgCtx.cmd().bindTexture(rgCtx.texture(d.albedoRoughnessIn), d.resources->sampler(), 2);
+				rgCtx.cmd().bindTexture(rgCtx.texture(d.depthIn), d.resources->sampler(), 3);
+
+				for (u32 i = 0; i < gfx::kCascadeCount; ++i)
+				{
+					const u32 binding = ( i == 0 ) ? 5u : ( 15u + i );
+					rgCtx.cmd().bindTexture(rgCtx.texture(d.cascadeShadowMaps[i]), d.resources->shadowSampler(), binding);
+				}
+
+				rgCtx.cmd().bindUniformBuffer(rgCtx.buffer(d.cascadeUBO), 7);
+				rgCtx.cmd().bindTexture(rgCtx.texture(d.aoTexture), d.resources->sampler(), 8);
+				rgCtx.cmd().bindUniformBuffer(rgCtx.buffer(d.screenParamsUBO), 9);
+
+				if (d.ddgiActive)
+				{
+					rgCtx.cmd().bindTexture(rgCtx.texture(d.ddgiIrradianceAtlas), d.resources->ddgiSampler(), 10);
+					rgCtx.cmd().bindTexture(rgCtx.texture(d.ddgiDepthAtlas), d.resources->ddgiSampler(), 11);
+				}
+				else
+				{
+					rgCtx.cmd().bindTexture(d.resources->ddgiFallbackTexture(), d.resources->ddgiSampler(), 10);
+					rgCtx.cmd().bindTexture(d.resources->ddgiFallbackTexture(), d.resources->ddgiSampler(), 11);
+				}
+				rgCtx.cmd().bindUniformBuffer(rgCtx.buffer(d.ddgiVolumeUBO), 12);
+				rgCtx.cmd().bindUniformBuffer(rgCtx.buffer(d.thermalVolumeUBO), 13);
+
+				if (d.thermalActive)
+					rgCtx.cmd().bindStorageBuffer(rgCtx.buffer(d.thermalHeatBuffer), 14);
+				else
+					rgCtx.cmd().bindStorageBuffer(d.resources->thermalFallbackBuffer(), 14);
+
+				if (d.ddgiActive)
+					rgCtx.cmd().bindStorageBuffer(rgCtx.buffer(d.ddgiProbeStates), 15);
+				else
+					rgCtx.cmd().bindStorageBuffer(d.resources->ddgiProbeStateFallbackBuffer(), 15);
+
+				gfx::DeferredLightingPushConstants pc{};
+				pc.invViewProj = d.invViewProj;
+				rgCtx.cmd().pushConstants(&pc, sizeof(pc), 0);
+
+				rgCtx.cmd().draw(3, 1);
+			});
+
+			return data.output;
+	}
+
+	gfx::RGTextureHandle addHdrPass(gfx::RenderGraph& graph, RenderResources& resources, SandboxScene& scene, AppContext& ctx, const SceneRenderParams& params, const ShadowCascadePasses& shadowPasses, gfx::RGTextureHandle prepassDepth, gfx::RGTextureHandle hdrColourIn, gfx::RGTextureHandle aoTexture, gfx::RGTextureHandle ddgiIrradianceHandle, gfx::RGTextureHandle ddgiDepthHandle, gfx::RGBufferHandle thermalHeatBufferHandle, gfx::RGBufferHandle ddgiRayBuffer)
 	{
 		const auto& data = graph.addPass<HdrPassData>("HDR",
 			[&](gfx::RenderGraphBuilder& b, HdrPassData& d)
@@ -667,26 +841,9 @@ namespace imp::app
 				const u32 w = ctx.gfx.backBuffer().width();
 				const u32 h = ctx.gfx.backBuffer().height();
 
-				gfx::TextureDesc colourDesc{};
-				colourDesc.width = w; colourDesc.height = h;
-				colourDesc.format = resources.hdrColourFormat();
-				colourDesc.sampleCount = RenderResources::kMsaaSampleCount;
-				colourDesc.usage = gfx::TextureUsage::RenderTarget;
-				d.hdrColour = b.createTexture("HdrColour", colourDesc);
-
-				gfx::TextureDesc depthDesc = colourDesc;
-				depthDesc.format = resources.hdrDepthFormat();
-				depthDesc.usage = gfx::TextureUsage::DepthStencil;
-				d.hdrDepth = b.createTexture("HdrDepth", depthDesc);
-
-				gfx::TextureDesc resolveDesc = colourDesc;
-				resolveDesc.sampleCount = gfx::SampleCount::One;
-				resolveDesc.usage = gfx::TextureUsage::RenderTarget | gfx::TextureUsage::Sampled;
-				d.hdrResolve = b.createTexture("HdrResolve", resolveDesc);
-
-				d.hdrColour = b.writeColour(d.hdrColour, gfx::RGLoadOp::Clear, { /* default ClearColour */ });
-				d.hdrDepth = b.writeDepth(d.hdrDepth, gfx::RGLoadOp::Clear);
-				d.hdrResolve = b.writeResolve(d.hdrResolve, d.hdrColour);
+				d.hdrColour = b.writeColour(hdrColourIn, gfx::RGLoadOp::Load);
+				d.hdrDepth = b.writeDepth(prepassDepth, gfx::RGLoadOp::Load);
+				d.hdrResolve = d.hdrColour;
 
 				d.lightUBO = b.readBuffer(b.importBuffer("LightUBO", &resources.lightUBO(params.currentFrame)));
 				d.cascadeUBO = b.readBuffer(b.importBuffer("CascadeUBO", &resources.cascadeUBO(params.currentFrame)));
@@ -823,17 +980,6 @@ namespace imp::app
 					renderCtx.thermalHeatBuffer = &d.resources->thermalFallbackBuffer();
 				renderCtx.thermalVolumeBuffer = &rgCtx.buffer(d.thermalVolumeUBO);
 
-				gfx::CullVolume mainCullVolume{};
-				if (d.params.enableFrustumCulling)
-				{
-					mainCullVolume.useFrustum = true;
-					mainCullVolume.frustumPlanes = gfx::extractFrustumPlanes(renderCtx.viewProj);
-					renderCtx.cullVolume = &mainCullVolume;
-				}
-
-				rgCtx.cmd().bindPipeline(d.resources->meshPipeline());
-				drawModelBatches(renderCtx, d.scene->extraction());
-
 				gfx::SkyPushConstants skyPC{};
 				skyPC.invViewProj = math::inverse(renderCtx.viewProj);
 				skyPC.cameraPositionWS = math::Vec4f{ d.params.camera->position(), 1.f };
@@ -960,6 +1106,10 @@ namespace imp::app
 				albedoDesc.format = gfx::TextureFormat::RGBA8Unorm;
 				d.albedoRoughnessTarget = b.createTexture("PrepassAlbedoRoughness", albedoDesc);
 
+				gfx::TextureDesc velocityDesc = normalDesc;
+				velocityDesc.format = gfx::TextureFormat::RG16Float;
+				d.velocityTarget = b.createTexture("PrepassVelocity", velocityDesc);
+
 				gfx::TextureDesc depthDesc{};
 				depthDesc.width = w; depthDesc.height = h;
 				depthDesc.format = gfx::TextureFormat::Depth32Float;
@@ -969,6 +1119,7 @@ namespace imp::app
 
 				d.normalTarget = b.writeColour(d.normalTarget, gfx::RGLoadOp::Clear, { 1.f, 1.f, 1.f, 1.f });
 				d.albedoRoughnessTarget = b.writeColour(d.albedoRoughnessTarget, gfx::RGLoadOp::Clear, { 1.f, 1.f, 1.f, 1.f });
+				d.velocityTarget = b.writeColour(d.velocityTarget, gfx::RGLoadOp::Clear, { 0.f, 0.f, 0.f, 0.f });
 				d.depthTarget = b.writeDepth(d.depthTarget, gfx::RGLoadOp::Clear, 1.f);
 
 				d.instanceBuffer = &resources.instanceBuffer(params.currentFrame);
@@ -978,6 +1129,13 @@ namespace imp::app
 
 				d.enableFrustumCulling = params.enableFrustumCulling;
 				d.cullVolume = {};
+
+				gfx::PrevViewProjUBO prevViewProjData{};
+				prevViewProjData.prevViewProj = resources.previousViewProj();
+				resources.prevViewProjUBO(params.currentFrame).update(&prevViewProjData, sizeof(prevViewProjData), 0);
+				d.prevViewProjBuffer = &resources.prevViewProjUBO(params.currentFrame);
+
+				resources.setPreviousViewProj(d.viewProj);
 			},
 			[](const PrepassData& d, gfx::RenderGraphContext& rgCtx)
 			{
@@ -988,6 +1146,7 @@ namespace imp::app
 				prepassCtx.viewProj = d.viewProj;
 				prepassCtx.sampler = &d.resources->sampler();
 				prepassCtx.alphaTestOnly = true;
+				prepassCtx.prevViewProjBuffer = d.prevViewProjBuffer;
 
 				gfx::CullVolume execCullVolume = d.cullVolume;
 				if (d.enableFrustumCulling)
@@ -996,13 +1155,44 @@ namespace imp::app
 					execCullVolume.frustumPlanes = gfx::extractFrustumPlanes(d.viewProj);
 				}
 				prepassCtx.cullVolume = &execCullVolume;
-				// no light or shadow bindings needed, this is a normals only pass
+				// no light or shadow bindings needed, this is a normals/albedo/velocity only pass
 
 				rgCtx.cmd().bindPipeline(d.resources->prepassPipeline());
 				drawModelBatches(prepassCtx, d.scene->extraction());
 			});
 
-		return { data.normalTarget, data.depthTarget, data.albedoRoughnessTarget };
+		return { data.normalTarget, data.depthTarget, data.albedoRoughnessTarget, data.velocityTarget };
+	}
+
+	void addGBufferDebugPass(gfx::RenderGraph& graph, RenderResources& resources, AppContext& ctx, const PrepassOutputs& prepass, gfx::IRenderTarget& target)
+	{
+		graph.addPass<GBufferDebugPassData>("GBufferDebugView",
+			[&](gfx::RenderGraphBuilder& b, GBufferDebugPassData& d)
+			{
+				d.normalIn = b.readTexture(prepass.normalTarget);
+				d.albedoRoughnessIn = b.readTexture(prepass.albedoRoughnessTarget);
+				d.velocityIn = b.readTexture(prepass.velocityTarget);
+
+				d.output = b.importTexture("GBufferDebugView", &target);
+				d.output = b.writeColour(d.output, gfx::RGLoadOp::DontCare);
+
+				d.mode = static_cast<u32>( std::max<i32>(0, gfx::gbufferdebug::cvarMode) );
+				d.resources = &resources;
+				b.hasSideEffect();
+			},
+			[](const GBufferDebugPassData& d, gfx::RenderGraphContext& rgCtx)
+			{
+				rgCtx.cmd().bindPipeline(d.resources->gbufferDebugPipeline());
+				rgCtx.cmd().bindTexture(rgCtx.texture(d.normalIn), d.resources->sampler(), 0);
+				rgCtx.cmd().bindTexture(rgCtx.texture(d.albedoRoughnessIn), d.resources->sampler(), 1);
+				rgCtx.cmd().bindTexture(rgCtx.texture(d.velocityIn), d.resources->sampler(), 2);
+
+				gfx::GBufferDebugPushConstants pc{};
+				pc.mode = d.mode;
+				rgCtx.cmd().pushConstants(&pc, sizeof(pc), 0);
+
+				rgCtx.cmd().draw(3, 1);
+			});
 	}
 
 	gfx::RGTextureHandle addGTAOPass(gfx::RenderGraph& graph, RenderResources& resources, AppContext& ctx, const PrepassOutputs& prepass, const SceneRenderParams& params)
