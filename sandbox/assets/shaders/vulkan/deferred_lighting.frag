@@ -298,6 +298,11 @@ void main()
 
     vec3 result = indirectDiffuse * albedo * occlusion;
     vec3 sunL = normalize(-lightData.sunDirection);
+
+    // Magic number from Jimenez's talk. I'm pretty sure I already linked the talk somewhere in this codebase.
+    // No time to look now, maybe later.
+    vec2 noisePos = gl_FragCoord.xy + vec2(5.588238) * screen.flags.y;
+
     float sunBias = max(0.0025 * (1.0 - dot(N, sunL)), 0.00005);
     float viewSpaceDepth = length(lightData.cameraPositionWS.xyz - inPositionWS);
 
@@ -318,7 +323,7 @@ void main()
                 : (shadowCoordsA.z - sunBias > sampleCascadeTexel(shadowMap0, shadowMap1, shadowMap2, shadowMap3, cascadeIndex, shadowCoordsA.xy) ? 0.0 : 1.0);
 #else
             float sunShadowFactor = computeShadowFactor(shadowMap0, shadowMap1, shadowMap2, shadowMap3,
-                cascades.shadowMapSizes, gl_FragCoord.xy, cascadeIndex, shadowCoordsA, 
+                cascades.shadowMapSizes, noisePos, cascadeIndex, shadowCoordsA,
                     nextCascadeIndex, shadowCoordsB, cascadeBlend, sunBias);
 #endif
 

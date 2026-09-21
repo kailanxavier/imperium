@@ -12,6 +12,11 @@
 #include <gfx/ao_cvars.h>
 #include <gfx/gbuffer_debug_cvars.h>
 
+#include <gfx/taa.h>
+#include <gfx/taa_cvars.h>
+
+#include <algorithm>
+
 namespace imp::app
 {
 	bool SandboxApp::onInit(AppContext& ctx)
@@ -116,6 +121,16 @@ namespace imp::app
 		params.currentFrame = ctx.gfx.currentFrameIndex();
 		params.enableFrustumCulling = m_enableFrustumCulling;
 
+		params.frameCounter = m_resources.nextFrameCounter();
+		params.taaEnabled = gfx::taa::cvarEnabled && w > 0 && h > 0;
+		if (params.taaEnabled)
+		{
+			const u32 sampleCount = static_cast<u32>(std::max<i32>(1, gfx::taa::cvarJitterSamples));
+			const math::Vec2f jitterPx = gfx::taa::jitterPixels(params.frameCounter, sampleCount);
+			const float scale = gfx::taa::cvarJitterScale;
+			params.jitterNdc = gfx::taa::pixelsToNdc(math::Vec2f{jitterPx.x * scale, jitterPx.y * scale}, w, h);
+		}
+
 		gfx::RenderGraph graph(ctx.gfx, m_resources.graphPool());
 
 		const PrepassOutputs prepass = addDepthNormalPrepass(graph, m_resources, m_scene, ctx, params);
@@ -152,8 +167,13 @@ namespace imp::app
 		const gfx::RGTextureHandle hdrColour = addDeferredLightingPass(graph, m_resources, ctx, params, prepass,
 			shadowPasses, aoTexture, ddgiIrradianceHandle, ddgiDepthHandle, thermalBuffer);
 
-		const gfx::RGTextureHandle hdrResolve = addHdrPass(graph, m_resources, m_scene, ctx, params, shadowPasses, 
-			prepass.depthTarget, hdrColour, aoTexture, ddgiIrradianceHandle, ddgiDepthHandle, thermalBuffer, ddgiRayBuffer);
+		const gfx::RGTextureHandle hdrLit = addHdrPass(graph, m_resources, m_scene, ctx, params, shadowPasses,
+			prepass.depthTarget, hdrColour, aoTexture, ddgiIrradianceHandle, ddgiDepthHandle, thermalBuffer);
+
+		const gfx::RGTextureHandle taaResolved = addTaaResolvePass(graph, m_resources, ctx, params, prepass, hdrLit);
+
+		const gfx::RGTextureHandle hdrResolve = addOverlayPass(graph, m_resources, ctx, params,
+			taaResolved, prepass.depthTarget, ddgiIrradianceHandle, ddgiDepthHandle, ddgiRayBuffer);
 
 		gfx::RGTextureHandle bloomTexture = addBloomPasses(graph, m_resources, ctx, hdrResolve);
 

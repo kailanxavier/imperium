@@ -21,6 +21,10 @@ namespace imp::app
 		float aspect = 1.f;
 		u32 currentFrame = 0;
 		bool enableFrustumCulling = true;
+
+		bool taaEnabled = false;
+		math::Vec2f jitterNdc{ 0.f, 0.f };
+		u32 frameCounter = 0;
 	};
 
 	struct ShadowCascadePasses
@@ -37,6 +41,9 @@ namespace imp::app
 		gfx::RGTextureHandle depthTarget;
 		gfx::RGTextureHandle albedoRoughnessTarget;
 		gfx::RGTextureHandle velocityTarget;
+
+		math::Mat4f viewProj = math::Mat4f::identity();
+		math::Mat4f prevViewProj = math::Mat4f::identity();
 	};
 
 	PrepassOutputs addDepthNormalPrepass(gfx::RenderGraph& graph, RenderResources& resources,
@@ -60,7 +67,14 @@ namespace imp::app
 		const SceneRenderParams& params, const ShadowCascadePasses& shadowPasses, gfx::RGTextureHandle prepassDepth, 
 		gfx::RGTextureHandle hdrColourIn, gfx::RGTextureHandle aoTexture,
 		gfx::RGTextureHandle ddgiIrradianceHandle, gfx::RGTextureHandle ddgiDepthHandle, 
-		gfx::RGBufferHandle thermalHeatBufferHandle, gfx::RGBufferHandle ddgiRayBuffer);
+		gfx::RGBufferHandle thermalHeatBufferHandle);
+
+	gfx::RGTextureHandle addTaaResolvePass(gfx::RenderGraph& graph, RenderResources& resources, AppContext& ctx,
+		const SceneRenderParams& params, const PrepassOutputs& prepass, gfx::RGTextureHandle hdrColour);
+
+	gfx::RGTextureHandle addOverlayPass(gfx::RenderGraph& graph, RenderResources& resources, AppContext& ctx,
+		const SceneRenderParams& params, gfx::RGTextureHandle colourIn, gfx::RGTextureHandle depthIn,
+		gfx::RGTextureHandle ddgiIrradianceHandle, gfx::RGTextureHandle ddgiDepthHandle, gfx::RGBufferHandle ddgiRayBuffer);
 
 	void addTonemapPass(gfx::RenderGraph& graph, RenderResources& resources,
 		gfx::RGTextureHandle hdrResolve, gfx::RGTextureHandle bloomTexture, gfx::IRenderTarget& target, 

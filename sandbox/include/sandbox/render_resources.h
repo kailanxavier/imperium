@@ -49,6 +49,8 @@ namespace imp::app
 		gfx::ISampler& shadowSampler() const { return *m_shadowSampler; }
 		gfx::ISampler& ddgiSampler() const { return *m_ddgiSampler; }
 
+		gfx::ISampler& taaSampler() const { return *m_taaSampler; }
+
 		[[nodiscard]] gfx::TextureFormat hdrColourFormat() const { return m_hdrColourFormat; }
 		[[nodiscard]] gfx::TextureFormat hdrDepthFormat() const { return m_hdrDepthFormat; }
 
@@ -62,6 +64,7 @@ namespace imp::app
 		gfx::IPipeline& blurPipeline() { return *m_blurPipeline; }
 		gfx::IPipeline& gbufferDebugPipeline() { return *m_gbufferDebugPipeline; }
 		gfx::IPipeline& deferredLightingPipeline() { return *m_deferredLightingPipeline; }
+		gfx::IPipeline& taaResolvePipeline() { return *m_taaResolvePipeline; }
 
 		[[nodiscard]] gfx::IBuffer& aoParamsUBO(u32 frame) const { return *m_aoParamsUBOs[frame]; }
 		[[nodiscard]] gfx::IBuffer& screenParamsUBO(u32 frame) const { return *m_screenParamsUBOs[frame]; }
@@ -71,6 +74,17 @@ namespace imp::app
 		void setPreviousViewProj(const math::Mat4f& viewProj) { m_previousViewProj = viewProj; }
 
 		[[nodiscard]] gfx::RenderGraphResourcePool& graphPool() const { return *m_graphPool; }
+		[[nodiscard]] u32 nextFrameCounter() { return m_frameCounter++; }
+
+		struct TaaHistoryTargets
+		{
+			gfx::IRenderTarget* read = nullptr;
+			gfx::IRenderTarget* write = nullptr;
+
+			bool readValid = false;
+		};
+
+		bool acquireTaaHistory(AppContext& ctx, u32 width, u32 height, u32 frameCounter, TaaHistoryTargets& out);
 
 		[[nodiscard]] gfx::DDGIVolume& ddgiVolume() { return m_ddgiVolume; }
 		[[nodiscard]] gfx::IPipeline* ddgiProbeUpdatePipeline() const { return m_ddgiProbeUpdatePipeline.get(); }
@@ -107,6 +121,7 @@ namespace imp::app
 			std::unique_ptr<gfx::IShader> blurFragShader;
 			std::unique_ptr<gfx::IShader> gbufferDebugFragShader;
 			std::unique_ptr<gfx::IShader> deferredLightingFragShader;
+			std::unique_ptr<gfx::IShader> taaResolveFragShader;
 			std::unique_ptr<gfx::IShader> bloomDownsampleFragShader, bloomUpsampleFragShader;
 
 			std::unique_ptr<gfx::IShader> ddgiDebugProbesVertShader, ddgiDebugProbesFragShader;
@@ -122,6 +137,7 @@ namespace imp::app
 			std::unique_ptr<gfx::IPipeline> blurPipeline;
 			std::unique_ptr<gfx::IPipeline> gbufferDebugPipeline;
 			std::unique_ptr<gfx::IPipeline> deferredLightingPipeline;
+			std::unique_ptr<gfx::IPipeline> taaResolvePipeline;
 			std::unique_ptr<gfx::IPipeline> bloomDownsamplePipeline, bloomUpsamplePipeline;
 
 			std::unique_ptr<gfx::IPipeline> ddgiDebugProbesPipeline;
@@ -141,6 +157,7 @@ namespace imp::app
 		std::unique_ptr<gfx::IShader> m_blurFragShader;
 		std::unique_ptr<gfx::IShader> m_gbufferDebugFragShader;
 		std::unique_ptr<gfx::IShader> m_deferredLightingFragShader;
+		std::unique_ptr<gfx::IShader> m_taaResolveFragShader;
 
 		std::unique_ptr<gfx::IPipeline> m_pipeline;
 		std::unique_ptr<gfx::IPipeline> m_blendPipeline;
@@ -152,10 +169,12 @@ namespace imp::app
 		std::unique_ptr<gfx::IPipeline> m_blurPipeline;
 		std::unique_ptr<gfx::IPipeline> m_gbufferDebugPipeline;
 		std::unique_ptr<gfx::IPipeline> m_deferredLightingPipeline;
+		std::unique_ptr<gfx::IPipeline> m_taaResolvePipeline;
 
 		std::unique_ptr<gfx::ISampler> m_sampler;
 		std::unique_ptr<gfx::ISampler> m_shadowSampler;
 		std::unique_ptr<gfx::ISampler> m_ddgiSampler;
+		std::unique_ptr<gfx::ISampler> m_taaSampler;
 
 		gfx::TextureFormat m_hdrColourFormat = gfx::TextureFormat::RGBA16Float;
 		gfx::TextureFormat m_hdrDepthFormat = gfx::TextureFormat::Depth32Float;
@@ -171,6 +190,14 @@ namespace imp::app
 		u32 m_instanceCapacity = 16;
 
 		std::unique_ptr<gfx::RenderGraphResourcePool> m_graphPool;
+
+		u32 m_frameCounter = 0;
+
+		std::unique_ptr<gfx::IRenderTarget> m_taaHistory[2];
+		u32 m_taaReadIndex = 0;
+		u32 m_taaWidth = 0, m_taaHeight = 0;
+		bool m_taaHasHistory = false;
+		u32 m_taaLastFrame = 0;
 
 		gfx::DDGIVolume m_ddgiVolume;
 		std::unique_ptr<gfx::IShader> m_ddgiProbeUpdateShader;
