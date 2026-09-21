@@ -13,4 +13,6 @@ namespace imp::gfx::taa
     inline CVarFloat cvarFeedbackMax{ "taa.feedback_max", 0.97f };
 
     inline CVarFloat cvarVarianceGamma{ "taa.variance_gamma", 1.25f };
+
+    inline CVarFloat cvarRejectFeedback{ "taa.reject_feedback", 0.2f };
 }

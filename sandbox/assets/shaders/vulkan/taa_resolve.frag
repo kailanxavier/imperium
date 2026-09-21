@@ -19,6 +19,7 @@ layout(push_constant) uniform PushConstants
     float feedbackMax;
     float varianceGamma;
     uint historyValid;
+    float rejectFeedback;
 } pc;
 
 const vec3 kLuma = vec3(0.2126, 0.7152, 0.0722);
@@ -195,6 +196,10 @@ void main()
     float unbiasedDiff = abs(lumCurrent - lumHistory) / max(max(lumCurrent, lumHistory), 0.2);
     float agreement = 1.0 - unbiasedDiff;
     float feedback = mix(pc.feedbackMin, pc.feedbackMax, agreement * agreement);
+
+    float excess = max(max(cMin.x - historyYCoCg.x, historyYCoCg.x - cMax.x), 0.0);
+    float lightingChange = smoothstep(0.05, 0.25, excess / max(mean.x, 0.2));
+    feedback = mix(feedback, min(feedback, pc.rejectFeedback), lightingChange);
 
     vec3 resolved = fromResolveSpace(yCoCgToRgb(mix(centreToYCoCg, clippedHistory, feedback)));
 

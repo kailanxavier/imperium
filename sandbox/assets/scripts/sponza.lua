@@ -9,10 +9,13 @@ end
 
 function M.OnUpdate(self, entity, dt)
     local currentPos = entity:GetPosition()
-    if currentPos ~= lastPos then
-        lastPos = currentPos
-        print("Current pos:", currentPos)
-    end
+    --if currentPos ~= lastPos then
+        --lastPos = currentPos
+        --print("Current pos:", currentPos)
+    --end
+
+    currentPos.x = 0
+    entity:SetPosition(currentPos.x, currentPos.y, currentPos.z)
 end
 
 function M.OnDestroy(self, entity)

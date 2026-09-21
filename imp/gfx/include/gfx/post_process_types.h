@@ -42,6 +42,7 @@ namespace imp::gfx
 		float feedbackMax = 0.97f;
 		float varianceGamma = 1.25f;
 		u32 historyValid = 0;
+		float rejectFeedback = 0.2f;
 	};
 
 	static_assert(sizeof(TaaResolvePushConstants) <= 128 &&

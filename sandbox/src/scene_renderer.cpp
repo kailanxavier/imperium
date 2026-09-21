@@ -122,7 +122,7 @@ namespace imp::app
 
 			math::Mat4f currToPrevClip = math::Mat4f::identity();
 			float width = 0.f, height = 0.f;
-			float feedbackMin = 0.f, feedbackMax = 0.f, varianceGamma = 0.f;
+			float feedbackMin = 0.f, feedbackMax = 0.f, varianceGamma = 0.f, rejectFeedback = 0.f;
 			bool historyValid = false;
 
 			RenderResources* resources = nullptr;
@@ -1046,6 +1046,7 @@ namespace imp::app
 				d.feedbackMax = std::clamp(static_cast<float>( gfx::taa::cvarFeedbackMax ), 0.f, 0.999f);
 				d.feedbackMin = std::clamp(static_cast<float>( gfx::taa::cvarFeedbackMin ), 0.f, d.feedbackMax);
 				d.varianceGamma = std::max(0.f, static_cast<float>( gfx::taa::cvarVarianceGamma ));
+				d.rejectFeedback = std::clamp(static_cast<float>(gfx::taa::cvarRejectFeedback ), 0.f, 1.f);
 				d.historyValid = history.readValid;
 				d.resources = &resources;
 			},
@@ -1063,6 +1064,7 @@ namespace imp::app
 				pc.feedbackMin = d.feedbackMin;
 				pc.feedbackMax = d.feedbackMax;
 				pc.varianceGamma = d.varianceGamma;
+				pc.rejectFeedback = d.rejectFeedback;
 				pc.historyValid = d.historyValid ? 1u : 0u;
 				rgCtx.cmd().pushConstants(&pc, sizeof(pc), 0);
 

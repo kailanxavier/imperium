@@ -54,15 +54,14 @@ namespace imp::gfx
 			radius *= config.radiusMultiplier[i];
 
 			const float worldUnitsPerTexel = ( radius * 2.f ) / static_cast<float>( config.resolution[i] );
-			const math::Mat4f lookAtNoSnap = math::makeLookAtLH(centre - lightDir * radius, centre, upHint);
+			const math::Mat4f lightRotation = math::makeLookAtLH(math::Vec3f::zero(), lightDir, upHint);
 
-			math::Vec4f originLS = lookAtNoSnap * math::Vec4f{ centre, 1.f };
-			originLS.x = std::floor(originLS.x / worldUnitsPerTexel) * worldUnitsPerTexel;
-			originLS.y = std::floor(originLS.y / worldUnitsPerTexel) * worldUnitsPerTexel;
+			math::Vec4f centreLS = lightRotation * math::Vec4f( centre, 1.f );
+			centreLS.x = std::floor(centreLS.x / worldUnitsPerTexel) * worldUnitsPerTexel;
+			centreLS.y = std::floor(centreLS.y / worldUnitsPerTexel) * worldUnitsPerTexel;
 
-			const math::Mat4f invLookAt = math::inverse(lookAtNoSnap);
-			const math::Vec4f snappedCentreWS = invLookAt * math::Vec4f{ originLS.xyz(), 1.f };
-			const math::Vec3f snappedCentre{ snappedCentreWS.xyz() };
+			const math::Vec4f snappedCentreWS = math::inverse(lightRotation) * centreLS;
+			const math::Vec3f snappedCentre{snappedCentreWS.xyz()};
 
 			const math::Vec3f eye = snappedCentre - lightDir * ( radius + config.zPadding );
 			const math::Mat4f lightView = math::makeLookAtLH(eye, snappedCentre, upHint);
