@@ -20,6 +20,7 @@ namespace imp::app
 		std::string blurFragShader = "assets/shaders/bilateral_blur.frag.spv";
 		std::string gbufferDebugFragShader = "assets/shaders/gbuffer_debug.frag.spv";
 		std::string deferredLightingFragShader = "assets/shaders/deferred_lighting.frag.spv";
+		std::string taaResolveFragShader = "assets/shaders/taa_resolve.frag.spv";
 
 		std::string ddgiProbeUpdateShader = "assets/shaders/ddgi_probe_update.comp.spv";
 		std::string ddgiRayTraceShader = "assets/shaders/ddgi_ray_trace.comp.spv";

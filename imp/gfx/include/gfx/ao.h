@@ -26,5 +26,6 @@ namespace imp::gfx
     struct PrevViewProjUBO
     {
         math::Mat4f prevViewProj;
+        math::Vec4f jitterNdc{0.f, 0.f, 0.f, 0.f};
     };
 }

@@ -14,6 +14,7 @@
 
 #include <gfx/thermal_cvars.h>
 #include <gfx/bloom_cvars.h>
+#include <gfx/device.h>
 
 namespace imp::app
 {
@@ -142,6 +143,17 @@ namespace imp::app
 		if (!out.deferredLightingFragShader)
 		{
 			LOG_ERROR("Sandbox", "Failed to load deferred lighting shader.");
+			return false;
+		}
+
+		gfx::ShaderDesc taaResolveFragDesc;
+		taaResolveFragDesc.stage = gfx::ShaderStage::Fragment;
+		taaResolveFragDesc.path = assets.taaResolveFragShader;
+		out.taaResolveFragShader = ctx.gfx.createShader(taaResolveFragDesc);
+
+		if (!out.taaResolveFragShader)
+		{
+			LOG_ERROR("Sandbox", "Failed to load TAA resolve shader.");
 			return false;
 		}
 
@@ -360,6 +372,22 @@ namespace imp::app
 			return false;
 		}
 
+		gfx::PipelineDesc taaResolvePipelineDesc{};
+		taaResolvePipelineDesc.vertexShader = out.fullscreenVertShader.get();
+		taaResolvePipelineDesc.fragmentShader = out.taaResolveFragShader.get();
+		taaResolvePipelineDesc.colourFormat = m_hdrColourFormat;
+		taaResolvePipelineDesc.colourFormat1 = m_hdrColourFormat;
+		taaResolvePipelineDesc.depthFormat = gfx::TextureFormat::Unknown;
+		taaResolvePipelineDesc.sampleCount = kMsaaSampleCount;
+		taaResolvePipelineDesc.hasInstanceBinding = false;
+		out.taaResolvePipeline = ctx.gfx.createPipeline(taaResolvePipelineDesc);
+
+		if (!out.taaResolvePipeline)
+		{
+			LOG_ERROR("Sandbox", "Failed to create TAA resolve pipeline");
+			return false;
+		}
+
 		gfx::PipelineDesc bloomDownsamplePipelineDesc{};
 		bloomDownsamplePipelineDesc.vertexShader = out.fullscreenVertShader.get();
 		bloomDownsamplePipelineDesc.fragmentShader = out.bloomDownsampleFragShader.get();
@@ -434,6 +462,7 @@ namespace imp::app
 		m_blurFragShader = std::move(set.blurFragShader);
 		m_gbufferDebugFragShader = std::move(set.gbufferDebugFragShader);
 		m_deferredLightingFragShader = std::move(set.deferredLightingFragShader);
+		m_taaResolveFragShader = std::move(set.taaResolveFragShader);
 		m_bloomDownsampleFragShader = std::move(set.bloomDownsampleFragShader);
 		m_bloomUpsampleFragShader = std::move(set.bloomUpsampleFragShader);
 		m_ddgiDebugProbesVertShader = std::move(set.ddgiDebugProbesVertShader);
@@ -451,6 +480,7 @@ namespace imp::app
 		m_blurPipeline = std::move(set.blurPipeline);
 		m_gbufferDebugPipeline = std::move(set.gbufferDebugPipeline);
 		m_deferredLightingPipeline = std::move(set.deferredLightingPipeline);
+		m_taaResolvePipeline = std::move(set.taaResolvePipeline);
 		m_bloomDownsamplePipeline = std::move(set.bloomDownsamplePipeline);
 		m_bloomUpsamplePipeline = std::move(set.bloomUpsamplePipeline);
 		m_ddgiDebugProbesPipeline = std::move(set.ddgiDebugProbesPipeline);
@@ -503,6 +533,13 @@ namespace imp::app
 		ddgiSamplerDesc.addressModeU = gfx::AddressMode::ClampToEdge;
 		ddgiSamplerDesc.addressModeV = gfx::AddressMode::ClampToEdge;
 		m_ddgiSampler = ctx.gfx.createSampler(ddgiSamplerDesc);
+
+		gfx::SamplerDesc taaSamplerDesc{};
+		taaSamplerDesc.minFilter = gfx::FilterMode::Linear;
+		taaSamplerDesc.magFilter = gfx::FilterMode::Linear;
+		taaSamplerDesc.addressModeU = gfx::AddressMode::ClampToEdge;
+		taaSamplerDesc.addressModeV = gfx::AddressMode::ClampToEdge;
+		m_taaSampler = ctx.gfx.createSampler(taaSamplerDesc);
 
 		gfx::BufferDesc cascadeUboDesc{};
 		cascadeUboDesc.size = sizeof(gfx::CascadeUBO);
@@ -757,6 +794,11 @@ namespace imp::app
 		m_blurFragShader.reset();
 		m_gbufferDebugFragShader.reset();
 		m_deferredLightingFragShader.reset();
+		m_taaResolvePipeline.reset();
+		m_taaResolveFragShader.reset();
+		m_taaSampler.reset();
+		m_taaHistory[0].reset();
+		m_taaHistory[1].reset();
 		m_ddgiProbeUpdatePipeline.reset();
 		m_ddgiProbeUpdateShader.reset();
 		m_ddgiRayTracePipeline.reset();
@@ -791,6 +833,53 @@ namespace imp::app
 
 		m_graphPool.reset();
 	}
+
+	bool RenderResources::acquireTaaHistory(AppContext &ctx, u32 width, u32 height, u32 frameCounter, TaaHistoryTargets &out)
+	{
+		if (width == 0 || height == 0)
+			return false;
+
+		if (!m_taaHistory[0] || !m_taaHistory[1] || m_taaWidth != width || m_taaHeight != height)
+		{
+			gfx::TextureDesc desc{};
+			desc.width = width;
+			desc.height = height;
+			desc.format = m_hdrColourFormat;
+			desc.sampleCount = kMsaaSampleCount;
+			desc.usage = gfx::TextureUsage::RenderTarget | gfx::TextureUsage::Sampled;
+
+			std::unique_ptr<gfx::IRenderTarget> fresh[2];
+			for (auto& target : fresh)
+			{
+				target = ctx.gfx.createRenderTarget(desc);
+				if (!target)
+				{
+					LOG_ERROR("Sandbox", "Failed to create TAA history target ({}x{})", width, height);
+					return false;
+				}
+			}
+
+			ctx.gfx.waitIdle();
+			m_taaHistory[0] = std::move(fresh[0]);
+			m_taaHistory[1] = std::move(fresh[1]);
+			m_taaWidth = width;
+			m_taaHeight = height;
+			m_taaReadIndex = 0;
+			m_taaHasHistory = false;
+		}
+
+		const bool readValid = m_taaHasHistory && (m_taaLastFrame + 1 == frameCounter);
+		out.read = m_taaHistory[m_taaReadIndex].get();
+		out.write = m_taaHistory[1 - m_taaReadIndex].get();
+		out.readValid = readValid;
+
+		m_taaReadIndex = 1 - m_taaReadIndex;
+		m_taaHasHistory = true;
+		m_taaLastFrame = frameCounter;
+
+		return true;
+	}
+
 
 	void RenderResources::ensureInstanceBufferCapacity(AppContext& ctx, u32 instanceCount)
 	{

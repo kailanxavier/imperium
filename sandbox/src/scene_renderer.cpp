@@ -12,6 +12,9 @@
 #include <gfx/post_process_types.h>
 #include <gfx/gbuffer_debug_cvars.h>
 
+#include <gfx/taa.h>
+#include <gfx/taa_cvars.h>
+
 #include <core/math/math.h>
 #include <random>
 
@@ -77,20 +80,52 @@ namespace imp::app
 			gfx::RGBufferHandle ddgiVolumeUBO;
 			gfx::RGBufferHandle ddgiProbeStates;
 
-			bool ddgiDebugProbesActive = false;
-			bool ddgiDebugRaysActive = false;
-			gfx::RGBufferHandle ddgiRayBuffer;
-			u32 ddgiDebugRayProbeIndex = 0;
-			u32 ddgiDebugRaysPerProbe = 0;
-
 			bool thermalActive = false;
 			gfx::RGBufferHandle thermalHeatBuffer;
 			gfx::RGBufferHandle thermalVolumeUBO;
 
+			math::Mat4f viewProj = math::Mat4f::identity();
+
 			RenderResources* resources = nullptr;
 			SandboxScene* scene = nullptr;
+			SceneRenderParams params{};
+		};
+
+		struct OverlayPassData
+		{
+			gfx::RGTextureHandle colour;
+			gfx::RGTextureHandle depth;
+
+			bool ddgiDebugProbesActive = false;
+			bool ddgiDebugRaysActive = false;
+			gfx::RGTextureHandle ddgiIrradianceAtlas;
+			gfx::RGBufferHandle ddgiProbeStates;
+			gfx::RGBufferHandle ddgiRayBuffer;
+			u32 ddgiDebugRayProbeIndex = 0;
+			u32 ddgiDebugRaysPerProbe = 0;
+
+			math::Mat4f viewProj = math::Mat4f::identity();
+
+			RenderResources* resources = nullptr;
 			AppContext* ctx = nullptr;
 			SceneRenderParams params{};
+		};
+
+		struct TaaResolvePassData
+		{
+			gfx::RGTextureHandle currentIn;
+			gfx::RGTextureHandle historyIn;
+			gfx::RGTextureHandle velocityIn;
+			gfx::RGTextureHandle depthIn;
+			gfx::RGTextureHandle resolvedOut;
+			gfx::RGTextureHandle historyOut;
+
+			math::Mat4f currToPrevClip = math::Mat4f::identity();
+			float width = 0.f, height = 0.f;
+			float feedbackMin = 0.f, feedbackMax = 0.f, varianceGamma = 0.f, rejectFeedback = 0.f;
+			bool historyValid = false;
+
+			RenderResources* resources = nullptr;
 		};
 
 		struct TonemapPassData
@@ -114,6 +149,7 @@ namespace imp::app
 			gfx::IBuffer* instanceBuffer = nullptr;
 			gfx::IBuffer* prevViewProjBuffer = nullptr;
 			math::Mat4f viewProj;
+			math::Mat4f prevViewProj;
 
 			gfx::CullVolume cullVolume;
 			bool enableFrustumCulling = true;
@@ -777,7 +813,7 @@ namespace imp::app
 				d.thermalVolumeUBO = b.readBuffer(b.importBuffer("ThermalVolumeUBO", &resources.thermalVolumeUBO(params.currentFrame)));
 
 				const math::Mat4f viewProj = params.camera->projection(params.aspect) * params.camera->view();
-				d.invViewProj = math::inverse(viewProj);
+				d.invViewProj = math::inverse(gfx::taa::applyJitter(viewProj, params.jitterNdc));
 
 				d.resources = &resources;
 			},
@@ -833,7 +869,7 @@ namespace imp::app
 			return data.output;
 	}
 
-	gfx::RGTextureHandle addHdrPass(gfx::RenderGraph& graph, RenderResources& resources, SandboxScene& scene, AppContext& ctx, const SceneRenderParams& params, const ShadowCascadePasses& shadowPasses, gfx::RGTextureHandle prepassDepth, gfx::RGTextureHandle hdrColourIn, gfx::RGTextureHandle aoTexture, gfx::RGTextureHandle ddgiIrradianceHandle, gfx::RGTextureHandle ddgiDepthHandle, gfx::RGBufferHandle thermalHeatBufferHandle, gfx::RGBufferHandle ddgiRayBuffer)
+	gfx::RGTextureHandle addHdrPass(gfx::RenderGraph& graph, RenderResources& resources, SandboxScene& scene, AppContext& ctx, const SceneRenderParams& params, const ShadowCascadePasses& shadowPasses, gfx::RGTextureHandle prepassDepth, gfx::RGTextureHandle hdrColourIn, gfx::RGTextureHandle aoTexture, gfx::RGTextureHandle ddgiIrradianceHandle, gfx::RGTextureHandle ddgiDepthHandle, gfx::RGBufferHandle thermalHeatBufferHandle)
 	{
 		const auto& data = graph.addPass<HdrPassData>("HDR",
 			[&](gfx::RenderGraphBuilder& b, HdrPassData& d)
@@ -857,7 +893,14 @@ namespace imp::app
 				gfx::ScreenParamsUBO screenParams{};
 				screenParams.resolutionAndInv = { static_cast<float>( w ), static_cast<float>( h ),
 					1.f / static_cast<float>( w ), 1.f / static_cast<float>( h ) };
-				screenParams.flags = { gfx::ao::cvarEnabled ? 1.f : 0.f, 0.f, 0.f, 0.f };
+
+				screenParams.flags = {
+					gfx::ao::cvarEnabled ? 1.f : 0.f,
+					params.taaEnabled ? static_cast<float>(params.frameCounter % 64) : 0.f,
+					0.f,
+					0.f
+				};
+
 				resources.screenParamsUBO(params.currentFrame).update(&screenParams, sizeof(screenParams), 0);
 
 				gfx::DDGIVolume& ddgiVolume = resources.ddgiVolume();
@@ -882,42 +925,6 @@ namespace imp::app
 				resources.ddgiVolumeUBO(params.currentFrame).update(&ddgiParams, sizeof(ddgiParams), 0);
 				d.ddgiVolumeUBO = b.readBuffer(b.importBuffer("DDGIVolumeUBO", &resources.ddgiVolumeUBO(params.currentFrame)));
 
-				d.ddgiDebugProbesActive = d.ddgiActive && gfx::gi::cvarShowProbes && resources.ddgiDebugProbesPipeline();
-				d.ddgiDebugRaysActive = d.ddgiActive && gfx::gi::cvarDebugShowRays && resources.ddgiDebugRaysPipeline() && ddgiRayBuffer.isValid();
-
-				if (d.ddgiDebugRaysActive)
-				{
-					d.ddgiRayBuffer = b.readBuffer(ddgiRayBuffer);
-					d.ddgiDebugRaysPerProbe = static_cast<u32>( std::max<i32>(1, gfx::gi::cvarRaysPerProbe) );
-
-					const i32 pinnedIndex = gfx::gi::cvarDebugRayProbeIndex;
-					if (pinnedIndex >= 0)
-					{
-						d.ddgiDebugRayProbeIndex = std::min<u32>(static_cast<u32>( pinnedIndex ), ddgiVolume.probeCount() - 1);
-					}
-					else
-					{
-						const math::Vec3f minCorner = ddgiVolume.desc().origin - ddgiVolume.desc().extents;
-						const float spacing = std::max(ddgiVolume.desc().probeSpacing, 0.0001f);
-						const math::Vec3f gridSpace = ( params.camera->position() - minCorner ) / spacing;
-
-						auto clampAxis = [](float v, u32 count) -> u32
-							{
-								return static_cast<u32>(
-									std::clamp<i32>(
-										static_cast<i32>( std::round(v) ),
-										0, static_cast<i32>( count ) - 1) );
-							};
-
-						const u32 px = clampAxis(gridSpace.x, ddgiVolume.probeCountX());
-						const u32 py = clampAxis(gridSpace.y, ddgiVolume.probeCountY());
-						const u32 pz = clampAxis(gridSpace.z, ddgiVolume.probeCountZ());
-
-						d.ddgiDebugRayProbeIndex = px + py * ddgiVolume.probeCountX()
-							+ pz * ddgiVolume.probeCountX() * ddgiVolume.probeCountY();
-					}
-				}
-
 				gfx::ThermalVolume& thermalVolume = resources.thermalVolume();
 				d.thermalActive = gfx::thermal::cvarEnabled && thermalVolume.heatBuffer() && thermalHeatBufferHandle.isValid();
 
@@ -938,9 +945,11 @@ namespace imp::app
 				resources.thermalVolumeUBO(params.currentFrame).update(&thermalParams, sizeof(thermalParams), 0);
 				d.thermalVolumeUBO = b.readBuffer(b.importBuffer("ThermalVolumeUBO", &resources.thermalVolumeUBO(params.currentFrame)));
 
+				d.viewProj = gfx::taa::applyJitter(
+					params.camera->projection(params.aspect) * params.camera->view(), params.jitterNdc);
+
 				d.resources = &resources;
 				d.scene = &scene;
-				d.ctx = &ctx;
 				d.params = params;
 			},
 			[](const HdrPassData& d, gfx::RenderGraphContext& rgCtx)
@@ -951,7 +960,7 @@ namespace imp::app
 				renderCtx.sampler = &d.resources->sampler();
 				renderCtx.lightBuffer = &rgCtx.buffer(d.lightUBO);
 				renderCtx.instanceBuffer = &d.resources->instanceBuffer(d.params.currentFrame);
-				renderCtx.viewProj = d.params.camera->projection(d.params.aspect) * d.params.camera->view();
+				renderCtx.viewProj = d.viewProj;
 				for (u32 i = 0; i < gfx::kCascadeCount; ++i)
 					renderCtx.cascadeShadowMaps[i] = &rgCtx.texture(d.cascadeShadowMaps[i]);
 				renderCtx.cascadeBuffer = &rgCtx.buffer(d.cascadeUBO);
@@ -994,7 +1003,141 @@ namespace imp::app
 					rgCtx.cmd().bindPipeline(d.resources->blendPipeline());
 					drawBlendInstances(renderCtx, d.scene->extraction());
 				}
+			});
 
+		return data.hdrResolve;
+	}
+
+	gfx::RGTextureHandle addTaaResolvePass(gfx::RenderGraph &graph, RenderResources &resources, AppContext &ctx, const SceneRenderParams &params, const PrepassOutputs &prepass, gfx::RGTextureHandle hdrColour)
+	{
+		if (!params.taaEnabled)
+			return hdrColour;
+
+		const u32 w = ctx.gfx.backBuffer().width();
+		const u32 h = ctx.gfx.backBuffer().height();
+
+		RenderResources::TaaHistoryTargets history{};
+		if (!resources.acquireTaaHistory(ctx, w, h, params.frameCounter, history))
+			return hdrColour;
+
+		const auto& data = graph.addPass<TaaResolvePassData>("TaaResolve",
+			[&](gfx::RenderGraphBuilder& b, TaaResolvePassData& d)
+			{
+				d.currentIn = b.readTexture(hdrColour);
+				d.historyIn = b.readTexture(b.importTexture("TaaHistoryRead", history.read));
+				d.velocityIn = b.readTexture(prepass.velocityTarget);
+				d.depthIn = b.readTexture(prepass.depthTarget);
+
+				gfx::TextureDesc resolvedDesc{};
+				resolvedDesc.width = w; resolvedDesc.height = h;
+				resolvedDesc.format = resources.hdrColourFormat();
+				resolvedDesc.sampleCount = gfx::SampleCount::One;
+				resolvedDesc.usage = gfx::TextureUsage::RenderTarget | gfx::TextureUsage::Sampled;
+
+				d.resolvedOut = b.createTexture("TaaResolved", resolvedDesc);
+				d.resolvedOut = b.writeColour(d.resolvedOut, gfx::RGLoadOp::DontCare);
+				d.historyOut = b.writeColour(b.importTexture("TaaHistoryWrite", history.write), gfx::RGLoadOp::DontCare);
+
+				b.hasSideEffect();
+
+				d.currToPrevClip = prepass.prevViewProj * math::inverse(prepass.viewProj);
+				d.width = static_cast<float>( w );
+				d.height = static_cast<float>( h );
+				d.feedbackMax = std::clamp(static_cast<float>( gfx::taa::cvarFeedbackMax ), 0.f, 0.999f);
+				d.feedbackMin = std::clamp(static_cast<float>( gfx::taa::cvarFeedbackMin ), 0.f, d.feedbackMax);
+				d.varianceGamma = std::max(0.f, static_cast<float>( gfx::taa::cvarVarianceGamma ));
+				d.rejectFeedback = std::clamp(static_cast<float>(gfx::taa::cvarRejectFeedback ), 0.f, 1.f);
+				d.historyValid = history.readValid;
+				d.resources = &resources;
+			},
+			[](const TaaResolvePassData& d, gfx::RenderGraphContext& rgCtx)
+			{
+				rgCtx.cmd().bindPipeline(d.resources->taaResolvePipeline());
+				rgCtx.cmd().bindTexture(rgCtx.texture(d.currentIn), d.resources->taaSampler(), 0);
+				rgCtx.cmd().bindTexture(rgCtx.texture(d.historyIn), d.resources->taaSampler(), 1);
+				rgCtx.cmd().bindTexture(rgCtx.texture(d.velocityIn), d.resources->taaSampler(), 2);
+				rgCtx.cmd().bindTexture(rgCtx.texture(d.depthIn), d.resources->taaSampler(), 3);
+
+				gfx::TaaResolvePushConstants pc{};
+				pc.currToPrevClip = d.currToPrevClip;
+				pc.resolutionAndInv = math::Vec4f{ d.width, d.height, 1.f / d.width, 1.f / d.height };
+				pc.feedbackMin = d.feedbackMin;
+				pc.feedbackMax = d.feedbackMax;
+				pc.varianceGamma = d.varianceGamma;
+				pc.rejectFeedback = d.rejectFeedback;
+				pc.historyValid = d.historyValid ? 1u : 0u;
+				rgCtx.cmd().pushConstants(&pc, sizeof(pc), 0);
+
+				rgCtx.cmd().draw(3, 1);
+			});
+
+		return data.resolvedOut;
+	}
+
+
+	gfx::RGTextureHandle addOverlayPass(gfx::RenderGraph &graph, RenderResources &resources, AppContext &ctx, const SceneRenderParams &params, gfx::RGTextureHandle colourIn, gfx::RGTextureHandle depthIn, gfx::RGTextureHandle ddgiIrradianceHandle, gfx::RGTextureHandle ddgiDepthHandle, gfx::RGBufferHandle ddgiRayBuffer)
+	{
+		const auto& data = graph.addPass<OverlayPassData>("Overlay",
+			[&](gfx::RenderGraphBuilder& b, OverlayPassData& d)
+			{
+				d.colour = b.writeColour(colourIn, gfx::RGLoadOp::Load);
+				d.depth = b.writeDepth(depthIn, gfx::RGLoadOp::Load);
+
+				gfx::DDGIVolume& ddgiVolume = resources.ddgiVolume();
+
+				const bool ddgiActive = ctx.gfx.supportsRayTracing() && gfx::gi::cvarEnabled
+					&& ddgiVolume.irradianceAtlas() && ddgiVolume.depthAtlas()
+					&& ddgiIrradianceHandle.isValid() && ddgiDepthHandle.isValid();
+
+				d.ddgiDebugProbesActive = ddgiActive && gfx::gi::cvarShowProbes && resources.ddgiDebugProbesPipeline();
+				d.ddgiDebugRaysActive = ddgiActive && gfx::gi::cvarDebugShowRays && resources.ddgiDebugRaysPipeline() && ddgiRayBuffer.isValid();
+
+				if (d.ddgiDebugRaysActive)
+				{
+					d.ddgiRayBuffer = b.readBuffer(ddgiRayBuffer);
+					d.ddgiDebugRaysPerProbe = static_cast<u32>( std::max<i32>(1, gfx::gi::cvarRaysPerProbe) );
+
+					const i32 pinnedIndex = gfx::gi::cvarDebugRayProbeIndex;
+					if (pinnedIndex >= 0)
+					{
+						d.ddgiDebugRayProbeIndex = std::min<u32>(static_cast<u32>( pinnedIndex ), ddgiVolume.probeCount() - 1);
+					}
+					else
+					{
+						const math::Vec3f minCorner = ddgiVolume.desc().origin - ddgiVolume.desc().extents;
+						const float spacing = std::max(ddgiVolume.desc().probeSpacing, 0.0001f);
+						const math::Vec3f gridSpace = ( params.camera->position() - minCorner ) / spacing;
+
+						auto clampAxis = [](float v, u32 count) -> u32
+							{
+								return static_cast<u32>(
+									std::clamp<i32>(
+										static_cast<i32>( std::round(v) ),
+										0, static_cast<i32>( count ) - 1) );
+							};
+
+						const u32 px = clampAxis(gridSpace.x, ddgiVolume.probeCountX());
+						const u32 py = clampAxis(gridSpace.y, ddgiVolume.probeCountY());
+						const u32 pz = clampAxis(gridSpace.z, ddgiVolume.probeCountZ());
+
+						d.ddgiDebugRayProbeIndex = px + py * ddgiVolume.probeCountX()
+							+ pz * ddgiVolume.probeCountX() * ddgiVolume.probeCountY();
+					}
+				}
+
+				if (d.ddgiDebugProbesActive || d.ddgiDebugRaysActive)
+					d.ddgiProbeStates = b.readBuffer(b.importBuffer("DDGIProbeStates", ddgiVolume.probeStateBuffer()));
+				if (d.ddgiDebugProbesActive)
+					d.ddgiIrradianceAtlas = b.readTexture(ddgiIrradianceHandle);
+
+				d.viewProj = params.camera->projection(params.aspect) * params.camera->view();
+
+				d.resources = &resources;
+				d.ctx = &ctx;
+				d.params = params;
+			},
+			[](const OverlayPassData& d, gfx::RenderGraphContext& rgCtx)
+			{
 				d.ctx->layers.renderAll(rgCtx.cmd());
 
 				if (d.ddgiDebugProbesActive || d.ddgiDebugRaysActive)
@@ -1005,7 +1148,7 @@ namespace imp::app
 					if (d.ddgiDebugProbesActive)
 					{
 						gfx::DDGIProbeDebugPushConstants probePC{};
-						probePC.viewProj = renderCtx.viewProj;
+						probePC.viewProj = d.viewProj;
 						const math::Vec3f fwd = d.params.camera->forward();
 						probePC.cameraForwardAndRadius = math::Vec4f{ fwd.x, fwd.y, fwd.z,
 							std::max(0.01f, static_cast<float>( gfx::gi::cvarDebugProbeRadius )) };
@@ -1027,8 +1170,8 @@ namespace imp::app
 					if (d.ddgiDebugRaysActive)
 					{
 						gfx::DDGIRayDebugPushConstants rayPC{};
-						rayPC.viewProj = renderCtx.viewProj;
-						rayPC.minCornerAndSpacing = 
+						rayPC.viewProj = d.viewProj;
+						rayPC.minCornerAndSpacing =
 							math::Vec4f{ minCorner.x, minCorner.y, minCorner.z, volume.desc().probeSpacing };
 						rayPC.probeCountX = volume.probeCountX();
 						rayPC.probeCountY = volume.probeCountY();
@@ -1046,8 +1189,9 @@ namespace imp::app
 				}
 			});
 
-		return data.hdrResolve;
+		return data.colour;
 	}
+
 
 	void addTonemapPass(gfx::RenderGraph& graph, RenderResources& resources, gfx::RGTextureHandle hdrResolve, gfx::RGTextureHandle bloomTexture, gfx::IRenderTarget& target, const char* passName)
 	{
@@ -1132,6 +1276,8 @@ namespace imp::app
 
 				gfx::PrevViewProjUBO prevViewProjData{};
 				prevViewProjData.prevViewProj = resources.previousViewProj();
+				prevViewProjData.jitterNdc = math::Vec4f{params.jitterNdc.x, params.jitterNdc.y, 0.f, 0.f};
+				d.prevViewProj = prevViewProjData.prevViewProj;
 				resources.prevViewProjUBO(params.currentFrame).update(&prevViewProjData, sizeof(prevViewProjData), 0);
 				d.prevViewProjBuffer = &resources.prevViewProjUBO(params.currentFrame);
 
@@ -1161,7 +1307,10 @@ namespace imp::app
 				drawModelBatches(prepassCtx, d.scene->extraction());
 			});
 
-		return { data.normalTarget, data.depthTarget, data.albedoRoughnessTarget, data.velocityTarget };
+		PrepassOutputs out{ data.normalTarget, data.depthTarget, data.albedoRoughnessTarget, data.velocityTarget };
+		out.viewProj = data.viewProj;
+		out.prevViewProj = data.prevViewProj;
+		return out;
 	}
 
 	void addGBufferDebugPass(gfx::RenderGraph& graph, RenderResources& resources, AppContext& ctx, const PrepassOutputs& prepass, gfx::IRenderTarget& target)
@@ -1198,7 +1347,7 @@ namespace imp::app
 	gfx::RGTextureHandle addGTAOPass(gfx::RenderGraph& graph, RenderResources& resources, AppContext& ctx, const PrepassOutputs& prepass, const SceneRenderParams& params)
 	{
 		gfx::AOParamsUBO cpuParams{};
-		cpuParams.invProj = math::inverse(params.camera->projection(params.aspect));
+		cpuParams.invProj = math::inverse(gfx::taa::applyJitter(params.camera->projection(params.aspect), params.jitterNdc));
 		cpuParams.invView = math::inverse(params.camera->view());
 		cpuParams.view = params.camera->view();
 		cpuParams.params = { gfx::ao::cvarRadius, gfx::ao::cvarIntensity,

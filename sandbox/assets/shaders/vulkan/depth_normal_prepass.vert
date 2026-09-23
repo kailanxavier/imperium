@@ -26,6 +26,7 @@ layout(push_constant) uniform PushConstants
 layout(binding = 3) uniform PrevViewProjUBO
 {
     mat4 prevViewProj;
+    vec4 jitterNDC;
 } prevFrame;
 
 void main()
@@ -47,8 +48,10 @@ void main()
     outTangentWS = T;
     outTangentSign = inTangent.w;
 
-    outCurrClipPos = pc.viewProj * worldPos;
+    vec4 currClip = pc.viewProj * worldPos;
+    outCurrClipPos = currClip;
     outPrevClipPos = prevFrame.prevViewProj * worldPos;
 
-    gl_Position = outCurrClipPos;
+    gl_Position = currClip;
+    gl_Position.xy += prevFrame.jitterNDC.xy * currClip.w;
 }

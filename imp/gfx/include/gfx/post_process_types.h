@@ -33,4 +33,18 @@ namespace imp::gfx
 	{
 		math::Mat4f invViewProj;
 	};
+
+	struct TaaResolvePushConstants
+	{
+		math::Mat4f currToPrevClip;
+		math::Vec4f resolutionAndInv; // width, height, 1 / width and 1 / height
+		float feedbackMin = 0.88f;
+		float feedbackMax = 0.97f;
+		float varianceGamma = 1.25f;
+		u32 historyValid = 0;
+		float rejectFeedback = 0.2f;
+	};
+
+	static_assert(sizeof(TaaResolvePushConstants) <= 128 &&
+		"TaaResolvePushConstants must stay within the guaranteed 128-byte push constant range");
 }
