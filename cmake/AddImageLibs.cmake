@@ -109,6 +109,11 @@ if (IMP_USE_VENDORED_ZLIB)
     if (NOT TARGET ZLIB::ZLIB)
         add_library(ZLIB::ZLIB ALIAS zlib)
     endif()
+
+    set_target_properties(ZLIB::ZLIB PROPERTIES
+    INTERFACE_LINK_LIBRARIES zlib
+    INTERFACE_INCLUDE_DIRECTORIES
+        "${CMAKE_BINARY_DIR}/_deps/zlib-ng-build")
  
     get_target_property(_imp_zlib_ng_src_dir zlibstatic SOURCE_DIR)
     set(ZLIB_INCLUDE_DIR "${_imp_zlib_ng_src_dir}" CACHE PATH "" FORCE)
