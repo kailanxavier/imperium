@@ -541,7 +541,7 @@ namespace imp::app
 		if (volume.probeCount() == 0 || !volume.heatBuffer())
 			return {};
 
-		const bool useDdgi = ctx.gfx.supportsRayTracing() && gfx::gi::cvarEnabled && ddgiRayBuffer.isValid();
+		const bool useDdgi = ctx.gfx.supportsRayTracing() && gfx::gi::cvarDDGIEnabled && ddgiRayBuffer.isValid();
 		gfx::IPipeline* pipeline = useDdgi ? resources.thermalUpdateDdgiPipeline() : resources.thermalUpdateFallbackPipeline();
 		if (!pipeline)
 			return {};
@@ -802,7 +802,7 @@ namespace imp::app
 					d.ssgiTexture = b.readTexture(ssgiTexture);
 
 				gfx::DDGIVolume& ddgiVolume = resources.ddgiVolume();
-				d.ddgiActive = ctx.gfx.supportsRayTracing() && gfx::gi::cvarEnabled
+				d.ddgiActive = ctx.gfx.supportsRayTracing() && gfx::gi::cvarDDGIEnabled
 					&& ddgiVolume.irradianceAtlas() && ddgiVolume.depthAtlas()
 					&& ddgiIrradianceHandle.isValid() && ddgiDepthHandle.isValid();
 
@@ -940,7 +940,7 @@ namespace imp::app
 				resources.screenParamsUBO(params.currentFrame).update(&screenParams, sizeof(screenParams), 0);
 
 				gfx::DDGIVolume& ddgiVolume = resources.ddgiVolume();
-				d.ddgiActive = ctx.gfx.supportsRayTracing() && gfx::gi::cvarEnabled
+				d.ddgiActive = ctx.gfx.supportsRayTracing() && gfx::gi::cvarDDGIEnabled
 					&& ddgiVolume.irradianceAtlas() && ddgiVolume.depthAtlas()
 					&& ddgiIrradianceHandle.isValid() && ddgiDepthHandle.isValid();
 
@@ -1121,7 +1121,7 @@ namespace imp::app
 
 				gfx::DDGIVolume& ddgiVolume = resources.ddgiVolume();
 
-				const bool ddgiActive = ctx.gfx.supportsRayTracing() && gfx::gi::cvarEnabled
+				const bool ddgiActive = ctx.gfx.supportsRayTracing() && gfx::gi::cvarDDGIEnabled
 					&& ddgiVolume.irradianceAtlas() && ddgiVolume.depthAtlas()
 					&& ddgiIrradianceHandle.isValid() && ddgiDepthHandle.isValid();
 
@@ -1357,7 +1357,9 @@ namespace imp::app
 				d.normalIn = b.readTexture(prepass.normalTarget);
 				d.albedoRoughnessIn = b.readTexture(prepass.albedoRoughnessTarget);
 				d.velocityIn = b.readTexture(prepass.velocityTarget);
-				d.ssgiTexture = b.readTexture(ssgiTexture);
+
+				if (gfx::gi::cvarSSGIEnabled && !gfx::gi::cvarDDGIEnabled)
+					d.ssgiTexture = b.readTexture(ssgiTexture);
 
 				d.output = b.importTexture("GBufferDebugView", &target);
 				d.output = b.writeColour(d.output, gfx::RGLoadOp::DontCare);
@@ -1372,7 +1374,9 @@ namespace imp::app
 				rgCtx.cmd().bindTexture(rgCtx.texture(d.normalIn), d.resources->sampler(), 0);
 				rgCtx.cmd().bindTexture(rgCtx.texture(d.albedoRoughnessIn), d.resources->sampler(), 1);
 				rgCtx.cmd().bindTexture(rgCtx.texture(d.velocityIn), d.resources->sampler(), 2);
-				rgCtx.cmd().bindTexture(rgCtx.texture(d.ssgiTexture), d.resources->sampler(), 3);
+
+				if (gfx::gi::cvarSSGIEnabled && !gfx::gi::cvarDDGIEnabled)
+					rgCtx.cmd().bindTexture(rgCtx.texture(d.ssgiTexture), d.resources->sampler(), 3);
 
 				gfx::GBufferDebugPushConstants pc{};
 				pc.mode = d.mode;
@@ -1465,7 +1469,7 @@ namespace imp::app
 
 	gfx::RGTextureHandle addSSGIPass(gfx::RenderGraph &graph, RenderResources &resources, AppContext &ctx, const PrepassOutputs &prepass, const SceneRenderParams &params)
 	{
-		if (ctx.gfx.supportsRayTracing() || !gfx::gi::cvarEnabled)
+		if (!gfx::gi::cvarSSGIEnabled || gfx::gi::cvarDDGIEnabled)
 			return {};
 
 		if (!resources.taaHistoryValid())

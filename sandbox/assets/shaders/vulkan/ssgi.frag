@@ -109,7 +109,7 @@ void main()
             float horizonAngle = acos(clamp(maxCosHorizon, -1.0, 1.0));
             float nAngle = acos(clamp(n, -1.0, 1.0));
             float visAngle = clamp(horizonAngle - nAngle, 0.0, PI * 0.5);
-            float openness = cos(visAngle) * 0.5 + 0.5;
+            float openness = clamp(sin(visAngle), 0.0, 1.0);
 
             if (foundHorizon)
             {
