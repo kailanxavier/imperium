@@ -68,8 +68,9 @@ if (NOT TARGET libdeflate_static)
 endif()
 
 option(IMP_USE_VENDORED_ZLIB "Vendor zlib-ng via FetchContent instead of using system zlib" ON)
- 
+
 if (IMP_USE_VENDORED_ZLIB)
+
     if (EXISTS "${CMAKE_SOURCE_DIR}/vendor/zlib-ng/CMakeLists.txt")
         set(ZLIB_COMPAT ON CACHE BOOL "" FORCE)
         set(ZLIB_ALIASES ON CACHE BOOL "" FORCE)
@@ -77,6 +78,7 @@ if (IMP_USE_VENDORED_ZLIB)
         set(WITH_GTEST OFF CACHE BOOL "" FORCE)
         set(WITH_GZFILEOP OFF CACHE BOOL "" FORCE)
         set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+
         add_subdirectory(
             "${CMAKE_SOURCE_DIR}/vendor/zlib-ng"
             "${CMAKE_BINARY_DIR}/vendor/zlib-ng"
@@ -84,50 +86,58 @@ if (IMP_USE_VENDORED_ZLIB)
         )
     else()
         message(STATUS "vendor/zlib-ng not found - fetching via FetchContent")
+
         FetchContent_Declare(
             zlib-ng
             GIT_REPOSITORY https://github.com/zlib-ng/zlib-ng.git
             GIT_TAG 2.2.2
         )
+
         set(ZLIB_COMPAT ON CACHE BOOL "" FORCE)
         set(ZLIB_ALIASES ON CACHE BOOL "" FORCE)
         set(ZLIB_ENABLE_TESTS OFF CACHE BOOL "" FORCE)
         set(WITH_GTEST OFF CACHE BOOL "" FORCE)
         set(WITH_GZFILEOP OFF CACHE BOOL "" FORCE)
         set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+
         FetchContent_MakeAvailable(zlib-ng)
     endif()
- 
+
     if (NOT TARGET zlib)
         message(FATAL_ERROR
-            "Expected target 'zlibstatic' not found after fetching zlib-ng. "
-            "Check ${CMAKE_BINARY_DIR}/vendor/zlib-ng for the actual target name, "
-            "or set IMP_USE_VENDORED_ZLIB=OFF to use system zlib instead."
+            "Expected zlib-ng target 'zlib' was not created."
         )
     endif()
- 
+
+    # Provide the standard CMake target expected by consumers such as libspng.
     if (NOT TARGET ZLIB::ZLIB)
         add_library(ZLIB::ZLIB ALIAS zlib)
     endif()
 
-    set_target_properties(ZLIB::ZLIB PROPERTIES
-    INTERFACE_LINK_LIBRARIES zlib
-    INTERFACE_INCLUDE_DIRECTORIES
-        "${CMAKE_BINARY_DIR}/_deps/zlib-ng-build")
- 
+    # Compatibility variables for projects that use the old FindZLIB interface.
     get_target_property(_imp_zlib_ng_src_dir zlibstatic SOURCE_DIR)
-    set(ZLIB_INCLUDE_DIR "${_imp_zlib_ng_src_dir}" CACHE PATH "" FORCE)
-    set(ZLIB_LIBRARY "zlibstatic" CACHE STRING "" FORCE)
-    set(ZLIB_FOUND TRUE CACHE BOOL "" FORCE)
- 
-    message(STATUS
-        "zlib-ng bridged as ZLIB::ZLIB for libspng. If libspng's configure step "
-        "still fails to find ZLIB, this bridge needs adjusting for your CMake "
-        "version. The safe fallback is -DIMP_USE_VENDORED_ZLIB=OFF to use "
-        "system zlib via find_package(ZLIB REQUIRED) instead."
+
+    set(ZLIB_INCLUDE_DIR
+        "${_imp_zlib_ng_src_dir}"
+        CACHE PATH "" FORCE
     )
+
+    set(ZLIB_LIBRARY
+        "zlibstatic"
+        CACHE STRING "" FORCE
+    )
+
+    set(ZLIB_FOUND TRUE CACHE BOOL "" FORCE)
+
+    message(STATUS "Using vendored zlib-ng")
+    message(STATUS "  ZLIB::ZLIB target: $<TARGET_EXISTS:ZLIB::ZLIB>")
+    message(STATUS "  ZLIB_INCLUDE_DIR: ${ZLIB_INCLUDE_DIR}")
+    message(STATUS "  ZLIB_LIBRARY: ${ZLIB_LIBRARY}")
+
 else()
+
     find_package(ZLIB REQUIRED)
+
 endif()
 
 if (EXISTS "${CMAKE_SOURCE_DIR}/vendor/libspng/CMakeLists.txt")
