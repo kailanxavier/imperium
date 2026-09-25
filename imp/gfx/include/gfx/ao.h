@@ -12,6 +12,15 @@ namespace imp::gfx
         math::Vec4f params2;
     };
 
+    struct SSGIParamsUBO
+    {
+        math::Mat4f invProj;
+        math::Mat4f invView;
+        math::Mat4f view;
+        math::Vec4f params;
+        math::Vec4f params2;
+    };
+
     struct ScreenParamsUBO
     {
         math::Vec4f resolutionAndInv;

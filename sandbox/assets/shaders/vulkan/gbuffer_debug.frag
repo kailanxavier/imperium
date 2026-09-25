@@ -6,6 +6,7 @@ layout(location = 0) out vec4 outColour;
 layout(binding = 0) uniform sampler2D normalMetallicTex;
 layout(binding = 1) uniform sampler2D albedoRoughnessTex;
 layout(binding = 2) uniform sampler2D velocityTex;
+layout(binding = 3) uniform sampler2D ssgiTex;
 
 layout(push_constant) uniform PushConstants
 {
@@ -17,6 +18,7 @@ void main()
     vec4 normalMetallic = texture(normalMetallicTex, inUV);
     vec4 albedoRoughness = texture(albedoRoughnessTex, inUV);
     vec2 velocity = texture(velocityTex, inUV).rg;
+    vec4 ssgi = texture(ssgiTex, inUV);
 
     if (pc.mode == 1u)
         outColour = vec4(normalMetallic.xyz * 0.5 + 0.5, 1.0);
@@ -28,6 +30,8 @@ void main()
         outColour = vec4(vec3(normalMetallic.a), 1.0);
     else if (pc.mode == 5u)
         outColour = vec4(velocity * 10.0 + 0.5, 0.0, 1.0);
+    else if (pc.mode == 6u)
+        outColour = vec4(ssgi.rgb, 1.0);
     else
         outColour = vec4(1.0, 0.0, 1.0, 1.0); // we shouldn't get here
 

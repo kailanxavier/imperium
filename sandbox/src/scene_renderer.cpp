@@ -49,6 +49,9 @@ namespace imp::app
 			gfx::RGTextureHandle aoTexture;
 			gfx::RGBufferHandle screenParamsUBO;
 
+			bool ssgiActive = false;
+			gfx::RGTextureHandle ssgiTexture;
+
 			bool ddgiActive = false;
 			gfx::RGTextureHandle ddgiIrradianceAtlas;
 			gfx::RGTextureHandle ddgiDepthAtlas;
@@ -60,6 +63,28 @@ namespace imp::app
 			gfx::RGBufferHandle thermalVolumeUBO;
 
 			math::Mat4f invViewProj;
+			RenderResources* resources = nullptr;
+		};
+
+		struct SSGIPassData
+		{
+			gfx::RGTextureHandle depthIn;
+			gfx::RGTextureHandle normalIn;
+			gfx::RGTextureHandle historyIn;
+			gfx::RGTextureHandle ssgiOut;
+			gfx::RGBufferHandle paramsUBO;
+
+			RenderResources* resources = nullptr;
+		};
+
+		struct SSGIBlurPassData
+		{
+			gfx::RGTextureHandle ssgiIn;
+			gfx::RGTextureHandle depthIn;
+			gfx::RGTextureHandle normalIn;
+			gfx::RGTextureHandle blurredOut;
+			gfx::RGBufferHandle paramsUBO;
+
 			RenderResources* resources = nullptr;
 		};
 
@@ -145,6 +170,7 @@ namespace imp::app
 			gfx::RGTextureHandle albedoRoughnessTarget;
 			gfx::RGTextureHandle velocityTarget;
 			gfx::RGTextureHandle depthTarget;
+			gfx::RGTextureHandle ssgiTexture;
 
 			gfx::IBuffer* instanceBuffer = nullptr;
 			gfx::IBuffer* prevViewProjBuffer = nullptr;
@@ -164,6 +190,7 @@ namespace imp::app
 			gfx::RGTextureHandle albedoRoughnessIn;
 			gfx::RGTextureHandle velocityIn;
 			gfx::RGTextureHandle output;
+			gfx::RGTextureHandle ssgiTexture;
 
 			u32 mode = 0;
 			RenderResources* resources = nullptr;
@@ -741,7 +768,7 @@ namespace imp::app
 		return out;
 	}
 
-	gfx::RGTextureHandle addDeferredLightingPass(gfx::RenderGraph& graph, RenderResources& resources, AppContext& ctx, const SceneRenderParams& params, const PrepassOutputs& prepass, const ShadowCascadePasses& shadowPasses, gfx::RGTextureHandle aoTexture, gfx::RGTextureHandle ddgiIrradianceHandle, gfx::RGTextureHandle ddgiDepthHandle, gfx::RGBufferHandle thermalHeatBufferHandle)
+	gfx::RGTextureHandle addDeferredLightingPass(gfx::RenderGraph& graph, RenderResources& resources, AppContext& ctx, const SceneRenderParams& params, const PrepassOutputs& prepass, const ShadowCascadePasses& shadowPasses, gfx::RGTextureHandle aoTexture, gfx::RGTextureHandle ddgiIrradianceHandle, gfx::RGTextureHandle ddgiDepthHandle, gfx::RGBufferHandle thermalHeatBufferHandle, gfx::RGTextureHandle ssgiTexture)
 	{
 		const auto& data = graph.addPass<DeferredLightingPassData>("DeferredLighting",
 			[&](gfx::RenderGraphBuilder& b, DeferredLightingPassData& d)
@@ -769,6 +796,10 @@ namespace imp::app
 
 				d.aoTexture = b.readTexture(aoTexture);
 				d.screenParamsUBO = b.readBuffer(b.importBuffer("ScreenParamsUBO", &resources.screenParamsUBO(params.currentFrame)));
+
+				d.ssgiActive = ssgiTexture.isValid();
+				if (d.ssgiActive)
+					d.ssgiTexture = b.readTexture(ssgiTexture);
 
 				gfx::DDGIVolume& ddgiVolume = resources.ddgiVolume();
 				d.ddgiActive = ctx.gfx.supportsRayTracing() && gfx::gi::cvarEnabled
@@ -859,6 +890,11 @@ namespace imp::app
 				else
 					rgCtx.cmd().bindStorageBuffer(d.resources->ddgiProbeStateFallbackBuffer(), 15);
 
+				if (d.ssgiActive)
+					rgCtx.cmd().bindTexture(rgCtx.texture(d.ssgiTexture), d.resources->sampler(), 19);
+				else
+					rgCtx.cmd().bindTexture(d.resources->ddgiFallbackTexture(), d.resources->sampler(), 19);
+
 				gfx::DeferredLightingPushConstants pc{};
 				pc.invViewProj = d.invViewProj;
 				rgCtx.cmd().pushConstants(&pc, sizeof(pc), 0);
@@ -869,7 +905,7 @@ namespace imp::app
 			return data.output;
 	}
 
-	gfx::RGTextureHandle addHdrPass(gfx::RenderGraph& graph, RenderResources& resources, SandboxScene& scene, AppContext& ctx, const SceneRenderParams& params, const ShadowCascadePasses& shadowPasses, gfx::RGTextureHandle prepassDepth, gfx::RGTextureHandle hdrColourIn, gfx::RGTextureHandle aoTexture, gfx::RGTextureHandle ddgiIrradianceHandle, gfx::RGTextureHandle ddgiDepthHandle, gfx::RGBufferHandle thermalHeatBufferHandle)
+	gfx::RGTextureHandle addHdrPass(gfx::RenderGraph& graph, RenderResources& resources, SandboxScene& scene, AppContext& ctx, const SceneRenderParams& params, const ShadowCascadePasses& shadowPasses, gfx::RGTextureHandle prepassDepth, gfx::RGTextureHandle hdrColourIn, gfx::RGTextureHandle aoTexture, gfx::RGTextureHandle ddgiIrradianceHandle, gfx::RGTextureHandle ddgiDepthHandle, gfx::RGBufferHandle thermalHeatBufferHandle, gfx::RGTextureHandle ssgiTexture)
 	{
 		const auto& data = graph.addPass<HdrPassData>("HDR",
 			[&](gfx::RenderGraphBuilder& b, HdrPassData& d)
@@ -897,7 +933,7 @@ namespace imp::app
 				screenParams.flags = {
 					gfx::ao::cvarEnabled ? 1.f : 0.f,
 					params.taaEnabled ? static_cast<float>(params.frameCounter % 64) : 0.f,
-					0.f,
+					ssgiTexture.isValid() ? 1.f : 0.f,
 					0.f
 				};
 
@@ -1313,7 +1349,7 @@ namespace imp::app
 		return out;
 	}
 
-	void addGBufferDebugPass(gfx::RenderGraph& graph, RenderResources& resources, AppContext& ctx, const PrepassOutputs& prepass, gfx::IRenderTarget& target)
+	void addGBufferDebugPass(gfx::RenderGraph& graph, RenderResources& resources, AppContext& ctx, const PrepassOutputs& prepass, gfx::IRenderTarget& target, gfx::RGTextureHandle ssgiTexture)
 	{
 		graph.addPass<GBufferDebugPassData>("GBufferDebugView",
 			[&](gfx::RenderGraphBuilder& b, GBufferDebugPassData& d)
@@ -1321,6 +1357,7 @@ namespace imp::app
 				d.normalIn = b.readTexture(prepass.normalTarget);
 				d.albedoRoughnessIn = b.readTexture(prepass.albedoRoughnessTarget);
 				d.velocityIn = b.readTexture(prepass.velocityTarget);
+				d.ssgiTexture = b.readTexture(ssgiTexture);
 
 				d.output = b.importTexture("GBufferDebugView", &target);
 				d.output = b.writeColour(d.output, gfx::RGLoadOp::DontCare);
@@ -1335,6 +1372,7 @@ namespace imp::app
 				rgCtx.cmd().bindTexture(rgCtx.texture(d.normalIn), d.resources->sampler(), 0);
 				rgCtx.cmd().bindTexture(rgCtx.texture(d.albedoRoughnessIn), d.resources->sampler(), 1);
 				rgCtx.cmd().bindTexture(rgCtx.texture(d.velocityIn), d.resources->sampler(), 2);
+				rgCtx.cmd().bindTexture(rgCtx.texture(d.ssgiTexture), d.resources->sampler(), 3);
 
 				gfx::GBufferDebugPushConstants pc{};
 				pc.mode = d.mode;
@@ -1416,6 +1454,110 @@ namespace imp::app
 			{
 				rgCtx.cmd().bindPipeline(d.resources->blurPipeline());
 				rgCtx.cmd().bindTexture(rgCtx.texture(d.aoIn), d.resources->sampler(), 0);
+				rgCtx.cmd().bindTexture(rgCtx.texture(d.depthIn), d.resources->sampler(), 1);
+				rgCtx.cmd().bindTexture(rgCtx.texture(d.normalIn), d.resources->sampler(), 2);
+				rgCtx.cmd().bindUniformBuffer(rgCtx.buffer(d.paramsUBO), 3);
+				rgCtx.cmd().draw(3, 1);
+			});
+
+		return data.blurredOut;
+	}
+
+	gfx::RGTextureHandle addSSGIPass(gfx::RenderGraph &graph, RenderResources &resources, AppContext &ctx, const PrepassOutputs &prepass, const SceneRenderParams &params)
+	{
+		if (ctx.gfx.supportsRayTracing() || !gfx::gi::cvarEnabled)
+			return {};
+
+		if (!resources.taaHistoryValid())
+			return {};
+
+		gfx::IRenderTarget* history = resources.peekTaaHistoryColour();
+		if (!history)
+			return {};
+
+		gfx::SSGIParamsUBO cpuParams{};
+		cpuParams.invProj = math::inverse(gfx::taa::applyJitter(params.camera->projection(params.aspect), params.jitterNdc));
+		cpuParams.invView = math::inverse(params.camera->view());
+		cpuParams.view = params.camera->view();
+		cpuParams.params = {
+			gfx::gi::cvarRadius, gfx::gi::cvarIntensity,
+			static_cast<float>(gfx::gi::cvarSliceCount.ref()), static_cast<float>(gfx::gi::cvarStepCount.ref())
+		};
+
+		cpuParams.params2 = {
+			gfx::gi::cvarThickness, gfx::gi::cvarMaxRadiance,
+			static_cast<float>(ctx.gfx.backBuffer().width()), static_cast<float>(ctx.gfx.backBuffer().height())
+		};
+
+		resources.ssgiParamsUBO(params.currentFrame).update(&cpuParams, sizeof(cpuParams), 0);
+		const auto& data = graph.addPass<SSGIPassData>("SSGI",
+			[&](gfx::RenderGraphBuilder& b, SSGIPassData& d)
+			{
+				d.depthIn = b.readTexture(prepass.depthTarget);
+				d.normalIn = b.readTexture(prepass.normalTarget);
+				d.historyIn = b.readTexture(b.importTexture("SSGIHistoryColour", history));
+				d.paramsUBO = b.readBuffer(b.importBuffer("SSGIParamsUBO", &resources.ssgiParamsUBO(params.currentFrame)));
+
+				gfx::TextureDesc ssgiDesc{};
+				ssgiDesc.width = ctx.gfx.backBuffer().width();
+				ssgiDesc.height = ctx.gfx.backBuffer().height();
+				ssgiDesc.format = gfx::TextureFormat::RGBA16Float;
+				ssgiDesc.usage = gfx::TextureUsage::RenderTarget | gfx::TextureUsage::Sampled;
+				d.ssgiOut = b.createTexture("SSGIRaw", ssgiDesc);
+				d.ssgiOut = b.writeColour(d.ssgiOut, gfx::RGLoadOp::DontCare);
+
+				d.resources = &resources;
+			},
+			[](const SSGIPassData& d, gfx::RenderGraphContext& rgCtx)
+			{
+				rgCtx.cmd().bindPipeline(d.resources->ssgiPipeline());
+				rgCtx.cmd().bindTexture(rgCtx.texture(d.depthIn), d.resources->sampler(), 0);
+				rgCtx.cmd().bindTexture(rgCtx.texture(d.normalIn), d.resources->sampler(), 1);
+				rgCtx.cmd().bindTexture(rgCtx.texture(d.historyIn), d.resources->taaSampler(), 2);
+				rgCtx.cmd().bindUniformBuffer(rgCtx.buffer(d.paramsUBO), 3);
+				rgCtx.cmd().draw(3, 1);
+			});
+
+		return data.ssgiOut;
+	}
+
+	gfx::RGTextureHandle addSSGIBlurPass(gfx::RenderGraph& graph, RenderResources& resources, AppContext& ctx, const PrepassOutputs& prepass, gfx::RGTextureHandle rawSSGI)
+	{
+		if (!rawSSGI.isValid())
+			return {};
+
+		if (!gfx::gi::cvarBlurEnabled)
+			return rawSSGI;
+
+		const auto& data = graph.addPass<SSGIBlurPassData>("SSGIBilateralBlur",
+			[&](gfx::RenderGraphBuilder& b, SSGIBlurPassData& d)
+			{
+				d.ssgiIn = b.readTexture(rawSSGI);
+				d.depthIn = b.readTexture(prepass.depthTarget);
+				d.normalIn = b.readTexture(prepass.normalTarget);
+
+				const u32 w = ctx.gfx.backBuffer().width();
+				const u32 h = ctx.gfx.backBuffer().height();
+
+				gfx::TextureDesc blurDesc{};
+				blurDesc.width = w; blurDesc.height = h;
+				blurDesc.format = gfx::TextureFormat::RGBA16Float;
+				blurDesc.usage = gfx::TextureUsage::RenderTarget | gfx::TextureUsage::Sampled;
+				d.blurredOut = b.createTexture("SSGIBlurred", blurDesc);
+				d.blurredOut = b.writeColour(d.blurredOut, gfx::RGLoadOp::DontCare);
+
+				gfx::BlurParamsUBO cpuParams{};
+				cpuParams.texelSizeAndSigmas = { 1.f / static_cast<float>( w ), 1.f / static_cast<float>( h ),
+					gfx::gi::cvarBlurDepthSigma, gfx::gi::cvarBlurNormalSigma };
+				resources.ssgiBlurParamsUBO(ctx.gfx.currentFrameIndex()).update(&cpuParams, sizeof(cpuParams), 0);
+
+				d.paramsUBO = b.readBuffer(b.importBuffer("SSGIBlurParamsUBO", &resources.ssgiBlurParamsUBO(ctx.gfx.currentFrameIndex())));
+				d.resources = &resources;
+			},
+			[](const SSGIBlurPassData& d, gfx::RenderGraphContext& rgCtx)
+			{
+				rgCtx.cmd().bindPipeline(d.resources->ssgiBlurPipeline());
+				rgCtx.cmd().bindTexture(rgCtx.texture(d.ssgiIn), d.resources->sampler(), 0);
 				rgCtx.cmd().bindTexture(rgCtx.texture(d.depthIn), d.resources->sampler(), 1);
 				rgCtx.cmd().bindTexture(rgCtx.texture(d.normalIn), d.resources->sampler(), 2);
 				rgCtx.cmd().bindUniformBuffer(rgCtx.buffer(d.paramsUBO), 3);

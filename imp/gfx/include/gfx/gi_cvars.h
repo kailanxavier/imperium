@@ -5,6 +5,8 @@ namespace imp::gfx::gi
 {
 	inline CVarBool cvarEnabled{ "gi.enabled", true };
 
+	// DDGI
+	// TODO: Rename the variables to match the SSGI format
 	inline CVarFloat cvarProbeSpacing{ "gi.probe_spacing", 2.f };
 	inline CVarInt cvarRaysPerProbe{ "gi.rays_per_probe", 128 };
 	inline CVarFloat cvarHysteresis{ "gi.hysteresis", 0.97f };
@@ -37,4 +39,16 @@ namespace imp::gfx::gi
 	inline CVarFloat cvarRelocationStep{ "gi.relocation_step", 10.f };
 	inline CVarFloat cvarClassifyBackfaceRatioHigh{ "gi.classify_backface_ratio_high", 0.6f };
 	inline CVarFloat cvarClassifyBackfaceRatioLow{ "gi.classify_backface_ratio_low", 0.4f };
+
+	// SSGI
+	inline CVarFloat cvarRadius{ "gi.ssgi.radius", 1.5f };
+	inline CVarFloat cvarIntensity{ "gi.ssgi.intensity", 1.f };
+	inline CVarInt cvarSliceCount{ "gi.ssgi.slice_count", 2 };
+	inline CVarInt cvarStepCount{ "gi.ssgi.step_count", 6 };
+	inline CVarFloat cvarThickness{ "gi.ssgi.thickness", 0.2f };
+	inline CVarFloat cvarMaxRadiance{ "gi.ssgi.max_radiance", 4.f };
+
+	inline CVarBool cvarBlurEnabled{ "gi.ssgi.blur_enabled", true };
+	inline CVarFloat cvarBlurDepthSigma{ "gi.ssgi.blur_depth_sigma", 1.f };
+	inline CVarFloat cvarBlurNormalSigma{ "gi.ssgi.blur_normal_sigma", 8.f };
 }

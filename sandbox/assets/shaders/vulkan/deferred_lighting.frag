@@ -80,6 +80,8 @@ layout(std430, binding = 15) readonly buffer DDGIProbeStates
     vec4 ddgiProbeStateData[];
 };
 
+layout(binding = 19) uniform sampler2D ssgiTexture;
+
 layout(push_constant) uniform PushConstants
 {
     mat4 invViewProj;
@@ -294,7 +296,9 @@ void main()
     vec3 V = normalize(lightData.cameraPositionWS.xyz - inPositionWS);
     vec3 F0 = mix(vec3(0.04), albedo, metallic);
 
-    vec3 indirectDiffuse = (ddgi.probeCounts.w != 0u) ? sampleDDGIIrradiance(inPositionWS, N) : lightData.ambientColour.rgb;
+    vec3 indirectDiffuse = (ddgi.probeCounts.w != 0u)
+        ? sampleDDGIIrradiance(inPositionWS, N)
+        : lightData.ambientColour.rgb + texture(ssgiTexture, inUV).rgb * screen.flags.z;
 
     vec3 result = indirectDiffuse * albedo * occlusion;
     vec3 sunL = normalize(-lightData.sunDirection);

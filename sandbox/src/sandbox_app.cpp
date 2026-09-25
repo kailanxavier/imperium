@@ -135,9 +135,17 @@ namespace imp::app
 
 		const PrepassOutputs prepass = addDepthNormalPrepass(graph, m_resources, m_scene, ctx, params);
 
+		const gfx::RGTextureHandle rawAO = addGTAOPass(graph, m_resources, ctx, prepass, params);
+		const gfx::RGTextureHandle aoTexture = gfx::ao::cvarBlurEnabled
+			? addBilateralBlurPass(graph, m_resources, ctx, prepass, rawAO)
+			: rawAO;
+
+		const gfx::RGTextureHandle rawSSGI = addSSGIPass(graph, m_resources, ctx, prepass, params);
+		const gfx::RGTextureHandle ssgiTexture = addSSGIBlurPass(graph, m_resources, ctx, prepass, rawSSGI);
+
 		if (gfx::gbufferdebug::cvarMode > 0)
 		{
-			addGBufferDebugPass(graph, m_resources, ctx, prepass, ctx.gfx.backBuffer());
+			addGBufferDebugPass(graph, m_resources, ctx, prepass, ctx.gfx.backBuffer(), ssgiTexture);
 			if (!graph.compile())
 			{
 				LOG_ERROR("Sandbox", "RenderGraph::compile() failed");
@@ -147,12 +155,7 @@ namespace imp::app
 			graph.execute(cmd);
 			return;
 		}
-
-		const gfx::RGTextureHandle rawAO = addGTAOPass(graph, m_resources, ctx, prepass, params);
-		const gfx::RGTextureHandle aoTexture = gfx::ao::cvarBlurEnabled
-			? addBilateralBlurPass(graph, m_resources, ctx, prepass, rawAO)
-			: rawAO;
-
+		
 		const ShadowCascadePasses shadowPasses = addShadowCascadePasses(graph, m_resources, m_scene, params);
 
 		gfx::RGTextureHandle ddgiIrradianceHandle{};
@@ -165,10 +168,10 @@ namespace imp::app
 		gfx::RGBufferHandle thermalBuffer = addThermalUpdatePass(graph, m_resources, m_scene, ctx, params, ddgiRayBuffer);
 
 		const gfx::RGTextureHandle hdrColour = addDeferredLightingPass(graph, m_resources, ctx, params, prepass,
-			shadowPasses, aoTexture, ddgiIrradianceHandle, ddgiDepthHandle, thermalBuffer);
+			shadowPasses, aoTexture, ddgiIrradianceHandle, ddgiDepthHandle, thermalBuffer, ssgiTexture);
 
 		const gfx::RGTextureHandle hdrLit = addHdrPass(graph, m_resources, m_scene, ctx, params, shadowPasses,
-			prepass.depthTarget, hdrColour, aoTexture, ddgiIrradianceHandle, ddgiDepthHandle, thermalBuffer);
+			prepass.depthTarget, hdrColour, aoTexture, ddgiIrradianceHandle, ddgiDepthHandle, thermalBuffer, ssgiTexture);
 
 		const gfx::RGTextureHandle taaResolved = addTaaResolvePass(graph, m_resources, ctx, params, prepass, hdrLit);
 
@@ -187,12 +190,13 @@ namespace imp::app
 			return;
 		}
 
-#ifndef NDEBUG
-		static bool s_dumpedGraphOnce = false;
-		if (!s_dumpedGraphOnce)
+#ifdef NDEBUG
+		static constexpr int s_framesToDump = 3;
+		static int framesDumped = 0;
+		if (framesDumped < s_framesToDump)
 		{
 			LOG_DEBUG("Vulkan", "{}", graph.debugDump());
-			s_dumpedGraphOnce = true;
+			framesDumped++;
 		}
 #endif
 

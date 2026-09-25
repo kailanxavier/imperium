@@ -124,6 +124,22 @@ namespace imp::app
 			return false;
 		}
 
+		gfx::ShaderDesc ssgiFragDesc;
+		ssgiFragDesc.stage = gfx::ShaderStage::Fragment;
+		ssgiFragDesc.path = assets.ssgiFragShader;
+		out.ssgiFragShader = ctx.gfx.createShader(ssgiFragDesc);
+
+		gfx::ShaderDesc ssgiBlurFragDesc;
+		ssgiBlurFragDesc.stage = gfx::ShaderStage::Fragment;
+		ssgiBlurFragDesc.path = assets.ssgiBlurFragShader;
+		out.ssgiBlurFragShader = ctx.gfx.createShader(ssgiBlurFragDesc);
+
+		if (!out.ssgiFragShader || !out.ssgiBlurFragShader)
+		{
+			LOG_ERROR("Sandbox", "Failed to load SSGI shaders.");
+			return false;
+		}
+
 		gfx::ShaderDesc gbufferDebugFragDesc;
 		gbufferDebugFragDesc.stage = gfx::ShaderStage::Fragment;
 		gbufferDebugFragDesc.path = assets.gbufferDebugFragShader;
@@ -342,6 +358,25 @@ namespace imp::app
 			return false;
 		}
 
+		gfx::PipelineDesc ssgiPipelineDesc{};
+		ssgiPipelineDesc.vertexShader = out.fullscreenVertShader.get();
+		ssgiPipelineDesc.fragmentShader = out.ssgiFragShader.get();
+		ssgiPipelineDesc.colourFormat = gfx::TextureFormat::RGBA16Float;
+		ssgiPipelineDesc.depthFormat = gfx::TextureFormat::Unknown;
+		ssgiPipelineDesc.sampleCount = gfx::SampleCount::One;
+		ssgiPipelineDesc.hasInstanceBinding = false;
+		out.ssgiPipeline = ctx.gfx.createPipeline(ssgiPipelineDesc);
+
+		gfx::PipelineDesc ssgiBlurPipelineDesc{ssgiPipelineDesc};
+		ssgiBlurPipelineDesc.fragmentShader = out.ssgiBlurFragShader.get();
+		out.ssgiBlurPipeline = ctx.gfx.createPipeline(ssgiBlurPipelineDesc);
+
+		if (!out.ssgiPipeline || !out.ssgiBlurPipeline)
+		{
+			LOG_ERROR("Sandbox", "Failed to create SSGI pipelines");
+			return false;
+		}
+
 		gfx::PipelineDesc gbufferDebugPipelineDesc{};
 		gbufferDebugPipelineDesc.vertexShader = out.fullscreenVertShader.get();
 		gbufferDebugPipelineDesc.fragmentShader = out.gbufferDebugFragShader.get();
@@ -460,6 +495,8 @@ namespace imp::app
 		m_fullscreenVertShader = std::move(set.fullscreenVertShader);
 		m_gtaoFragShader = std::move(set.gtaoFragShader);
 		m_blurFragShader = std::move(set.blurFragShader);
+		m_ssgiFragShader = std::move(set.ssgiFragShader);
+		m_ssgiBlurFragShader = std::move(set.ssgiBlurFragShader);
 		m_gbufferDebugFragShader = std::move(set.gbufferDebugFragShader);
 		m_deferredLightingFragShader = std::move(set.deferredLightingFragShader);
 		m_taaResolveFragShader = std::move(set.taaResolveFragShader);
@@ -478,6 +515,8 @@ namespace imp::app
 		m_prepassPipeline = std::move(set.prepassPipeline);
 		m_gtaoPipeline = std::move(set.gtaoPipeline);
 		m_blurPipeline = std::move(set.blurPipeline);
+		m_ssgiPipeline = std::move(set.ssgiPipeline);
+		m_ssgiBlurPipeline = std::move(set.ssgiBlurPipeline);
 		m_gbufferDebugPipeline = std::move(set.gbufferDebugPipeline);
 		m_deferredLightingPipeline = std::move(set.deferredLightingPipeline);
 		m_taaResolvePipeline = std::move(set.taaResolvePipeline);
@@ -580,6 +619,22 @@ namespace imp::app
 		m_blurParamsUBOs.resize(gfx::kMaxFramesInFlight);
 		for (auto& buf : m_blurParamsUBOs)
 			buf = ctx.gfx.createBuffer(blurParamsDesc);
+
+		gfx::BufferDesc ssgiParamsDesc{};
+		ssgiParamsDesc.size = sizeof(gfx::SSGIParamsUBO);
+		ssgiParamsDesc.usage = gfx::BufferUsage::Uniform;
+		ssgiParamsDesc.memoryAccess = gfx::MemoryAccess::HostVisible;
+		m_ssgiParamsUBOs.resize(gfx::kMaxFramesInFlight);
+		for (auto& buf : m_ssgiParamsUBOs)
+			buf = ctx.gfx.createBuffer(ssgiParamsDesc);
+
+		gfx::BufferDesc ssgiBlurParamsDesc{};
+		ssgiBlurParamsDesc.size = sizeof(gfx::BlurParamsUBO);
+		ssgiBlurParamsDesc.usage = gfx::BufferUsage::Uniform;
+		ssgiBlurParamsDesc.memoryAccess = gfx::MemoryAccess::HostVisible;
+		m_ssgiBlurParamsUBOs.resize(gfx::kMaxFramesInFlight);
+		for (auto& buf : m_ssgiBlurParamsUBOs)
+			buf = ctx.gfx.createBuffer(ssgiBlurParamsDesc);
 
 		gfx::BufferDesc prevViewProjDesc{};
 		prevViewProjDesc.size = sizeof(gfx::PrevViewProjUBO);
@@ -785,6 +840,8 @@ namespace imp::app
 		m_prepassPipeline.reset();
 		m_gtaoPipeline.reset();
 		m_blurPipeline.reset();
+		m_ssgiPipeline.reset();
+		m_ssgiBlurPipeline.reset();
 		m_gbufferDebugPipeline.reset();
 		m_deferredLightingPipeline.reset();
 		m_prepassVertShader.reset();
@@ -792,6 +849,8 @@ namespace imp::app
 		m_fullscreenVertShader.reset();
 		m_gtaoFragShader.reset();
 		m_blurFragShader.reset();
+		m_ssgiFragShader.reset();
+		m_ssgiBlurFragShader.reset();
 		m_gbufferDebugFragShader.reset();
 		m_deferredLightingFragShader.reset();
 		m_taaResolvePipeline.reset();
@@ -829,6 +888,8 @@ namespace imp::app
 		for (auto& buf : m_screenParamsUBOs) buf.reset();
 		for (auto& buf : m_prevViewProjUBOs) buf.reset();
 		for (auto& buf : m_blurParamsUBOs) buf.reset();
+		for (auto& buf : m_ssgiParamsUBOs) buf.reset();
+		for (auto& buf : m_ssgiBlurParamsUBOs) buf.reset();
 		for (auto& buf : m_thermalVolumeUBOs) buf.reset();
 
 		m_graphPool.reset();
