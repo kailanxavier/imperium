@@ -31,8 +31,7 @@ void main()
     else if (pc.mode == 5u)
         outColour = vec4(velocity * 10.0 + 0.5, 0.0, 1.0);
     else if (pc.mode == 6u)
-        outColour = vec4(ssgi.rgb, 1.0);
+        outColour = ssgi;
     else
         outColour = vec4(1.0, 0.0, 1.0, 1.0); // we shouldn't get here
-
 }

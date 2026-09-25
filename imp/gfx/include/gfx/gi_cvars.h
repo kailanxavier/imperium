@@ -40,7 +40,7 @@ namespace imp::gfx::gi
 	inline CVarFloat cvarClassifyBackfaceRatioLow{ "gi.ddgi.classify_backface_ratio_low", 0.4f };
 
 	// SSGI
-	inline CVarBool cvarSSGIEnabled{ "gi.ssgi.enabled", true };
+	inline CVarBool cvarSSGIEnabled{ "gi.ssgi.enabled", false };
 	inline CVarFloat cvarRadius{ "gi.ssgi.radius", 1.5f };
 	inline CVarFloat cvarIntensity{ "gi.ssgi.intensity", 1.f };
 	inline CVarInt cvarSliceCount{ "gi.ssgi.slice_count", 2 };

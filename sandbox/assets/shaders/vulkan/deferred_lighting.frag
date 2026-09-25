@@ -362,14 +362,13 @@ void main()
 
     if (thermalVolume.probeCounts.w != 0u)
     {
-        float heat = sampleThermalHeat(inPositionWS);
         float blurRadius = thermalVolume.minCornerAndSpacing.w * 2.0;
 
+        float heat = sampleThermalHeat(inPositionWS);
         heat += sampleThermalHeat(inPositionWS + vec3(blurRadius, 0.0, 0.0));
         heat += sampleThermalHeat(inPositionWS - vec3(blurRadius, 0.0, 0.0));
         heat += sampleThermalHeat(inPositionWS + vec3(0.0, blurRadius, 0.0));
         heat += sampleThermalHeat(inPositionWS - vec3(0.0, blurRadius, 0.0));
-
         heat /= 5.0; // close enough, welcome back terry davis
 
         float ignition = thermalVolume.glowParams.y;
@@ -383,5 +382,6 @@ void main()
         }
     }
 
+    //outColour = vec4(texture(ssgiTexture, inUV).rgb * 5.0, 1.0); return;
     outColour = vec4(result, 1.0);
 }

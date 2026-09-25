@@ -190,7 +190,7 @@ namespace imp::app
 			return;
 		}
 
-#ifdef NDEBUG
+#ifndef NDEBUG
 		static constexpr int s_framesToDump = 3;
 		static int framesDumped = 0;
 		if (framesDumped < s_framesToDump)
