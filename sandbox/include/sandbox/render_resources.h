@@ -65,10 +65,14 @@ namespace imp::app
 		gfx::IPipeline& gbufferDebugPipeline() { return *m_gbufferDebugPipeline; }
 		gfx::IPipeline& deferredLightingPipeline() { return *m_deferredLightingPipeline; }
 		gfx::IPipeline& taaResolvePipeline() { return *m_taaResolvePipeline; }
+		gfx::IPipeline& ssgiPipeline() { return *m_ssgiPipeline; }
+		gfx::IPipeline& ssgiBlurPipeline() { return *m_ssgiBlurPipeline; }
 
 		[[nodiscard]] gfx::IBuffer& aoParamsUBO(u32 frame) const { return *m_aoParamsUBOs[frame]; }
 		[[nodiscard]] gfx::IBuffer& screenParamsUBO(u32 frame) const { return *m_screenParamsUBOs[frame]; }
 		[[nodiscard]] gfx::IBuffer& blurParamsUBO(u32 frame) const { return *m_blurParamsUBOs[frame]; }
+		[[nodiscard]] gfx::IBuffer& ssgiParamsUBO(u32 frame) const { return *m_ssgiParamsUBOs[frame]; }
+		[[nodiscard]] gfx::IBuffer& ssgiBlurParamsUBO(u32 frame) const { return *m_ssgiBlurParamsUBOs[frame]; }
 		[[nodiscard]] gfx::IBuffer& prevViewProjUBO(u32 frame) const { return *m_prevViewProjUBOs[frame]; }
 		[[nodiscard]] const math::Mat4f& previousViewProj() const { return m_previousViewProj; }
 		void setPreviousViewProj(const math::Mat4f& viewProj) { m_previousViewProj = viewProj; }
@@ -85,6 +89,9 @@ namespace imp::app
 		};
 
 		bool acquireTaaHistory(AppContext& ctx, u32 width, u32 height, u32 frameCounter, TaaHistoryTargets& out);
+
+		[[nodiscard]] gfx::IRenderTarget* peekTaaHistoryColour() const { return m_taaHistory[m_taaReadIndex].get(); }
+		[[nodiscard]] bool taaHistoryValid() const { return m_taaHasHistory; }
 
 		[[nodiscard]] gfx::DDGIVolume& ddgiVolume() { return m_ddgiVolume; }
 		[[nodiscard]] gfx::IPipeline* ddgiProbeUpdatePipeline() const { return m_ddgiProbeUpdatePipeline.get(); }
@@ -119,6 +126,8 @@ namespace imp::app
 			std::unique_ptr<gfx::IShader> fullscreenVertShader;
 			std::unique_ptr<gfx::IShader> gtaoFragShader;
 			std::unique_ptr<gfx::IShader> blurFragShader;
+			std::unique_ptr<gfx::IShader> ssgiFragShader;
+			std::unique_ptr<gfx::IShader> ssgiBlurFragShader;
 			std::unique_ptr<gfx::IShader> gbufferDebugFragShader;
 			std::unique_ptr<gfx::IShader> deferredLightingFragShader;
 			std::unique_ptr<gfx::IShader> taaResolveFragShader;
@@ -135,6 +144,8 @@ namespace imp::app
 			std::unique_ptr<gfx::IPipeline> prepassPipeline;
 			std::unique_ptr<gfx::IPipeline> gtaoPipeline;
 			std::unique_ptr<gfx::IPipeline> blurPipeline;
+			std::unique_ptr<gfx::IPipeline> ssgiPipeline;
+			std::unique_ptr<gfx::IPipeline> ssgiBlurPipeline;
 			std::unique_ptr<gfx::IPipeline> gbufferDebugPipeline;
 			std::unique_ptr<gfx::IPipeline> deferredLightingPipeline;
 			std::unique_ptr<gfx::IPipeline> taaResolvePipeline;
@@ -155,6 +166,8 @@ namespace imp::app
 		std::unique_ptr<gfx::IShader> m_fullscreenVertShader;
 		std::unique_ptr<gfx::IShader> m_gtaoFragShader;
 		std::unique_ptr<gfx::IShader> m_blurFragShader;
+		std::unique_ptr<gfx::IShader> m_ssgiFragShader;
+		std::unique_ptr<gfx::IShader> m_ssgiBlurFragShader;
 		std::unique_ptr<gfx::IShader> m_gbufferDebugFragShader;
 		std::unique_ptr<gfx::IShader> m_deferredLightingFragShader;
 		std::unique_ptr<gfx::IShader> m_taaResolveFragShader;
@@ -167,6 +180,8 @@ namespace imp::app
 		std::unique_ptr<gfx::IPipeline> m_prepassPipeline;
 		std::unique_ptr<gfx::IPipeline> m_gtaoPipeline;
 		std::unique_ptr<gfx::IPipeline> m_blurPipeline;
+		std::unique_ptr<gfx::IPipeline> m_ssgiPipeline;
+		std::unique_ptr<gfx::IPipeline> m_ssgiBlurPipeline;
 		std::unique_ptr<gfx::IPipeline> m_gbufferDebugPipeline;
 		std::unique_ptr<gfx::IPipeline> m_deferredLightingPipeline;
 		std::unique_ptr<gfx::IPipeline> m_taaResolvePipeline;
@@ -185,6 +200,8 @@ namespace imp::app
 		std::vector<std::unique_ptr<gfx::IBuffer>> m_aoParamsUBOs;
 		std::vector<std::unique_ptr<gfx::IBuffer>> m_screenParamsUBOs;
 		std::vector<std::unique_ptr<gfx::IBuffer>> m_blurParamsUBOs;
+		std::vector<std::unique_ptr<gfx::IBuffer>> m_ssgiParamsUBOs;
+		std::vector<std::unique_ptr<gfx::IBuffer>> m_ssgiBlurParamsUBOs;
 		std::vector<std::unique_ptr<gfx::IBuffer>> m_prevViewProjUBOs;
 		math::Mat4f m_previousViewProj;
 		u32 m_instanceCapacity = 16;

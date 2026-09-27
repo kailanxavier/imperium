@@ -50,7 +50,7 @@ namespace imp::app
 		SandboxScene& scene, AppContext& ctx, const SceneRenderParams& params);
 
 	void addGBufferDebugPass(gfx::RenderGraph& graph, RenderResources& resources,
-		AppContext& ctx, const PrepassOutputs& prepass, gfx::IRenderTarget& target);
+		AppContext& ctx, const PrepassOutputs& prepass, gfx::IRenderTarget& target, gfx::RGTextureHandle ssgiTexture);
 
 	gfx::RGTextureHandle addGTAOPass(gfx::RenderGraph& graph, RenderResources& resources,
 		AppContext& ctx, const PrepassOutputs& prepass, const SceneRenderParams& params);
@@ -58,16 +58,22 @@ namespace imp::app
 	gfx::RGTextureHandle addBilateralBlurPass(gfx::RenderGraph& graph, RenderResources& resources,
 		AppContext& ctx, const PrepassOutputs& prepass, gfx::RGTextureHandle rawAO);
 
+	gfx::RGTextureHandle addSSGIPass(gfx::RenderGraph& graph, RenderResources& resources,
+		AppContext& ctx, const PrepassOutputs& prepass, const SceneRenderParams& params);
+
+	gfx::RGTextureHandle addSSGIBlurPass(gfx::RenderGraph& graph, RenderResources& resources,
+		AppContext& ctx, const PrepassOutputs& prepass, gfx::RGTextureHandle rawSSGI);
+
 	gfx::RGTextureHandle addDeferredLightingPass(gfx::RenderGraph& graph, RenderResources& resources, AppContext& ctx,
 		const SceneRenderParams& params, const PrepassOutputs& prepass, const ShadowCascadePasses& shadowPasses,
 		gfx::RGTextureHandle aoTexture, gfx::RGTextureHandle ddgiIrradianceHandle, gfx::RGTextureHandle ddgiDepthHandle,
-		gfx::RGBufferHandle thermalHeatBufferHandle);
+		gfx::RGBufferHandle thermalHeatBufferHandle, gfx::RGTextureHandle ssgiTexture);
 
 	gfx::RGTextureHandle addHdrPass(gfx::RenderGraph& graph, RenderResources& resources, SandboxScene& scene, AppContext& ctx, 
 		const SceneRenderParams& params, const ShadowCascadePasses& shadowPasses, gfx::RGTextureHandle prepassDepth, 
 		gfx::RGTextureHandle hdrColourIn, gfx::RGTextureHandle aoTexture,
 		gfx::RGTextureHandle ddgiIrradianceHandle, gfx::RGTextureHandle ddgiDepthHandle, 
-		gfx::RGBufferHandle thermalHeatBufferHandle);
+		gfx::RGBufferHandle thermalHeatBufferHandle, gfx::RGTextureHandle ssgiTexture);
 
 	gfx::RGTextureHandle addTaaResolvePass(gfx::RenderGraph& graph, RenderResources& resources, AppContext& ctx,
 		const SceneRenderParams& params, const PrepassOutputs& prepass, gfx::RGTextureHandle hdrColour);

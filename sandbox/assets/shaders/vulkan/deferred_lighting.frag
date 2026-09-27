@@ -80,6 +80,8 @@ layout(std430, binding = 15) readonly buffer DDGIProbeStates
     vec4 ddgiProbeStateData[];
 };
 
+layout(binding = 19) uniform sampler2D ssgiTexture;
+
 layout(push_constant) uniform PushConstants
 {
     mat4 invViewProj;
@@ -294,7 +296,9 @@ void main()
     vec3 V = normalize(lightData.cameraPositionWS.xyz - inPositionWS);
     vec3 F0 = mix(vec3(0.04), albedo, metallic);
 
-    vec3 indirectDiffuse = (ddgi.probeCounts.w != 0u) ? sampleDDGIIrradiance(inPositionWS, N) : lightData.ambientColour.rgb;
+    vec3 indirectDiffuse = (ddgi.probeCounts.w != 0u)
+        ? sampleDDGIIrradiance(inPositionWS, N)
+        : lightData.ambientColour.rgb + texture(ssgiTexture, inUV).rgb * screen.flags.z;
 
     vec3 result = indirectDiffuse * albedo * occlusion;
     vec3 sunL = normalize(-lightData.sunDirection);
@@ -358,14 +362,13 @@ void main()
 
     if (thermalVolume.probeCounts.w != 0u)
     {
-        float heat = sampleThermalHeat(inPositionWS);
         float blurRadius = thermalVolume.minCornerAndSpacing.w * 2.0;
 
+        float heat = sampleThermalHeat(inPositionWS);
         heat += sampleThermalHeat(inPositionWS + vec3(blurRadius, 0.0, 0.0));
         heat += sampleThermalHeat(inPositionWS - vec3(blurRadius, 0.0, 0.0));
         heat += sampleThermalHeat(inPositionWS + vec3(0.0, blurRadius, 0.0));
         heat += sampleThermalHeat(inPositionWS - vec3(0.0, blurRadius, 0.0));
-
         heat /= 5.0; // close enough, welcome back terry davis
 
         float ignition = thermalVolume.glowParams.y;
@@ -379,5 +382,6 @@ void main()
         }
     }
 
+    //outColour = vec4(texture(ssgiTexture, inUV).rgb * 5.0, 1.0); return;
     outColour = vec4(result, 1.0);
 }
