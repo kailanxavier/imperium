@@ -1,8 +1,8 @@
 add_executable(render_smoke_test
         src/main.cpp
-        ${CMAKE_SOURCE_DIR}/sandbox/src/render_resources.cpp
+        #${CMAKE_SOURCE_DIR}/sandbox/src/render_resources.cpp
         ${CMAKE_SOURCE_DIR}/sandbox/src/sandbox_scene.cpp
-        ${CMAKE_SOURCE_DIR}/sandbox/src/scene_renderer.cpp
+        #${CMAKE_SOURCE_DIR}/sandbox/src/scene_renderer.cpp
         ${CMAKE_SOURCE_DIR}/sandbox/src/sandbox_app.cpp
 )
 
@@ -16,18 +16,18 @@ target_link_libraries(render_smoke_test PUBLIC imp_app PRIVATE imp_script imp_fw
 
 imp_set_runtime_dir(render_smoke_test tests/render_smoke_test)
 
-IMP_COMPILE_SHADERS(
-        render_smoke_test
-        "${IMP_OUTPUT_DIR}/bin/tests/render_smoke_test/assets/shaders"
-        ${CMAKE_SOURCE_DIR}/sandbox/assets/shaders/vulkan/mesh.frag
-        ${CMAKE_SOURCE_DIR}/sandbox/assets/shaders/vulkan/mesh.vert
-        ${CMAKE_SOURCE_DIR}/sandbox/assets/shaders/vulkan/tonemap.vert
-        ${CMAKE_SOURCE_DIR}/sandbox/assets/shaders/vulkan/tonemap.frag
-        ${CMAKE_SOURCE_DIR}/sandbox/assets/shaders/vulkan/shadow.vert
-        ${CMAKE_SOURCE_DIR}/sandbox/assets/shaders/vulkan/shadow.frag
-        ${CMAKE_SOURCE_DIR}/sandbox/assets/shaders/vulkan/sky.vert
-        ${CMAKE_SOURCE_DIR}/sandbox/assets/shaders/vulkan/sky.frag
-)
+#IMP_COMPILE_SHADERS(
+#        render_smoke_test
+#        "${IMP_OUTPUT_DIR}/bin/tests/render_smoke_test/assets/shaders"
+#        ${CMAKE_SOURCE_DIR}/sandbox/assets/shaders/vulkan/mesh.frag
+#        ${CMAKE_SOURCE_DIR}/sandbox/assets/shaders/vulkan/mesh.vert
+#        ${CMAKE_SOURCE_DIR}/sandbox/assets/shaders/vulkan/tonemap.vert
+#        ${CMAKE_SOURCE_DIR}/sandbox/assets/shaders/vulkan/tonemap.frag
+#        ${CMAKE_SOURCE_DIR}/sandbox/assets/shaders/vulkan/shadow.vert
+#        ${CMAKE_SOURCE_DIR}/sandbox/assets/shaders/vulkan/shadow.frag
+#        ${CMAKE_SOURCE_DIR}/sandbox/assets/shaders/vulkan/sky.vert
+#        ${CMAKE_SOURCE_DIR}/sandbox/assets/shaders/vulkan/sky.frag
+#)
 
 file(COPY ${CMAKE_SOURCE_DIR}/sandbox/assets/models DESTINATION ${IMP_OUTPUT_DIR}/bin/tests/render_smoke_test/assets)
 file(COPY ${CMAKE_SOURCE_DIR}/tests/render/reference DESTINATION ${IMP_OUTPUT_DIR}/bin/tests/render_smoke_test)

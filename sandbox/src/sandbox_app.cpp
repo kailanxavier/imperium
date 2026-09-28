@@ -1,5 +1,5 @@
 #include <sandbox/sandbox_app.h>
-#include <sandbox/scene_renderer.h>
+#include <engine/scene_renderer.h>
 #include <gfx/render_graph.h>
 #include <core/log/log.h>
 
@@ -17,6 +17,8 @@
 
 #include <algorithm>
 
+using namespace imp::engine;
+
 namespace imp::app
 {
 	bool SandboxApp::onInit(AppContext& ctx)
@@ -24,7 +26,7 @@ namespace imp::app
 		m_camera.setPosition({ 0.f, 1.f, 0.f });
 		m_camera.setYawPitch(math::toRadians(90.f), 0.f);
 
-		if (!m_resources.init(ctx, m_assets, m_scene.cascadeConfig()))
+		if (!m_resources.init(ctx, m_rendererManifest, m_scene.cascadeConfig()))
 			return false;
 
 		if (!m_scene.init(ctx, m_assets))
@@ -53,7 +55,7 @@ namespace imp::app
 			return;
 
 		if (m_shaderWatcher->poll())
-			m_resources.reloadShaders(ctx, m_assets);
+			m_resources.reloadShaders(ctx, m_rendererManifest);
 	}
 
 	void SandboxApp::pollScriptHotReload(AppContext &ctx)

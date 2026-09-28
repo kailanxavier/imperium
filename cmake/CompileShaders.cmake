@@ -9,14 +9,16 @@ endif()
 function(imp_compile_shaders TARGET OUTPUT_DIR)
 	set(spirv_files "")
 
+	set(shader_build_dir "${CMAKE_CURRENT_BINARY_DIR}/shaders")
+
 	foreach(shader_source ${ARGN})
 		get_filename_component(shader_name ${shader_source} NAME)
-		set(spirv_output "${OUTPUT_DIR}/${shader_name}.spv")
+		set(spirv_output "${shader_build_dir}/${shader_name}.spv")
 
 		if (GLSLC_EXECUTABLE)
 			add_custom_command(
 				OUTPUT ${spirv_output}
-				COMMAND ${CMAKE_COMMAND} -E make_directory ${OUTPUT_DIR}
+				COMMAND ${CMAKE_COMMAND} -E make_directory ${shader_build_dir}
 				COMMAND ${GLSLC_EXECUTABLE} ${shader_source} -o ${spirv_output}
 				DEPENDS ${shader_source}
 				COMMENT "Compiling shader ${shader_name}"
@@ -25,7 +27,7 @@ function(imp_compile_shaders TARGET OUTPUT_DIR)
 		else()
 			add_custom_command(
 				OUTPUT ${spirv_output}
-				COMMAND ${CMAKE_COMMAND} -E make_directory ${OUTPUT_DIR}
+				COMMAND ${CMAKE_COMMAND} -E make_directory ${shader_build_dir}
 				COMMAND ${GLSLANG_VALIDATOR_EXECUTABLE} -V ${shader_source} -o ${spirv_output}
 				DEPENDS ${shader_source}
 				COMMENT "Compiling shader ${shader_name} (glslangValidator)"
@@ -39,4 +41,15 @@ function(imp_compile_shaders TARGET OUTPUT_DIR)
 	set(shader_target "${TARGET}_shaders")
 	add_custom_target(${shader_target} DEPENDS ${spirv_files})
 	add_dependencies(${TARGET} ${shader_target})
+
+	add_custom_command(
+		TARGET ${TARGET}
+		POST_BUILD
+
+		COMMAND ${CMAKE_COMMAND} -E make_directory
+			"${OUTPUT_DIR}"
+		COMMAND ${CMAKE_COMMAND} -E copy_if_different
+			${spirv_files}
+			"${OUTPUT_DIR}"
+	)
 endfunction()

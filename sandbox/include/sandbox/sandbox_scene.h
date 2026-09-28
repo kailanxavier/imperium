@@ -6,13 +6,14 @@
 #include <gfx/model_registry.h>
 #include <gfx/render_extraction.h>
 #include <gfx/cascade_shadow.h>
+#include <engine/render_scene.h>
 #include <array>
 #include <vector>
 #include <gfx/texture_cache.h>
 
 namespace imp::app
 {
-	class SandboxScene
+	class SandboxScene final : public engine::IRenderScene
 	{
 	public:
 		SandboxScene();
@@ -25,22 +26,22 @@ namespace imp::app
 		ecs::EntityId spawnInstance(AppContext& ctx, const ecs::Transform& t, const gfx::ModelHandle& model);
 
 		u32 instanceCount() const { return static_cast<u32>( m_extraction.instanceData.size() ); }
-		const gfx::RenderExtraction& extraction() const { return m_extraction; }
 
-		gfx::ModelRegistry& modelRegistry() { return m_modelRegistry; }
+		const gfx::RenderExtraction& extraction() const override { return m_extraction; }
+		const std::array<gfx::CascadeData, gfx::kCascadeCount>& cascades() const override { return m_cascades; }
+		const gfx::CascadeConfig& cascadeConfig() const override { return m_cascadeConfig; }
+		const gfx::ITlas* staticTlas() const override { return m_staticTlas.get(); }
+		gfx::IBuffer* ddgiInstanceMaterials() const override { return m_ddgiInstanceMaterials.get(); }
 
-		const gfx::ITlas* staticTlas() const { return m_staticTlas.get(); }
-		gfx::IBuffer* ddgiInstanceMaterials() const { return m_ddgiInstanceMaterials.get(); }
+		gfx::ModelRegistry& modelRegistry() override { return m_modelRegistry; }
 
-		const std::array<gfx::CascadeData, gfx::kCascadeCount>& cascades() const { return m_cascades; }
 		void recomputeCascades(const fwk::Camera& camera, float aspect);
 
 		math::Vec3f& sunDirection() { return m_sunDirection; }
-		const math::Vec3f& sunDirection() const { return m_sunDirection; }
+		const math::Vec3f& sunDirection() const override { return m_sunDirection; }
 		const math::Mat4f& sunViewProj() const { return m_sunViewProj; }
 
 		gfx::CascadeConfig& cascadeConfig() { return m_cascadeConfig; }
-		const gfx::CascadeConfig& cascadeConfig() const { return m_cascadeConfig; }
 
 		ecs::Transform& pointLightTransform() { return m_localLightTransform; }
 		const ecs::Transform& pointLightTransform() const { return m_localLightTransform; }

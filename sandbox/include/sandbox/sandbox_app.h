@@ -3,7 +3,7 @@
 #include <app/iapp.h>
 #include <camera/camera.h>
 #include <sandbox/asset_manifest.h>
-#include <sandbox/render_resources.h>
+#include <engine/render_resources.h>
 #include <sandbox/sandbox_scene.h>
 #include <script/system.h>
 #include <script/file_watcher.h>
@@ -41,14 +41,15 @@ namespace imp::app
 		gfx::ModelRegistry& modelRegistry() { return m_scene.modelRegistry(); }
 		gfx::TextureFormat hdrColourFormat() const { return m_resources.hdrColourFormat(); }
 		gfx::TextureFormat hdrDepthFormat() const { return m_resources.hdrDepthFormat(); }
-		gfx::SampleCount sampleCount() const { return RenderResources::kMsaaSampleCount; }
+		gfx::SampleCount sampleCount() const { return engine::RenderResources::kMsaaSampleCount; }
 
 		void setReadbackTarget(gfx::IRenderTarget* target) { m_readbackTarget = target; }
 
 	private:
 		fwk::Camera m_camera;
 		AssetManifest m_assets;
-		RenderResources m_resources;
+		engine::RendererManifest m_rendererManifest;
+		engine::RenderResources m_resources;
 		SandboxScene m_scene;
 		bool m_enableFrustumCulling = true;
 

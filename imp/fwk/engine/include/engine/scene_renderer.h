@@ -6,14 +6,14 @@
 #include <gfx/render_graph.h>
 #include <array>
 
-#include "imgui.h"
 #include "render_resources.h"
-#include "sandbox_scene.h"
+#include "render_scene.h"
 
-namespace imp::app
+namespace imp::engine
 {
+	using imp::app::AppContext;
+
 	class RenderResources;
-	class SandboxScene;
 
 	struct SceneRenderParams
 	{
@@ -33,7 +33,7 @@ namespace imp::app
 	};
 
 	ShadowCascadePasses addShadowCascadePasses(gfx::RenderGraph& graph, RenderResources& resources,
-		SandboxScene& scene, const SceneRenderParams& params);
+		IRenderScene& scene, const SceneRenderParams& params);
 
 	struct PrepassOutputs
 	{
@@ -47,7 +47,7 @@ namespace imp::app
 	};
 
 	PrepassOutputs addDepthNormalPrepass(gfx::RenderGraph& graph, RenderResources& resources,
-		SandboxScene& scene, AppContext& ctx, const SceneRenderParams& params);
+		IRenderScene& scene, AppContext& ctx, const SceneRenderParams& params);
 
 	void addGBufferDebugPass(gfx::RenderGraph& graph, RenderResources& resources,
 		AppContext& ctx, const PrepassOutputs& prepass, gfx::IRenderTarget& target, gfx::RGTextureHandle ssgiTexture);
@@ -69,7 +69,7 @@ namespace imp::app
 		gfx::RGTextureHandle aoTexture, gfx::RGTextureHandle ddgiIrradianceHandle, gfx::RGTextureHandle ddgiDepthHandle,
 		gfx::RGBufferHandle thermalHeatBufferHandle, gfx::RGTextureHandle ssgiTexture);
 
-	gfx::RGTextureHandle addHdrPass(gfx::RenderGraph& graph, RenderResources& resources, SandboxScene& scene, AppContext& ctx, 
+	gfx::RGTextureHandle addHdrPass(gfx::RenderGraph& graph, RenderResources& resources, IRenderScene& scene, AppContext& ctx, 
 		const SceneRenderParams& params, const ShadowCascadePasses& shadowPasses, gfx::RGTextureHandle prepassDepth, 
 		gfx::RGTextureHandle hdrColourIn, gfx::RGTextureHandle aoTexture,
 		gfx::RGTextureHandle ddgiIrradianceHandle, gfx::RGTextureHandle ddgiDepthHandle, 
@@ -87,16 +87,16 @@ namespace imp::app
 		const char* passName);
 
 	gfx::RGBufferHandle addThermalUpdatePass(gfx::RenderGraph& graph, RenderResources& resources,
-		SandboxScene& scene, AppContext& ctx, const SceneRenderParams& params, gfx::RGBufferHandle ddgiRayBuffer);
+		IRenderScene& scene, AppContext& ctx, const SceneRenderParams& params, gfx::RGBufferHandle ddgiRayBuffer);
 
 	gfx::RGTextureHandle addBloomPasses(gfx::RenderGraph& graph, RenderResources& resources,
 		AppContext& ctx, gfx::RGTextureHandle hdrResolve);
 
-	gfx::RGBufferHandle addDDGIRayTracePass(gfx::RenderGraph& graph, RenderResources& resources, SandboxScene& scene, AppContext& ctx, const SceneRenderParams& params);
+	gfx::RGBufferHandle addDDGIRayTracePass(gfx::RenderGraph& graph, RenderResources& resources, IRenderScene& scene, AppContext& ctx, const SceneRenderParams& params);
 
-	void addDDGIClassifyPass(gfx::RenderGraph& graph, RenderResources& resources, SandboxScene& scene,
+	void addDDGIClassifyPass(gfx::RenderGraph& graph, RenderResources& resources, IRenderScene& scene,
 		AppContext& ctx, const SceneRenderParams& params, gfx::RGBufferHandle rayBuffer);
 
-	void addDDGIProbeUpdatePass(gfx::RenderGraph& graph, RenderResources& resources, SandboxScene& scene, AppContext& ctx, const SceneRenderParams& params,
+	void addDDGIProbeUpdatePass(gfx::RenderGraph& graph, RenderResources& resources, IRenderScene& scene, AppContext& ctx, const SceneRenderParams& params,
 		gfx::RGBufferHandle rayBuffer, gfx::RGTextureHandle& outIrradiance, gfx::RGTextureHandle& outDepth);
 }

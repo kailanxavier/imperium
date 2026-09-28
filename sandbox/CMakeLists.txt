@@ -1,9 +1,7 @@
 add_executable(sandbox 
 	src/main.cpp
 	src/sandbox_app.cpp
-	src/render_resources.cpp
 	src/sandbox_scene.cpp
-	src/scene_renderer.cpp
 )
 
 target_include_directories(sandbox
@@ -11,55 +9,26 @@ target_include_directories(sandbox
 	PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-target_link_libraries(sandbox PUBLIC imp_app PRIVATE imp_script imp_fwk imp_cam imp_input imp_gfx imp_protocol)
-
-imp_set_runtime_dir(sandbox sandbox)
-
-IMP_COMPILE_SHADERS(
-		sandbox
-		"${IMP_OUTPUT_DIR}/bin/sandbox/assets/shaders"
-
-		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/mesh.frag
-		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/mesh.vert
-		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/tonemap.vert
-		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/tonemap.frag
-		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/shadow.vert
-		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/shadow.frag
-		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/sky.vert
-		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/sky.frag
-		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/gizmo.vert
-		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/gizmo.frag
-		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/depth_normal_prepass.vert
-		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/depth_normal_prepass.frag
-		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/gtao.frag
-		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/bilateral_blur.frag
-		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/gbuffer_debug.frag
-		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/deferred_lighting.frag
-		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/taa_resolve.frag
-		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/ssgi.frag
-		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/ssgi_blur.frag
-		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/ddgi_probe_update.comp
-		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/ddgi_ray_trace.comp
-		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/ddgi_thermal_update.comp
-		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/ddgi_classify_probes.comp
-		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/thermal_update_fallback.comp
-		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/fullscreen.vert
-
-		# DDGI probe dbg
-		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/ddgi_debug_probes.vert
-		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/ddgi_debug_probes.frag
-		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/ddgi_debug_rays.vert
-		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/ddgi_debug_rays.frag
-
-		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/bloom_down_sample.frag
-		${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/bloom_up_sample.frag
+target_link_libraries(sandbox 
+	PUBLIC 
+		imp_app 
+	PRIVATE 
+		imp_engine 
+		imp_script 
+		imp_fwk 
+		imp_cam 
+		imp_input 
+		imp_gfx 
+		imp_protocol
 )
 
+imp_set_runtime_dir(sandbox sandbox)
+IMP_ENGINE_DEPLOY_SHADERS(sandbox)
 IMP_COPY_ASSETS(sandbox)
 
 target_compile_definitions(sandbox PRIVATE
 		IMP_HOT_RELOAD_ENABLED=1
-		IMP_SHADER_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan/"
+		IMP_SHADER_SOURCE_DIR="${IMP_ENGINE_SOURCE_DIR}/assets/shaders/vulkan/"
 		IMP_SCRIPT_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets/scripts/"
 )
 

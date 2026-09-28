@@ -111,6 +111,7 @@ include(cmake/AddThirdParty.cmake)
 include(cmake/AddImageLibs.cmake)
 include(cmake/CompileShaders.cmake)
 include(cmake/CopyAssets.cmake)
+include(cmake/DeployShaders.cmake)
 
 function(imp_set_runtime_dir TARGET SUBDIR)
     set(OUTPUT_DIR "${IMP_OUTPUT_DIR}/bin/${SUBDIR}")

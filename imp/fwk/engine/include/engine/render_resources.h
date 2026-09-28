@@ -1,6 +1,6 @@
 #pragma once
 #include <app/iapp.h>
-#include <sandbox/asset_manifest.h>
+#include <engine/renderer_manifest.h>
 #include <gfx/cascade_shadow.h>
 #include <gfx/ddgi_volume.h>
 #include <gfx/thermal_volume.h>
@@ -20,19 +20,21 @@ namespace imp::gfx
 	class RenderGraphResourcePool;
 }
 
-namespace imp::app
+namespace imp::engine
 {
+	using imp::app::AppContext;
+
 	class RenderResources
 	{
 	public:
 		RenderResources();
 		~RenderResources();
 
-		bool init(AppContext& ctx, const AssetManifest& assets, const gfx::CascadeConfig& cascadeConfig);
+		bool init(AppContext& ctx, const RendererManifest& assets, const gfx::CascadeConfig& cascadeConfig);
 		void shutdown();
 
 		void ensureInstanceBufferCapacity(AppContext& ctx, u32 instanceCount);
-		bool reloadShaders(AppContext& ctx, const AssetManifest& assets);
+		bool reloadShaders(AppContext& ctx, const RendererManifest& assets);
 
 		// We're retiring MSAA completely in favour of a more performant
 		// deferred rendering solution, paired with TAA for anti-aliasing.
@@ -155,7 +157,7 @@ namespace imp::app
 			std::unique_ptr<gfx::IPipeline> ddgiDebugRaysPipeline;
 		};
 
-		bool buildShaderPipelineSet(AppContext& ctx, const AssetManifest& assets, ShaderPipelineSet& out) const;
+		bool buildShaderPipelineSet(AppContext& ctx, const RendererManifest& assets, ShaderPipelineSet& out) const;
 		void adoptShaderPipelineSet(ShaderPipelineSet&& set);
 
 		std::unique_ptr<gfx::IShader> m_meshVertShader, m_meshFragShader;

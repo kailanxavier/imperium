@@ -1,6 +1,5 @@
-#include <sandbox/scene_renderer.h>
-#include <sandbox/render_resources.h>
-#include <sandbox/sandbox_scene.h>
+#include <engine/scene_renderer.h>
+#include <engine/render_resources.h>
 #include <gfx/render_extraction.h>
 #include <gfx/lighting.h>
 #include <cstdio>
@@ -20,7 +19,7 @@
 
 #include <algorithm>
 
-namespace imp::app
+namespace imp::engine
 {
 	namespace
 	{
@@ -33,7 +32,7 @@ namespace imp::app
 			gfx::CullVolume cullVolume;
 
 			RenderResources* resources = nullptr;
-			SandboxScene* scene = nullptr;
+			IRenderScene* scene = nullptr;
 		};
 
 		struct DeferredLightingPassData
@@ -112,7 +111,7 @@ namespace imp::app
 			math::Mat4f viewProj = math::Mat4f::identity();
 
 			RenderResources* resources = nullptr;
-			SandboxScene* scene = nullptr;
+			IRenderScene* scene = nullptr;
 			SceneRenderParams params{};
 		};
 
@@ -181,7 +180,7 @@ namespace imp::app
 			bool enableFrustumCulling = true;
 
 			RenderResources* resources = nullptr;
-			SandboxScene* scene = nullptr;
+			IRenderScene* scene = nullptr;
 		};
 
 		struct GBufferDebugPassData
@@ -318,7 +317,7 @@ namespace imp::app
 		}
 	}
 
-	gfx::RGBufferHandle addDDGIRayTracePass(gfx::RenderGraph& graph, RenderResources& resources, SandboxScene& scene, AppContext& ctx, const SceneRenderParams& params)
+	gfx::RGBufferHandle addDDGIRayTracePass(gfx::RenderGraph& graph, RenderResources& resources, IRenderScene& scene, AppContext& ctx, const SceneRenderParams& params)
 	{
 		if (!ctx.gfx.supportsRayTracing())
 			return {};
@@ -394,7 +393,7 @@ namespace imp::app
 		return data.rayBuffer;
 	}
 
-	void addDDGIClassifyPass(gfx::RenderGraph& graph, RenderResources& resources, SandboxScene& scene,
+	void addDDGIClassifyPass(gfx::RenderGraph& graph, RenderResources& resources, IRenderScene& scene,
 		AppContext& ctx, const SceneRenderParams& params, gfx::RGBufferHandle rayBuffer)
 	{
 		if (!ctx.gfx.supportsRayTracing())
@@ -454,7 +453,7 @@ namespace imp::app
 			});
 	}
 
-	void addDDGIProbeUpdatePass(gfx::RenderGraph& graph, RenderResources& resources, SandboxScene& scene, AppContext& ctx, const SceneRenderParams& params, gfx::RGBufferHandle rayBuffer, gfx::RGTextureHandle& outIrradiance, gfx::RGTextureHandle& outDepth)
+	void addDDGIProbeUpdatePass(gfx::RenderGraph& graph, RenderResources& resources, IRenderScene& scene, AppContext& ctx, const SceneRenderParams& params, gfx::RGBufferHandle rayBuffer, gfx::RGTextureHandle& outIrradiance, gfx::RGTextureHandle& outDepth)
 	{
 		if (!ctx.gfx.supportsRayTracing())
 			return;
@@ -529,7 +528,7 @@ namespace imp::app
 		outDepth = data.depthAtlas;
 	}
 
-	gfx::RGBufferHandle addThermalUpdatePass(gfx::RenderGraph& graph, RenderResources& resources, SandboxScene& scene, AppContext& ctx, const SceneRenderParams& params, gfx::RGBufferHandle ddgiRayBuffer)
+	gfx::RGBufferHandle addThermalUpdatePass(gfx::RenderGraph& graph, RenderResources& resources, IRenderScene& scene, AppContext& ctx, const SceneRenderParams& params, gfx::RGBufferHandle ddgiRayBuffer)
 	{
 		if (!ctx.gfx.supportsRayTracing())
 			return {};
@@ -707,7 +706,7 @@ namespace imp::app
 		return currentUpsample;
 	}
 
-	ShadowCascadePasses addShadowCascadePasses(gfx::RenderGraph& graph, RenderResources& resources, SandboxScene& scene, const SceneRenderParams& params)
+	ShadowCascadePasses addShadowCascadePasses(gfx::RenderGraph& graph, RenderResources& resources, IRenderScene& scene, const SceneRenderParams& params)
 	{
 		const auto& cascades = scene.cascades();
 
@@ -902,10 +901,10 @@ namespace imp::app
 				rgCtx.cmd().draw(3, 1);
 			});
 
-			return data.output;
+		return data.output;
 	}
 
-	gfx::RGTextureHandle addHdrPass(gfx::RenderGraph& graph, RenderResources& resources, SandboxScene& scene, AppContext& ctx, const SceneRenderParams& params, const ShadowCascadePasses& shadowPasses, gfx::RGTextureHandle prepassDepth, gfx::RGTextureHandle hdrColourIn, gfx::RGTextureHandle aoTexture, gfx::RGTextureHandle ddgiIrradianceHandle, gfx::RGTextureHandle ddgiDepthHandle, gfx::RGBufferHandle thermalHeatBufferHandle, gfx::RGTextureHandle ssgiTexture)
+	gfx::RGTextureHandle addHdrPass(gfx::RenderGraph& graph, RenderResources& resources, IRenderScene& scene, AppContext& ctx, const SceneRenderParams& params, const ShadowCascadePasses& shadowPasses, gfx::RGTextureHandle prepassDepth, gfx::RGTextureHandle hdrColourIn, gfx::RGTextureHandle aoTexture, gfx::RGTextureHandle ddgiIrradianceHandle, gfx::RGTextureHandle ddgiDepthHandle, gfx::RGBufferHandle thermalHeatBufferHandle, gfx::RGTextureHandle ssgiTexture)
 	{
 		const auto& data = graph.addPass<HdrPassData>("HDR",
 			[&](gfx::RenderGraphBuilder& b, HdrPassData& d)
@@ -1267,7 +1266,7 @@ namespace imp::app
 			});
 	}
 
-	PrepassOutputs addDepthNormalPrepass(gfx::RenderGraph& graph, RenderResources& resources, SandboxScene& scene, AppContext& ctx, const SceneRenderParams& params)
+	PrepassOutputs addDepthNormalPrepass(gfx::RenderGraph& graph, RenderResources& resources, IRenderScene& scene, AppContext& ctx, const SceneRenderParams& params)
 	{
 		const auto& data = graph.addPass<PrepassData>("DepthNormalPrepass",
 			[&](gfx::RenderGraphBuilder& b, PrepassData& d)

@@ -1,4 +1,4 @@
-#include <sandbox/render_resources.h>
+#include <engine/render_resources.h>
 #include <gfx/model.h>
 #include <gfx/lighting.h>
 #include <gfx/config.h>
@@ -16,12 +16,12 @@
 #include <gfx/bloom_cvars.h>
 #include <gfx/device.h>
 
-namespace imp::app
+namespace imp::engine
 {
 	RenderResources::RenderResources() = default;
 	RenderResources::~RenderResources() = default;
 
-	bool RenderResources::buildShaderPipelineSet(AppContext& ctx, const AssetManifest& assets, ShaderPipelineSet& out) const
+	bool RenderResources::buildShaderPipelineSet(AppContext& ctx, const RendererManifest& assets, ShaderPipelineSet& out) const
 	{
 		gfx::ShaderDesc meshVertDesc;
 		meshVertDesc.stage = gfx::ShaderStage::Vertex;
@@ -526,7 +526,7 @@ namespace imp::app
 		m_ddgiDebugRaysPipeline = std::move(set.ddgiDebugRaysPipeline);
 	}
 
-	bool RenderResources::reloadShaders(AppContext& ctx, const AssetManifest& assets)
+	bool RenderResources::reloadShaders(AppContext& ctx, const RendererManifest& assets)
 	{
 		ShaderPipelineSet fresh;
 		if (!buildShaderPipelineSet(ctx, assets, fresh))
@@ -542,7 +542,7 @@ namespace imp::app
 		return true;
 	}
 
-	bool RenderResources::init(AppContext& ctx, const AssetManifest& assets, const gfx::CascadeConfig& cascadeConfig)
+	bool RenderResources::init(AppContext& ctx, const RendererManifest& assets, const gfx::CascadeConfig& cascadeConfig)
 	{
 		m_graphPool = std::make_unique<gfx::RenderGraphResourcePool>(ctx.gfx);
 
