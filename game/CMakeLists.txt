@@ -1,6 +1,7 @@
 add_library(game_lib STATIC
 	src/game_app.cpp
 	src/game_scene.cpp
+	src/light_control_layer.cpp
 )
 
 target_include_directories(game_lib
@@ -33,6 +34,8 @@ add_executable(game
 target_link_libraries(game
 	PRIVATE
 		game_lib
+		imp_app_editor_host
+		imp_app_debug
 		imp_protocol
 )
 

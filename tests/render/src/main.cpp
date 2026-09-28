@@ -83,10 +83,7 @@ int main(int argc, char** argv)
     }
     gameApp->setReadbackTarget(readbackTarget.get());
 
-    app::AppContext ctx{
-        application.window(), application.device(), application.window().input(),
-        application.layers(), application.vfs(), application.world(),
-        application.jobs(), application.gfxAllocator() };
+    app::AppContext ctx = application.context();
 
     constexpr float kFixedDeltaSeconds = 1.f / 60.f;
 

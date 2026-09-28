@@ -17,6 +17,21 @@ using namespace imp::engine;
 
 namespace imp::game
 {
+	void GameApp::onRegisterServices(AppContext& ctx)
+	{
+		m_targetFormats = { 
+			m_resources.hdrColourFormat(), 
+			m_resources.hdrDepthFormat(), 
+			engine::RenderResources::kMsaaSampleCount };
+
+		m_lightRefs = { &m_scene.sunDirection(), &m_scene.cascadeConfig() };
+
+		ctx.services.provide(m_camera);
+		ctx.services.provide(m_scene.modelRegistry());
+		ctx.services.provide(m_targetFormats);
+		ctx.services.provide(m_lightRefs);
+	}
+
 	bool GameApp::onInit(AppContext& ctx)
 	{
 		m_camera.setPosition({ 0.f, 1.f, 0.f });

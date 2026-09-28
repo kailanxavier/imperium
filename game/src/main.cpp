@@ -1,10 +1,11 @@
 #include <app/application.h>
+#include <app/launch_options.h>
 #include <app/telemetry_layer.h>
-#include <app/light_control_layer.h>
 #include <app/gizmo_layer.h>
 #include <app/editor_bridge_layer.h>
 
 #include <game/game_app.h>
+#include <game/light_control_layer.h>
 
 #include <core/log/log.h>
 #include <core/platform/exe_path.h>
@@ -13,10 +14,12 @@
 
 using namespace imp;
 
-int main()
+int main(int argc, char** argv)
 {
 	log::Logger::get().initialise();
 	LOG_INFO("Game", "App starting...");
+
+	app::LaunchOptions launch = app::parseLaunchOptions(argc, argv);
 
 	app::ApplicationDesc desc{};
 #ifndef NDEBUG
@@ -29,6 +32,7 @@ int main()
 	desc.window.fullscreen = false;
 	desc.enableValidation = true;
 	desc.vsync = true;
+	launch.applyTo(desc);
 
 	const auto shadersPath = ( platform::executableDir() / "assets" ).string();
 	desc.vfsMounts.push_back(app::VfsMountDesc{ "assets/", shadersPath, 0, true, true });
@@ -38,6 +42,12 @@ int main()
 
 	{
 		app::Application application;
+		application.services().provide(launch);
+
+		application.layers().pushOverlay(std::make_unique<app::EditorBridgeLayer>());
+		application.layers().pushOverlay(std::make_unique<app::TelemetryLayer>());
+		application.layers().pushOverlay(std::make_unique<game::LightControlLayer>());
+
 		if (!application.initialise(desc, std::make_unique<game::GameApp>()))
 		{
 			LOG_FATAL("Game", "Application failed to initialise");
@@ -45,34 +55,10 @@ int main()
 			return 1;
 		}
 
+		application.layers().pushOverlay(std::make_unique<app::GizmoLayer>());
+
 		LOG_INFO("Game", "Running with {} device, window ({}, {})",
 			application.device().apiName(), application.window().width(), application.window().height());
-
-		auto* sb = dynamic_cast<game::GameApp*>( application.app().get() );
-
-		auto modelPathResolver = [sb](ecs::ModelHandle handle) -> std::string
-			{
-				if (const auto* path = sb->modelRegistry().pathOf(handle))
-					return *path;
-				return {};
-			};
-
-		auto modelLoader = [sb, &application](const std::string& path) -> ecs::ModelHandle
-			{
-				return sb->modelRegistry().load(application.device(), path,
-					application.jobs(), &application.vfs());
-			};
-
-		application.layers().pushOverlay(std::make_unique<app::EditorBridgeLayer>(
-			application.world(), application.vfs(), modelPathResolver, modelLoader));
-
-		application.layers().pushOverlay(std::make_unique<app::TelemetryLayer>(application.gfxAllocator()));
-		application.layers().pushOverlay(std::make_unique<app::LightControlLayer>(sb->sunDirection(), sb->pointPos(), sb->cascadeConfig()));
-
-		application.layers().pushOverlay(
-			std::make_unique<app::GizmoLayer>(application.device(), application.world(), sb->camera(),
-				application.window().input(), sb->hdrColourFormat(), sb->hdrDepthFormat(), sb->sampleCount()
-			));
 
 		application.run();
 		application.shutdown();

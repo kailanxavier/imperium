@@ -1,5 +1,7 @@
 #pragma once
 
+#include <app/iapp.h>
+#include <app/render_target_formats.h>
 #include <fwk/layer.h>
 #include <ecs/entity.h>
 #include <ecs/world.h>
@@ -9,6 +11,8 @@
 #include <gfx/resources.h>
 
 #include <physics/query.h>
+
+#include <optional>
 
 namespace imp::gfx 
 { 
@@ -26,13 +30,12 @@ namespace imp::app
 	class GizmoLayer final : public fwk::ILayer
 	{
 	public:
-		GizmoLayer(gfx::IDevice& device, ecs::World& world, const fwk::Camera& camera, fwk::Input& input,
-			gfx::TextureFormat colourFormat, gfx::TextureFormat depthFormat, gfx::SampleCount sampleCount);
+		GizmoLayer();
 
-		void onAttach() override;
-		void onDetach() override;
-		void onUpdate(float deltaSeconds) override;
-		void onRender(gfx::ICommandList& cmd) override;
+		void onAttach(AppContext& ctx) override;
+		void onDetach(AppContext& ctx) override;
+		void onUpdate(AppContext& ctx, float deltaSeconds) override;
+		void onRender(AppContext& ctx, gfx::ICommandList& cmd) override;
 
 		void setSelected(ecs::EntityId entity) { m_selected = entity; }
 		void clearSelection() { m_selected = ecs::kInvalidEntity; }
@@ -49,13 +52,10 @@ namespace imp::app
 
 		GizmoAxis pickAxis(const physics::Ray& ray, const math::Vec3f& origin, float axisLength, float cameraDistance) const;
 
-		gfx::IDevice& m_device;
-		ecs::World& m_world;
-		const fwk::Camera& m_camera;
-		fwk::Input& m_input;
-		gfx::TextureFormat m_colourFormat;
-		gfx::TextureFormat m_depthFormat;
-		gfx::SampleCount m_sampleCount;
+		gfx::IDevice* m_device = nullptr;
+		ecs::World* m_world = nullptr;
+		const fwk::Camera* m_camera = nullptr;
+		fwk::Input* m_input = nullptr;
 
 		ecs::EntityId m_selected = ecs::kInvalidEntity;
 		bool m_showGrid = false;
@@ -68,6 +68,6 @@ namespace imp::app
 		float m_dragStartT = 0.f;
 		math::Vec3f m_dragStartPosition{};
 
-		physics::Raycaster m_raycaster;
+		std::optional<physics::Raycaster> m_raycaster;
 	};
 }

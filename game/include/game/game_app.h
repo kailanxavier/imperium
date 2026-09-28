@@ -7,9 +7,12 @@
 #include <script/file_watcher.h>
 
 #include <camera/camera.h>
-#include <app/iapp.h>
 #include <game/asset_manifest.h>
 #include <game/game_scene.h>
+#include <game/light_control_layer.h>
+
+#include <app/iapp.h>
+#include <app/render_target_formats.h>
 
 #include <memory>
 
@@ -28,23 +31,11 @@ namespace imp::game
 	class GameApp final : public app::IApp
 	{
 	public:
+		void onRegisterServices(AppContext& ctx) override;
 		bool onInit(AppContext& ctx) override;
 		void onUpdate(AppContext& ctx, float deltaSeconds) override;
 		void onRender(AppContext& ctx, gfx::ICommandList& cmd) override;
 		void onShutdown(AppContext& ctx) override;
-
-		math::Vec3f& sunDirection() { return m_scene.sunDirection(); }
-		const math::Vec3f& sunDirection() const { return m_scene.sunDirection(); }
-		gfx::CascadeConfig& cascadeConfig() { return m_scene.cascadeConfig(); }
-		ecs::Transform& pointPos() { return m_scene.pointLightTransform(); }
-		const ecs::Transform& pointPos() const { return m_scene.pointLightTransform(); }
-
-		const fwk::Camera& camera() const { return m_camera; }
-		gfx::ModelRegistry& modelRegistry() { return m_scene.modelRegistry(); }
-		gfx::TextureFormat hdrColourFormat() const { return m_resources.hdrColourFormat(); }
-		gfx::TextureFormat hdrDepthFormat() const { return m_resources.hdrDepthFormat(); }
-		gfx::SampleCount sampleCount() const { return engine::RenderResources::kMsaaSampleCount; }
-
 		void setReadbackTarget(gfx::IRenderTarget* target) { m_readbackTarget = target; }
 
 	private:
@@ -61,5 +52,8 @@ namespace imp::game
 		void pollScriptHotReload(AppContext& ctx);
 
 		gfx::IRenderTarget* m_readbackTarget = nullptr;
+
+		app::RenderTargetFormats m_targetFormats{};
+		LightControlRefs m_lightRefs{};
 	};
 }

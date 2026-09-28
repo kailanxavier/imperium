@@ -2,6 +2,7 @@
 
 #include <input/input.h>
 #include <fwk/layer.h>
+#include <fwk/service_registry.h>
 #include <gfx/device.h>
 #include <core/fs/vfs.h>
 
@@ -17,6 +18,7 @@ namespace imp::app
 		gfx::IDevice& gfx;
 		fwk::Input& input;
 		fwk::LayerStack& layers;
+		fwk::ServiceRegistry& services;
 		fs::VirtualFileSystem& vfs;
 
 		ecs::World& ecs;
@@ -28,6 +30,7 @@ namespace imp::app
 	{
 	public:
 		virtual ~IApp() = default;
+		virtual void onRegisterServices(AppContext& ctx) { (void)ctx; }
 		virtual bool onInit(AppContext& ctx) = 0;
 		virtual void onUpdate(AppContext& ctx, float deltaSeconds) = 0;
 		virtual void onRender(AppContext& ctx, gfx::ICommandList& cmd) = 0;

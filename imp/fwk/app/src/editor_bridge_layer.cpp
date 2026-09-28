@@ -8,6 +8,9 @@
 #include <protocol/script_status.h>
 #include <protocol/cvar_command.h>
 
+#include <gfx/model_registry.h>
+#include <jobs/job_system.h>
+
 #include <filesystem>
 
 #include "core/config/cvar.h"
@@ -15,29 +18,41 @@
 namespace imp::app
 {
 	EditorBridgeLayer::EditorBridgeLayer(
-		ecs::World& world,
-		fs::VirtualFileSystem& vfs,
-		fwk::Scene::ModelPathResolver modelPathResolver,
-		fwk::Scene::ModelLoader modelLoader,
 		u16 toolServerPort,
 		std::chrono::milliseconds publishInterval)
 		: ILayer("EditorBridge")
-		, m_world(world)
-		, m_vfs(vfs)
-		, m_modelPathResolver(std::move(modelPathResolver))
-		, m_modelLoader(std::move(modelLoader))
 		, m_toolServerPort(toolServerPort)
 		, m_publishInterval(publishInterval)
 		, m_lastPublish(std::chrono::steady_clock::now())
 	{
 	}
 
-	void EditorBridgeLayer::onAttach()
+	void EditorBridgeLayer::onAttach(app::AppContext& ctx)
 	{
+		m_world = &ctx.ecs;
+		m_vfs = &ctx.vfs;
+
+		gfx::ModelRegistry& models = ctx.services.require<gfx::ModelRegistry>();
+		gfx::IDevice& device = ctx.gfx;
+		jobs::JobSystem& jobs = ctx.jobs;
+		fs::VirtualFileSystem& vfs = ctx.vfs;
+
+		m_modelPathResolver = [&models](ecs::ModelHandle handle) -> std::string
+			{
+				if (const auto* path = models.pathOf(handle))
+					return *path;
+				return {};
+			};
+
+		m_modelLoader = [&models, &device, &jobs, &vfs](const std::string& path) -> ecs::ModelHandle
+			{
+				return models.load(device, path, jobs, &vfs);
+			};
+
 		protocol::ToolServer::instance().start(m_toolServerPort);
 	}
 
-	void EditorBridgeLayer::onUpdate(float /*deltaSeconds*/)
+	void EditorBridgeLayer::onUpdate(app::AppContext& /*ctx*/, float /*deltaSeconds*/)
 	{
 		drainCommands();
 
@@ -49,9 +64,13 @@ namespace imp::app
 		m_lastPublish = now;
 	}
 
-	void EditorBridgeLayer::onDetach()
+	void EditorBridgeLayer::onDetach(app::AppContext& /*ctx*/)
 	{
 		protocol::ToolServer::instance().stop();
+		m_modelPathResolver = {};
+		m_modelLoader = {};
+		m_world = nullptr;
+		m_vfs = nullptr;
 	}
 
 	void EditorBridgeLayer::publishSnapshot()
@@ -60,7 +79,7 @@ namespace imp::app
 		if (!server.hasSubscribers(protocol::MessageType::WorldSnapshot))
 			return;
 
-		const auto& owners = m_world.transforms.m_owner;
+		const auto& owners = m_world->transforms.m_owner;
 
 		std::vector<protocol::EntitySnapshotPayload> entities;
 		entities.reserve(owners.size());
@@ -71,49 +90,49 @@ namespace imp::app
 			p.index = id.index;
 			p.generation = id.generation;
 
-			const auto parent = m_world.transforms.parentOf(id);
+			const auto parent = m_world->transforms.parentOf(id);
 			if (parent.isValid())
 			{
 				p.parentIndex = parent.index;
 				p.parentGeneration = parent.generation;
 			}
 
-			if (m_world.names.contains(id))
-				p.name = m_world.names.name(id);
+			if (m_world->names.contains(id))
+				p.name = m_world->names.name(id);
 
 			{
 				protocol::TransformComponentPayload tp;
-				const auto local = m_world.transforms.localTransform(id);
+				const auto local = m_world->transforms.localTransform(id);
 				tp.localPosition = local.position;
 				tp.localRotation = local.rotation;
 				tp.localScale = local.scale;
 				p.transform = tp;
 			}
 
-			if (m_world.renderables.contains(id))
+			if (m_world->renderables.contains(id))
 			{
 				protocol::RenderableComponentPayload rp;
-				const auto model = m_world.renderables.model(id);
+				const auto model = m_world->renderables.model(id);
 				rp.modelIndex = model.index;
 				rp.modelGeneration = model.generation;
-				rp.visible = m_world.renderables.visible(id);
+				rp.visible = m_world->renderables.visible(id);
 				p.renderable = rp;
 			}
 
-			if (m_world.lights.contains(id))
+			if (m_world->lights.contains(id))
 			{
 				protocol::LightComponentPayload lp;
-				lp.kind = static_cast<protocol::LightKindPayload>( m_world.lights.type(id) );
-				lp.colour = m_world.lights.colour(id);
-				lp.intensity = m_world.lights.intensity(id);
+				lp.kind = static_cast<protocol::LightKindPayload>( m_world->lights.type(id) );
+				lp.colour = m_world->lights.colour(id);
+				lp.intensity = m_world->lights.intensity(id);
 				p.light = lp;
 			}
 
-			if (m_world.scripts.contains(id))
+			if (m_world->scripts.contains(id))
 			{
 				protocol::ScriptComponentPayload scriptPayload;
-				scriptPayload.path = m_world.scripts.scriptPath(id);
-				scriptPayload.wantsTick = m_world.scripts.wantsTick(id);
+				scriptPayload.path = m_world->scripts.scriptPath(id);
+				scriptPayload.wantsTick = m_world->scripts.wantsTick(id);
 				p.script = scriptPayload;
 			}
 
@@ -177,7 +196,7 @@ namespace imp::app
 		{
 			const ecs::EntityId target{ cmd.targetIndex, cmd.targetGeneration };
 
-			if (!m_world.registry.isAlive(target))
+			if (!m_world->registry.isAlive(target))
 			{
 				result.success = false;
 				result.error = "Target entity is not alive.";
@@ -194,13 +213,13 @@ namespace imp::app
 						break;
 				case protocol::EntityCommandOp::SetLocalTransform:
 				{
-					if (m_world.transforms.contains(target))
+					if (m_world->transforms.contains(target))
 					{
 						ecs::Transform t;
 						t.position = cmd.vec3A;
 						t.rotation = cmd.quatA;
 						t.scale = cmd.vec3B;
-						m_world.transforms.setLocalTransform(target, t);
+						m_world->transforms.setLocalTransform(target, t);
 					}
 					else
 					{
@@ -211,17 +230,17 @@ namespace imp::app
 				}
 				case protocol::EntityCommandOp::SetName:
 				{
-					if (m_world.names.contains(target))
-						m_world.names.setName(target, cmd.stringA);
+					if (m_world->names.contains(target))
+						m_world->names.setName(target, cmd.stringA);
 					else
-						m_world.names.create(target, cmd.stringA);
+						m_world->names.create(target, cmd.stringA);
 					break;
 				}
 				case protocol::EntityCommandOp::SetRenderableVisible:
 				{
-					if (m_world.renderables.contains(target))
+					if (m_world->renderables.contains(target))
 					{
-						m_world.renderables.setVisible(target, cmd.boolA);
+						m_world->renderables.setVisible(target, cmd.boolA);
 					}
 					else
 					{
@@ -232,9 +251,9 @@ namespace imp::app
 				}
 				case protocol::EntityCommandOp::SetLightColour:
 				{
-					if (m_world.lights.contains(target))
+					if (m_world->lights.contains(target))
 					{
-						m_world.lights.setColour(target, cmd.vec3A);
+						m_world->lights.setColour(target, cmd.vec3A);
 					}
 					else
 					{
@@ -245,9 +264,9 @@ namespace imp::app
 				}
 				case protocol::EntityCommandOp::SetLightIntensity:
 				{
-					if (m_world.lights.contains(target))
+					if (m_world->lights.contains(target))
 					{
-						m_world.lights.setIntensity(target, cmd.floatA);
+						m_world->lights.setIntensity(target, cmd.floatA);
 					}
 					else
 					{
@@ -258,7 +277,7 @@ namespace imp::app
 				}
 				case protocol::EntityCommandOp::Reparent:
 				{
-					if (!m_world.transforms.contains(target))
+					if (!m_world->transforms.contains(target))
 					{
 						result.success = false;
 						result.error = "Target has no Transform component.";
@@ -270,21 +289,21 @@ namespace imp::app
 						? ecs::EntityId{}
 					: ecs::EntityId{ cmd.refIndex, cmd.refGeneration };
 
-					if (!unparenting && !m_world.registry.isAlive(newParent))
+					if (!unparenting && !m_world->registry.isAlive(newParent))
 					{
 						result.success = false;
 						result.error = "New parent is not alive.";
 						break;
 					}
 
-					if (!unparenting && !m_world.transforms.contains(newParent))
+					if (!unparenting && !m_world->transforms.contains(newParent))
 					{
 						result.success = false;
 						result.error = "New parent has no Transform component.";
 						break;
 					}
 
-					if (!m_world.transforms.reparent(target, newParent))
+					if (!m_world->transforms.reparent(target, newParent))
 					{
 						result.success = false;
 						result.error = "Reparent rejected. Are you trying to create a cycle or parent it to itself?";
@@ -294,26 +313,26 @@ namespace imp::app
 				}
 				case protocol::EntityCommandOp::Destroy:
 				{
-					m_world.destroyEntity(target);
+					m_world->destroyEntity(target);
 					break;
 				}
 				case protocol::EntityCommandOp::AttachScript:
 				{
 					if (cmd.stringA.empty())
 					{
-						if (m_world.scripts.contains(target))
-							m_world.scripts.destroy(target);
+						if (m_world->scripts.contains(target))
+							m_world->scripts.destroy(target);
 					}
 					else
 					{
-						if (m_world.scripts.contains(target))
+						if (m_world->scripts.contains(target))
 						{
-							m_world.scripts.setScriptPath(target, cmd.stringA);
-							m_world.scripts.setWantsTick(target, cmd.boolA);
+							m_world->scripts.setScriptPath(target, cmd.stringA);
+							m_world->scripts.setWantsTick(target, cmd.boolA);
 						}
 						else
 						{
-							m_world.scripts.create(target, cmd.stringA, cmd.boolA);
+							m_world->scripts.create(target, cmd.stringA, cmd.boolA);
 						}
 					}
 
@@ -363,13 +382,13 @@ namespace imp::app
 		if (cmd.refIndex != 0xFFFFFFFFu)
 		{
 			const ecs::EntityId parent{ cmd.refIndex, cmd.refGeneration };
-			if (!m_world.registry.isAlive(parent))
+			if (!m_world->registry.isAlive(parent))
 			{
 				result.success = false;
 				result.error = "Parent entity is not alive.";
 				return;
 			}
-			if (!m_world.transforms.contains(parent))
+			if (!m_world->transforms.contains(parent))
 			{
 				result.success = false;
 				result.error = "Parent has no Transform component.";
@@ -381,7 +400,7 @@ namespace imp::app
 		const auto slash = cmd.stringA.find_last_of('/');
 		desc.name = ( slash == std::string::npos ) ? cmd.stringA : cmd.stringA.substr(slash + 1);
 
-		const ecs::EntityId newEntity = m_world.spawnEntity(desc);
+		const ecs::EntityId newEntity = m_world->spawnEntity(desc);
 
 		result.success = true;
 		result.targetIndex = newEntity.index;
@@ -410,16 +429,16 @@ namespace imp::app
 		}
 		else if (cmd.op == protocol::SceneCommandOp::Save)
 		{
-			const auto scene = fwk::Scene::fromWorld(m_world, m_modelPathResolver);
-			result.success = scene.saveToFile(m_vfs, cmd.path);
+			const auto scene = fwk::Scene::fromWorld(*m_world, m_modelPathResolver);
+			result.success = scene.saveToFile(*m_vfs, cmd.path);
 			if (!result.success)
 				result.error = "Failed to write scene file.";
 		}
 		else if (cmd.op == protocol::SceneCommandOp::Load)
 		{
-			if (auto scene = fwk::Scene::loadFromFile(m_vfs, cmd.path))
+			if (auto scene = fwk::Scene::loadFromFile(*m_vfs, cmd.path))
 			{
-				scene->applyToWorld(m_world, m_modelLoader);
+				scene->applyToWorld(*m_world, m_modelLoader);
 				result.success = true;
 			}
 			else
@@ -459,7 +478,7 @@ namespace imp::app
 		{
 		case protocol::AssetCommandOp::List:
 		{
-			const auto virtualFiles = m_vfs.listFiles(cmd.path, cmd.recursive);
+			const auto virtualFiles = m_vfs->listFiles(cmd.path, cmd.recursive);
 			result.entries.reserve(virtualFiles.size());
 
 			for (const auto& virtualFile : virtualFiles)
@@ -468,7 +487,7 @@ namespace imp::app
 				entry.virtualPath = virtualFile;
 				entry.isDirectory = false;
 
-				const auto physical = m_vfs.resolvePhysicalPath(virtualFile, false);
+				const auto physical = m_vfs->resolvePhysicalPath(virtualFile, false);
 				if (!physical.empty())
 				{
 					std::error_code ec;
@@ -485,7 +504,7 @@ namespace imp::app
 		case protocol::AssetCommandOp::Read:
 		{
 			fs::Bytes data;
-			if (m_vfs.readEntireFile(cmd.path, data))
+			if (m_vfs->readEntireFile(cmd.path, data))
 			{
 				result.content = std::move(data);
 				result.success = true;
@@ -500,14 +519,14 @@ namespace imp::app
 		case protocol::AssetCommandOp::Write:
 		{
 			const fs::Bytes data(cmd.content.begin(), cmd.content.end());
-			result.success = m_vfs.writeEntireFile(cmd.path, data);
+			result.success = m_vfs->writeEntireFile(cmd.path, data);
 			if (!result.success)
 				result.error = "Failed to write file.";
 			break;
 		}
 		case protocol::AssetCommandOp::Delete:
 		{
-			result.success = m_vfs.Delete(cmd.path);
+			result.success = m_vfs->Delete(cmd.path);
 			if (!result.success)
 				result.error = "Failed to delete file.";
 			break;
