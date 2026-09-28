@@ -1,20 +1,23 @@
+#include <core/log/log.h>
+#include <core/config/cvar.h>
+
 #include <engine/render_resources.h>
+#include <engine/engine_assets.h>
+
 #include <gfx/model.h>
 #include <gfx/lighting.h>
 #include <gfx/config.h>
 #include <gfx/render_graph_resource_pool.h>
-#include <core/log/log.h>
-#include <cstddef>
-#include <algorithm>
-#include <core/config/cvar.h>
 #include <gfx/ao.h>
-
 #include <gfx/ddgi_volume.h>
 #include <gfx/gi_cvars.h>
-
 #include <gfx/thermal_cvars.h>
 #include <gfx/bloom_cvars.h>
 #include <gfx/device.h>
+#include <gfx/shader_hot_reload.h>
+
+#include <cstddef>
+#include <algorithm>
 
 namespace imp::engine
 {
@@ -35,7 +38,7 @@ namespace imp::engine
 
 		if (!out.meshFragShader || !out.meshVertShader)
 		{
-			LOG_ERROR("Sandbox", "Failed to load mesh shaders.");
+			LOG_ERROR("Engine", "Failed to load mesh shaders.");
 			return false;
 		}
 
@@ -51,7 +54,7 @@ namespace imp::engine
 
 		if (!out.tonemapVertShader || !out.tonemapFragShader)
 		{
-			LOG_ERROR("Sandbox", "Failed to load tonemap shaders.");
+			LOG_ERROR("Engine", "Failed to load tonemap shaders.");
 			return false;
 		}
 
@@ -67,7 +70,7 @@ namespace imp::engine
 
 		if (!out.shadowVertShader || !out.shadowFragShader)
 		{
-			LOG_ERROR("Sandbox", "Failed to load shadow shaders.");
+			LOG_ERROR("Engine", "Failed to load shadow shaders.");
 			return false;
 		}
 
@@ -83,7 +86,7 @@ namespace imp::engine
 
 		if (!out.skyFragShader || !out.skyVertShader)
 		{
-			LOG_ERROR("Sandbox", "Failed to load sky shaders");
+			LOG_ERROR("Engine", "Failed to load sky shaders");
 			return false;
 		}
 
@@ -99,7 +102,7 @@ namespace imp::engine
 
 		if (!out.prepassVertShader || !out.prepassFragShader)
 		{
-			LOG_ERROR("Sandbox", "Failed to load depth/normal prepass shaders.");
+			LOG_ERROR("Engine", "Failed to load depth/normal prepass shaders.");
 			return false;
 		}
 
@@ -120,7 +123,7 @@ namespace imp::engine
 
 		if (!out.fullscreenVertShader || !out.gtaoFragShader || !out.blurFragShader)
 		{
-			LOG_ERROR("Sandbox", "Failed to load AO shaders.");
+			LOG_ERROR("Engine", "Failed to load AO shaders.");
 			return false;
 		}
 
@@ -136,7 +139,7 @@ namespace imp::engine
 
 		if (!out.ssgiFragShader || !out.ssgiBlurFragShader)
 		{
-			LOG_ERROR("Sandbox", "Failed to load SSGI shaders.");
+			LOG_ERROR("Engine", "Failed to load SSGI shaders.");
 			return false;
 		}
 
@@ -147,7 +150,7 @@ namespace imp::engine
 
 		if (!out.gbufferDebugFragShader)
 		{
-			LOG_ERROR("Sandbox", "Failed to load G-Buffer debug view shader.");
+			LOG_ERROR("Engine", "Failed to load G-Buffer debug view shader.");
 			return false;
 		}
 
@@ -158,7 +161,7 @@ namespace imp::engine
 
 		if (!out.deferredLightingFragShader)
 		{
-			LOG_ERROR("Sandbox", "Failed to load deferred lighting shader.");
+			LOG_ERROR("Engine", "Failed to load deferred lighting shader.");
 			return false;
 		}
 
@@ -169,7 +172,7 @@ namespace imp::engine
 
 		if (!out.taaResolveFragShader)
 		{
-			LOG_ERROR("Sandbox", "Failed to load TAA resolve shader.");
+			LOG_ERROR("Engine", "Failed to load TAA resolve shader.");
 			return false;
 		}
 
@@ -185,7 +188,7 @@ namespace imp::engine
 
 		if (!out.bloomDownsampleFragShader || !out.bloomUpsampleFragShader)
 		{
-			LOG_ERROR("Sandbox", "Failed to load bloom shaders.");
+			LOG_ERROR("Engine", "Failed to load bloom shaders.");
 			return false;
 		}
 
@@ -212,7 +215,7 @@ namespace imp::engine
 		if (!out.ddgiDebugProbesVertShader || !out.ddgiDebugProbesFragShader
 			|| !out.ddgiDebugRaysVertShader || !out.ddgiDebugRaysFragShader)
 		{
-			LOG_ERROR("Sandbox", "Failed to load DDGI debug visualisation shaders.");
+			LOG_ERROR("Engine", "Failed to load DDGI debug visualisation shaders.");
 			return false;
 		}
 
@@ -252,7 +255,7 @@ namespace imp::engine
 
 		if (!out.skyPipeline)
 		{
-			LOG_ERROR("Sandbox", "Failed to create sky pipeline");
+			LOG_ERROR("Engine", "Failed to create sky pipeline");
 			return false;
 		}
 
@@ -308,7 +311,7 @@ namespace imp::engine
 
 		if (!out.pipeline || !out.blendPipeline || !out.tonemapPipeline || !out.shadowPipeline)
 		{
-			LOG_ERROR("Sandbox", "Failed to create one or more pipelines");
+			LOG_ERROR("Engine", "Failed to create one or more pipelines");
 			return false;
 		}
 
@@ -354,7 +357,7 @@ namespace imp::engine
 
 		if (!out.prepassPipeline || !out.gtaoPipeline || !out.blurPipeline)
 		{
-			LOG_ERROR("Sandbox", "Failed to create one or more AO pipelines");
+			LOG_ERROR("Engine", "Failed to create one or more AO pipelines");
 			return false;
 		}
 
@@ -373,7 +376,7 @@ namespace imp::engine
 
 		if (!out.ssgiPipeline || !out.ssgiBlurPipeline)
 		{
-			LOG_ERROR("Sandbox", "Failed to create SSGI pipelines");
+			LOG_ERROR("Engine", "Failed to create SSGI pipelines");
 			return false;
 		}
 
@@ -388,7 +391,7 @@ namespace imp::engine
 
 		if (!out.gbufferDebugPipeline)
 		{
-			LOG_ERROR("Sandbox", "Failed to create G-buffer debug view pipeline.");
+			LOG_ERROR("Engine", "Failed to create G-buffer debug view pipeline.");
 			return false;
 		}
 
@@ -403,7 +406,7 @@ namespace imp::engine
 
 		if (!out.deferredLightingPipeline)
 		{
-			LOG_ERROR("Sandbox", "Failed to create deferred lighting pipeline");
+			LOG_ERROR("Engine", "Failed to create deferred lighting pipeline");
 			return false;
 		}
 
@@ -419,7 +422,7 @@ namespace imp::engine
 
 		if (!out.taaResolvePipeline)
 		{
-			LOG_ERROR("Sandbox", "Failed to create TAA resolve pipeline");
+			LOG_ERROR("Engine", "Failed to create TAA resolve pipeline");
 			return false;
 		}
 
@@ -438,7 +441,7 @@ namespace imp::engine
 
 		if (!out.bloomDownsamplePipeline || !out.bloomUpsamplePipeline)
 		{
-			LOG_ERROR("Sandbox", "Failed to create bloom pipelines");
+			LOG_ERROR("Engine", "Failed to create bloom pipelines");
 			return false;
 		}
 
@@ -473,7 +476,7 @@ namespace imp::engine
 
 		if (!out.ddgiDebugProbesPipeline || !out.ddgiDebugRaysPipeline)
 		{
-			LOG_ERROR("Sandbox", "Failed to create DDGI debug visualisation pipelines");
+			LOG_ERROR("Engine", "Failed to create DDGI debug visualisation pipelines");
 			return false;
 		}
 
@@ -531,19 +534,33 @@ namespace imp::engine
 		ShaderPipelineSet fresh;
 		if (!buildShaderPipelineSet(ctx, assets, fresh))
 		{
-			LOG_ERROR("Sandbox", "Shader hot reload failed, keeping the last working pipelines");
+			LOG_ERROR("Engine", "Shader hot reload failed, keeping the last working pipelines");
 			return false;
 		}
 
 		ctx.gfx.waitIdle();
 		adoptShaderPipelineSet(std::move(fresh));
 
-		LOG_INFO("Sandbox", "Shader hot reload succeeded");
+		LOG_INFO("Engine", "Shader hot reload succeeded");
 		return true;
+	}
+
+	bool RenderResources::pollShaderHotReload(AppContext& ctx, const RendererManifest& assets)
+	{
+		if (!m_shaderWatcher || !m_shaderWatcher->isValid())
+			return false;
+
+		if (!m_shaderWatcher->poll())
+			return false;
+
+		return reloadShaders(ctx, assets);
 	}
 
 	bool RenderResources::init(AppContext& ctx, const RendererManifest& assets, const gfx::CascadeConfig& cascadeConfig)
 	{
+		if (!mountEngineAssets(ctx.vfs))
+			return false;
+
 		m_graphPool = std::make_unique<gfx::RenderGraphResourcePool>(ctx.gfx);
 
 		ShaderPipelineSet initial;
@@ -676,7 +693,7 @@ namespace imp::engine
 				buf = ctx.gfx.createBuffer(volumeUBODesc);
 
 			if (!m_ddgiFallbackTexture)
-				LOG_ERROR("Sandbox", "Failed to create DDGI fallback texture");
+				LOG_ERROR("Engine", "Failed to create DDGI fallback texture");
 		}
 
 		{
@@ -709,7 +726,7 @@ namespace imp::engine
 			m_bloomFallbackTexture = ctx.gfx.createTexture(bloomFallbackDesc);
 
 			if (!m_thermalFallbackBuffer || !m_bloomFallbackTexture)
-				LOG_ERROR("Sandbox", "Failed to create thermal or bloom fallback resources");
+				LOG_ERROR("Engine", "Failed to create thermal or bloom fallback resources");
 		}
 
 		if (ctx.gfx.supportsRayTracing())
@@ -720,14 +737,14 @@ namespace imp::engine
 			volumeDesc.probeSpacing = gfx::gi::cvarProbeSpacing;
 
 			if (!m_ddgiVolume.create(ctx.gfx, volumeDesc))
-				LOG_ERROR("Sandbox", "Failed to create DDGI volume");
+				LOG_ERROR("Engine", "Failed to create DDGI volume");
 
 			gfx::ThermalVolumeDesc thermalDesc{};
 			thermalDesc.origin = m_ddgiVolume.desc().origin;
 			thermalDesc.extents = m_ddgiVolume.desc().extents;
 			thermalDesc.probeSpacing = m_ddgiVolume.desc().probeSpacing;
 			if (!m_thermalVolume.create(ctx.gfx, thermalDesc, m_ddgiVolume.probeCountX(), m_ddgiVolume.probeCountY(), m_ddgiVolume.probeCountZ()))
-				LOG_ERROR("Sandbox", "Failed to create thermal volume");
+				LOG_ERROR("Engine", "Failed to create thermal volume");
 
 			gfx::ShaderDesc thermalDdgiComputeDesc{};
 			thermalDdgiComputeDesc.stage = gfx::ShaderStage::Compute;
@@ -740,7 +757,7 @@ namespace imp::engine
 				m_thermalUpdateDdgiPipeline = ctx.gfx.createComputePipeline(thermalPipelineDesc);
 			}
 			if (!m_thermalUpdateDdgiShader || !m_thermalUpdateDdgiPipeline)
-				LOG_ERROR("Sandbox", "Thermal compute pipeline failed to build");
+				LOG_ERROR("Engine", "Thermal compute pipeline failed to build");
 
 			gfx::ShaderDesc ddgiComputeDesc{};
 			ddgiComputeDesc.stage = gfx::ShaderStage::Compute;
@@ -755,7 +772,7 @@ namespace imp::engine
 			}
 
 			if (!m_ddgiProbeUpdateShader || !m_ddgiProbeUpdatePipeline)
-				LOG_ERROR("Sandbox", "DDGI probe update compute pipeline failed to build");
+				LOG_ERROR("Engine", "DDGI probe update compute pipeline failed to build");
 
 			gfx::ShaderDesc ddgiRayTraceDesc{};
 			ddgiRayTraceDesc.stage = gfx::ShaderStage::Compute;
@@ -770,7 +787,7 @@ namespace imp::engine
 			}
 
 			if (!m_ddgiRayTraceShader || !m_ddgiRayTracePipeline)
-				LOG_ERROR("Sandbox", "DDGI ray trace compute pipeline failed to build");
+				LOG_ERROR("Engine", "DDGI ray trace compute pipeline failed to build");
 
 			gfx::ShaderDesc ddgiClassifyDesc{};
 			ddgiClassifyDesc.stage = gfx::ShaderStage::Compute;
@@ -785,7 +802,7 @@ namespace imp::engine
 			}
 
 			if (!m_ddgiClassifyShader || !m_ddgiClassifyPipeline)
-				LOG_ERROR("Sandbox", "DDGI classify compute pipeline failed to build.");
+				LOG_ERROR("Engine", "DDGI classify compute pipeline failed to build.");
 		}
 		else
 		{
@@ -794,7 +811,7 @@ namespace imp::engine
 			thermalDesc.extents = math::Vec3f(gfx::gi::cvarVolumeExtentX, gfx::gi::cvarVolumeExtentY, gfx::gi::cvarVolumeExtentZ);
 			thermalDesc.probeSpacing = gfx::thermal::cvarFallbackProbeSpacing;
 			if (!m_thermalVolume.create(ctx.gfx, thermalDesc))
-				LOG_ERROR("Sandbox", "Failed to create thermal volume");
+				LOG_ERROR("Engine", "Failed to create thermal volume");
 
 			gfx::ShaderDesc thermalFallbackComputeDesc{};
 			thermalFallbackComputeDesc.stage = gfx::ShaderStage::Compute;
@@ -807,15 +824,17 @@ namespace imp::engine
 				m_thermalUpdateFallbackPipeline = ctx.gfx.createComputePipeline(thermalFallbackPipelineDesc);
 			}
 			if (!m_thermalUpdateFallbackShader || !m_thermalUpdateFallbackPipeline)
-				LOG_ERROR("Sandbox", "Thermal compute pipeline failed to build");
+				LOG_ERROR("Engine", "Thermal compute pipeline failed to build");
 		}
 
 		if (!m_pipeline || !m_blendPipeline || !m_tonemapPipeline || !m_sampler
 			|| !m_shadowPipeline || !m_shadowSampler)
 		{
-			LOG_FATAL("Sandbox", "Failed to create pipelines/sampler/light buffer");
+			LOG_FATAL("Engine", "Failed to create pipelines/sampler/light buffer");
 			return false;
 		}
+
+		m_shaderWatcher = createShaderHotReloadWatcher(ctx.vfs);
 
 		return true;
 	}
@@ -915,7 +934,7 @@ namespace imp::engine
 				target = ctx.gfx.createRenderTarget(desc);
 				if (!target)
 				{
-					LOG_ERROR("Sandbox", "Failed to create TAA history target ({}x{})", width, height);
+					LOG_ERROR("Engine", "Failed to create TAA history target ({}x{})", width, height);
 					return false;
 				}
 			}
@@ -957,7 +976,7 @@ namespace imp::engine
 		desc.size = static_cast<u64>( newCapacity ) * sizeof(math::Mat4f);
 		desc.usage = gfx::BufferUsage::Vertex;
 		desc.memoryAccess = gfx::MemoryAccess::HostVisible;
-		desc.debugName = "SandboxApp instance buffer";
+		desc.debugName = "Engine instance buffer";
 
 		std::vector<std::unique_ptr<gfx::IBuffer>> newBuffers(gfx::kMaxFramesInFlight);
 		for (auto& buf : newBuffers)
@@ -965,7 +984,7 @@ namespace imp::engine
 			buf = ctx.gfx.createBuffer(desc);
 			if (!buf)
 			{
-				LOG_ERROR("Sandbox", "Failed to create instance buffer for capacity {}", newCapacity);
+				LOG_ERROR("Engine", "Failed to create instance buffer for capacity {}", newCapacity);
 				return;
 			}
 		}

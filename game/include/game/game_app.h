@@ -1,15 +1,15 @@
 #pragma once
 
-#include <app/iapp.h>
-#include <camera/camera.h>
-#include <sandbox/asset_manifest.h>
+#include <core/fs/directory_watcher.h>
 #include <engine/render_resources.h>
-#include <sandbox/sandbox_scene.h>
+
 #include <script/system.h>
 #include <script/file_watcher.h>
 
-#include <core/fs/directory_watcher.h>
-#include <gfx/shader_hot_reload.h>
+#include <camera/camera.h>
+#include <app/iapp.h>
+#include <game/asset_manifest.h>
+#include <game/game_scene.h>
 
 #include <memory>
 
@@ -21,9 +21,11 @@ namespace imp::gfx
 	class IBuffer;
 }
 
-namespace imp::app
+namespace imp::game
 {
-	class SandboxApp final : public IApp
+	using app::AppContext;
+
+	class GameApp final : public app::IApp
 	{
 	public:
 		bool onInit(AppContext& ctx) override;
@@ -50,15 +52,12 @@ namespace imp::app
 		AssetManifest m_assets;
 		engine::RendererManifest m_rendererManifest;
 		engine::RenderResources m_resources;
-		SandboxScene m_scene;
+		GameScene m_scene;
 		bool m_enableFrustumCulling = true;
 
 		std::unique_ptr<script::ScriptSystem> m_scriptSystem;
 
 		std::unique_ptr<fs::DirectoryWatcher> m_scriptSourceWatcher;
-		std::unique_ptr<gfx::ShaderHotReloadWatcher> m_shaderWatcher;
-
-		void pollShaderHotReload(AppContext& ctx);
 		void pollScriptHotReload(AppContext& ctx);
 
 		gfx::IRenderTarget* m_readbackTarget = nullptr;

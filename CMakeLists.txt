@@ -221,7 +221,7 @@ endif()
 add_subdirectory(protocol)
 add_subdirectory(imp)
 add_subdirectory(tools)
-add_subdirectory(sandbox)
+add_subdirectory(game)
 add_subdirectory(tests)
 
 IMP_ADD_THIRD_PARTY_TARGET(imgui)

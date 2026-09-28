@@ -16,7 +16,7 @@ call :setvar IMP_BUILD_DEB "%ROOT%\build\windows-debug\engine"
 call :setvar IMP_BUILD_REL "%ROOT%\build\windows-release\engine"
 call :setvar IMP_EDITOR_D "%IMP_BUILD_DEB%\bin\tools\editor\imp_editor_d.exe"
 call :setvar IMP_EDITOR "%IMP_BUILD_REL%\bin\tools\editor\imp_editor.exe"
-call :setvar IMP_PROJ "%ROOT%\sandbox"
+call :setvar IMP_PROJ "%ROOT%\game"
 
 echo.
 echo Environment variables have been set.

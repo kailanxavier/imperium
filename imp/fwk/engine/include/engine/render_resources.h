@@ -18,6 +18,7 @@ namespace imp::gfx
 	class IRenderTarget;
 	class ITexture;
 	class RenderGraphResourcePool;
+	class ShaderHotReloadWatcher;
 }
 
 namespace imp::engine
@@ -35,6 +36,8 @@ namespace imp::engine
 
 		void ensureInstanceBufferCapacity(AppContext& ctx, u32 instanceCount);
 		bool reloadShaders(AppContext& ctx, const RendererManifest& assets);
+
+		bool pollShaderHotReload(AppContext& ctx, const RendererManifest& assets);
 
 		// We're retiring MSAA completely in favour of a more performant
 		// deferred rendering solution, paired with TAA for anti-aliasing.
@@ -209,6 +212,7 @@ namespace imp::engine
 		u32 m_instanceCapacity = 16;
 
 		std::unique_ptr<gfx::RenderGraphResourcePool> m_graphPool;
+		std::unique_ptr<gfx::ShaderHotReloadWatcher> m_shaderWatcher;
 
 		u32 m_frameCounter = 0;
 

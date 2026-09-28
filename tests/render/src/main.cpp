@@ -1,5 +1,5 @@
 #include <app/application.h>
-#include <sandbox/sandbox_app.h>
+#include <game/game_app.h>
 #include <gfx/image.h>
 
 #include <core/log/log.h>
@@ -49,17 +49,17 @@ int main(int argc, char** argv)
     desc.vfsMounts.push_back(app::VfsMountDesc{ "assets/", assetsPath, 0, true, true });
 
     app::Application application;
-    if (!application.initialise(desc, std::make_unique<app::SandboxApp>()))
+    if (!application.initialise(desc, std::make_unique<game::GameApp>()))
     {
         LOG_FATAL("RenderSmokeTest", "Application failed to initialise");
         log::Logger::get().shutdown();
         return 2;
     }
 
-    auto* sandbox = dynamic_cast<app::SandboxApp*>( application.app().get() );
-    if (!sandbox)
+    auto* gameApp = dynamic_cast<game::GameApp*>( application.app().get() );
+    if (!gameApp)
     {
-        LOG_FATAL("RenderSmokeTest", "Expected a SandboxApp instance");
+        LOG_FATAL("RenderSmokeTest", "Expected a GameApp instance");
         application.shutdown();
         log::Logger::get().shutdown();
         return 2;
@@ -81,7 +81,7 @@ int main(int argc, char** argv)
         log::Logger::get().shutdown();
         return 2;
     }
-    sandbox->setReadbackTarget(readbackTarget.get());
+    gameApp->setReadbackTarget(readbackTarget.get());
 
     app::AppContext ctx{
         application.window(), application.device(), application.window().input(),
@@ -123,13 +123,13 @@ int main(int argc, char** argv)
     if (!application.device().readbackTexture(*readbackTarget, actual.pixels))
     {
         LOG_FATAL("RenderSmokeTest", "readbackTexture() failed");
-        sandbox->setReadbackTarget(nullptr);
+        gameApp->setReadbackTarget(nullptr);
         application.shutdown();
         log::Logger::get().shutdown();
         return 2;
     }
 
-    sandbox->setReadbackTarget(nullptr);
+    gameApp->setReadbackTarget(nullptr);
 
     if (backBufferFormat == gfx::TextureFormat::BGRA8Srgb)
     {

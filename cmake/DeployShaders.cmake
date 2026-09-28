@@ -1,9 +1,9 @@
 function(imp_engine_deploy_shaders TARGET)
-	set(engine_shader_dir "${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/vulkan")
+	set(engine_shader_dir "${IMP_ENGINE_SOURCE_DIR}/assets/shaders/vulkan")
 
 	IMP_COMPILE_SHADERS(
 		${TARGET}
-		"$<TARGET_FILE_DIR:${TARGET}>/assets/shaders/vulkan" # TODO: make this not vulkan specific
+		"$<TARGET_FILE_DIR:${TARGET}>/engine/shaders"
 
 		${engine_shader_dir}/mesh.frag
 		${engine_shader_dir}/mesh.vert

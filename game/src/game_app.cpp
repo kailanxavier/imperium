@@ -1,27 +1,23 @@
-#include <sandbox/sandbox_app.h>
+#include <game/game_app.h>
 #include <engine/scene_renderer.h>
-#include <gfx/render_graph.h>
+
 #include <core/log/log.h>
-
-#include <gfx/shader_compiler.h>
 #include <fstream>
-
 #include <filesystem>
 #include <memory>
+#include <algorithm>
 
+#include <gfx/render_graph.h>
 #include <gfx/ao_cvars.h>
 #include <gfx/gbuffer_debug_cvars.h>
-
 #include <gfx/taa.h>
 #include <gfx/taa_cvars.h>
 
-#include <algorithm>
-
 using namespace imp::engine;
 
-namespace imp::app
+namespace imp::game
 {
-	bool SandboxApp::onInit(AppContext& ctx)
+	bool GameApp::onInit(AppContext& ctx)
 	{
 		m_camera.setPosition({ 0.f, 1.f, 0.f });
 		m_camera.setYawPitch(math::toRadians(90.f), 0.f);
@@ -37,28 +33,13 @@ namespace imp::app
 		m_scriptSourceWatcher = std::make_unique<fs::DirectoryWatcher>(
 			std::filesystem::path(IMP_SCRIPT_SOURCE_DIR), std::vector<std::string>{ ".lua" });
 
-		gfx::ShaderCompiler compiler(IMP_SHADER_COMPILER_PATH, IMP_SHADER_COMPILER_IS_GLSLANG_VALIDATOR != 0);
-		const std::string shaderOutputDir = ctx.vfs.resolvePhysicalPath("assets/shaders/", true);
-		m_shaderWatcher = std::make_unique<gfx::ShaderHotReloadWatcher>(
-			std::filesystem::path(IMP_SHADER_SOURCE_DIR), std::filesystem::path(shaderOutputDir), std::move(compiler));
-
-		if (m_scriptSourceWatcher->isValid() || m_shaderWatcher->isValid())
-			LOG_INFO("Sandbox", "Hot reload active (scripts: {}, shaders: {})",
-				m_scriptSourceWatcher->isValid(), m_shaderWatcher->isValid());
+		if (m_scriptSourceWatcher->isValid())
+			LOG_INFO("Game", "Script hot reload active");
 
 		return true;
 	}
 
-	void SandboxApp::pollShaderHotReload(AppContext &ctx)
-	{
-		if (!m_shaderWatcher || !m_shaderWatcher->isValid())
-			return;
-
-		if (m_shaderWatcher->poll())
-			m_resources.reloadShaders(ctx, m_rendererManifest);
-	}
-
-	void SandboxApp::pollScriptHotReload(AppContext &ctx)
+	void GameApp::pollScriptHotReload(AppContext &ctx)
 	{
 		if (!m_scriptSourceWatcher || !m_scriptSourceWatcher->isValid())
 			return;
@@ -88,12 +69,12 @@ namespace imp::app
 		}
 	}
 
-	void SandboxApp::onUpdate(AppContext& ctx, float deltaSeconds)
+	void GameApp::onUpdate(AppContext& ctx, float deltaSeconds)
 	{
 		m_camera.update(ctx.input, deltaSeconds);
 		m_scene.update(ctx, m_camera);
 
-		pollShaderHotReload(ctx);
+		m_resources.pollShaderHotReload(ctx, m_rendererManifest);
 		pollScriptHotReload(ctx);
 
 		if (m_scriptSystem)
@@ -109,7 +90,7 @@ namespace imp::app
 		}
 	}
 
-	void SandboxApp::onRender(AppContext& ctx, gfx::ICommandList& cmd)
+	void GameApp::onRender(AppContext& ctx, gfx::ICommandList& cmd)
 	{
 		const u32 w = ctx.gfx.backBuffer().width();
 		const u32 h = ctx.gfx.backBuffer().height();
@@ -150,7 +131,7 @@ namespace imp::app
 			addGBufferDebugPass(graph, m_resources, ctx, prepass, ctx.gfx.backBuffer(), ssgiTexture);
 			if (!graph.compile())
 			{
-				LOG_ERROR("Sandbox", "RenderGraph::compile() failed");
+				LOG_ERROR("Game", "RenderGraph::compile() failed");
 				return;
 			}
 
@@ -188,7 +169,7 @@ namespace imp::app
 
 		if (!graph.compile())
 		{
-			LOG_ERROR("Sandbox", "RenderGraph::compile() failed");
+			LOG_ERROR("Game", "RenderGraph::compile() failed");
 			return;
 		}
 
@@ -205,7 +186,7 @@ namespace imp::app
 		graph.execute(cmd);
 	}
 
-	void SandboxApp::onShutdown(AppContext& ctx)
+	void GameApp::onShutdown(AppContext& ctx)
 	{
 		m_scene.shutdown(ctx);
 		m_resources.shutdown();

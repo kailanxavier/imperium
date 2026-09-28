@@ -1,23 +1,29 @@
 #pragma once
 #include <app/iapp.h>
-#include <sandbox/asset_manifest.h>
+#include <game/asset_manifest.h>
+
+#include <engine/render_scene.h>
 #include <camera/camera.h>
 #include <ecs/world.h>
+
 #include <gfx/model_registry.h>
 #include <gfx/render_extraction.h>
 #include <gfx/cascade_shadow.h>
-#include <engine/render_scene.h>
-#include <array>
-#include <vector>
 #include <gfx/texture_cache.h>
 
-namespace imp::app
+
+#include <array>
+#include <vector>
+
+namespace imp::game
 {
-	class SandboxScene final : public engine::IRenderScene
+	using app::AppContext;
+
+	class GameScene final : public engine::IRenderScene
 	{
 	public:
-		SandboxScene();
-		~SandboxScene();
+		GameScene();
+		~GameScene();
 
 		bool init(AppContext& ctx, const AssetManifest& assets);
 		void update(AppContext& ctx, const fwk::Camera& camera);

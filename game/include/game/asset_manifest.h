@@ -1,7 +1,7 @@
 #pragma once
 #include <string>
 
-namespace imp::app
+namespace imp::game
 {
 	struct AssetManifest
 	{

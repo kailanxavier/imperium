@@ -22,12 +22,12 @@ namespace imp::gfx
 
 		gfx::ShaderDesc vertDesc{};
 		vertDesc.stage = gfx::ShaderStage::Vertex;
-		vertDesc.path = "assets/shaders/gizmo.vert.spv";
+		vertDesc.path = "engine/shaders/gizmo.vert.spv";
 		m_vertShader = m_device->createShader(vertDesc);
 
 		gfx::ShaderDesc fragDesc{};
 		fragDesc.stage = gfx::ShaderStage::Fragment;
-		fragDesc.path = "assets/shaders/gizmo.frag.spv";
+		fragDesc.path = "engine/shaders/gizmo.frag.spv";
 		m_fragShader = m_device->createShader(fragDesc);
 
 		if (!m_vertShader || !m_fragShader)

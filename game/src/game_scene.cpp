@@ -1,27 +1,30 @@
-#include <sandbox/sandbox_scene.h>
+#include <game/game_scene.h>
+
 #include <gfx/render_extraction.h>
 #include <gfx/model_renderer.h>
 #include <gfx/ddgi_volume.h>
-#include <core/config/cvar.h>
-#include <core/log/log.h>
-#include <cmath>
-#include <algorithm>
 #include <gfx/texture_cache.h>
 
-namespace imp::app
-{
-	SandboxScene::SandboxScene() = default;
-	SandboxScene::~SandboxScene() = default;
+#include <core/config/cvar.h>
+#include <core/log/log.h>
 
-	bool SandboxScene::init(AppContext& ctx, const AssetManifest& assets)
+#include <cmath>
+#include <algorithm>
+
+namespace imp::game
+{
+	GameScene::GameScene() = default;
+	GameScene::~GameScene() = default;
+
+	bool GameScene::init(AppContext& ctx, const AssetManifest& assets)
 	{
 		m_environmentHandle = m_modelRegistry.load(ctx.gfx, assets.environmentModel, ctx.jobs, &ctx.vfs);
 		if (!m_environmentHandle.isValid())
-			LOG_ERROR("Sandbox", "Failed to load environment model");
+			LOG_ERROR("Game", "Failed to load environment model");
 
 		m_environmentTestHandle = m_modelRegistry.load(ctx.gfx, assets.environmentTestModel, ctx.jobs, &ctx.vfs);
 		if (!m_environmentTestHandle.isValid())
-			LOG_ERROR("Sandbox", "Failed to load environment test model");
+			LOG_ERROR("Game", "Failed to load environment test model");
 
 		if (!m_environmentHandle.isValid())
 			return false;
@@ -62,7 +65,7 @@ namespace imp::app
 		return true;
 	}
 
-	void SandboxScene::shutdown(AppContext& ctx)
+	void GameScene::shutdown(AppContext& ctx)
 	{
 		for (ecs::EntityId instance : m_instances)
 			ctx.ecs.destroyEntity(instance);
@@ -74,7 +77,7 @@ namespace imp::app
 		m_modelRegistry.clear();
 	}
 
-	ecs::EntityId SandboxScene::spawnInstance(AppContext& ctx, const ecs::Transform& t, const gfx::ModelHandle& model)
+	ecs::EntityId GameScene::spawnInstance(AppContext& ctx, const ecs::Transform& t, const gfx::ModelHandle& model)
 	{
 		ecs::EntitySpawnDesc desc;
 		desc.transform = t;
@@ -85,7 +88,7 @@ namespace imp::app
 		return entity;
 	}
 
-	void SandboxScene::update(AppContext& ctx, const fwk::Camera& camera)
+	void GameScene::update(AppContext& ctx, const fwk::Camera& camera)
 	{
 		syncSunTransform(ctx);
 		ctx.ecs.transforms.updateWorldMatricesParallel(ctx.jobs);
@@ -98,12 +101,12 @@ namespace imp::app
 		updateDynamicTlas(ctx);
 	}
 
-	void SandboxScene::recomputeCascades(const fwk::Camera& camera, float aspect)
+	void GameScene::recomputeCascades(const fwk::Camera& camera, float aspect)
 	{
 		m_cascades = gfx::computeCascades(camera, aspect, m_sunDirection, m_cascadeConfig);
 	}
 
-	void SandboxScene::syncSunTransform(AppContext& ctx) const
+	void GameScene::syncSunTransform(AppContext& ctx) const
 	{
 		using namespace imp::math;
 
@@ -134,7 +137,7 @@ namespace imp::app
 		ctx.ecs.transforms.setLocalTransform(m_sunEntity, sunTransform);
 	}
 
-	void SandboxScene::updateSunViewProj()
+	void GameScene::updateSunViewProj()
 	{
 		using namespace imp::math;
 
@@ -153,7 +156,7 @@ namespace imp::app
 		m_sunViewProj = lightProj * lightView;
 	}
 
-	void SandboxScene::updateDynamicTlas(AppContext& ctx)
+	void GameScene::updateDynamicTlas(AppContext& ctx)
 	{
 		if (!ctx.gfx.supportsRayTracing())
 			return;
@@ -162,7 +165,7 @@ namespace imp::app
 		std::vector<gfx::TlasInstanceDesc> instances = gfx::gatherTlasInstances(m_modelRegistry, m_extraction, &materials);
 		if (instances.empty())
 		{
-			//LOG_WARN("Sandbox", "buildStaticTlasOnce(): no instances with a built BLAS found");
+			//LOG_WARN("Game", "buildStaticTlasOnce(): no instances with a built BLAS found");
 			return;
 		}
 
@@ -173,7 +176,7 @@ namespace imp::app
 		auto newTlas = ctx.gfx.createTlas(tlasDesc);
 		if (!newTlas)
 		{
-			LOG_ERROR("Sandbox", "updateDynamicTlas(): createTlas() failed");
+			LOG_ERROR("Game", "updateDynamicTlas(): createTlas() failed");
 			return;
 		}
 
@@ -185,7 +188,7 @@ namespace imp::app
 		if (newMaterials)
 			newMaterials->update(materials.data(), materialsDesc.size, 0);
 		else
-			LOG_ERROR("Sandbox", "buildStaticTlasOnce(): instance material buffer allocation failed");
+			LOG_ERROR("Game", "buildStaticTlasOnce(): instance material buffer allocation failed");
 
 		if (m_staticTlas || m_ddgiInstanceMaterials)
 		{

@@ -1,0 +1,41 @@
+add_library(game_lib STATIC
+	src/game_app.cpp
+	src/game_scene.cpp
+)
+
+target_include_directories(game_lib
+	PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
+	PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+target_link_libraries(game_lib 
+	PUBLIC 
+		imp_app 
+		imp_engine 
+		imp_script 
+		imp_fwk 
+		imp_cam 
+		imp_input 
+		imp_gfx 
+	PRIVATE 
+		imp_protocol
+)
+
+target_compile_definitions(game_lib
+	PRIVATE 
+		IMP_SCRIPT_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets/scripts/"
+)
+
+add_executable(game
+	src/main.cpp
+)
+
+target_link_libraries(game
+	PRIVATE
+		game_lib
+		imp_protocol
+)
+
+imp_set_runtime_dir(game game)
+IMP_ENGINE_DEPLOY_SHADERS(game)
+IMP_COPY_ASSETS(game)

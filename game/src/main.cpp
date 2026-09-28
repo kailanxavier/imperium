@@ -4,7 +4,7 @@
 #include <app/gizmo_layer.h>
 #include <app/editor_bridge_layer.h>
 
-#include <sandbox/sandbox_app.h>
+#include <game/game_app.h>
 
 #include <core/log/log.h>
 #include <core/platform/exe_path.h>
@@ -16,7 +16,7 @@ using namespace imp;
 int main()
 {
 	log::Logger::get().initialise();
-	LOG_INFO("Sandbox", "App starting...");
+	LOG_INFO("Game", "App starting...");
 
 	app::ApplicationDesc desc{};
 #ifndef NDEBUG
@@ -38,17 +38,17 @@ int main()
 
 	{
 		app::Application application;
-		if (!application.initialise(desc, std::make_unique<app::SandboxApp>()))
+		if (!application.initialise(desc, std::make_unique<game::GameApp>()))
 		{
-			LOG_FATAL("Sandbox", "Application failed to initialise");
+			LOG_FATAL("Game", "Application failed to initialise");
 			log::Logger::get().shutdown();
 			return 1;
 		}
 
-		LOG_INFO("Sandbox", "Running with {} device, window ({}, {})",
+		LOG_INFO("Game", "Running with {} device, window ({}, {})",
 			application.device().apiName(), application.window().width(), application.window().height());
 
-		auto* sb = dynamic_cast<app::SandboxApp*>( application.app().get() );
+		auto* sb = dynamic_cast<game::GameApp*>( application.app().get() );
 
 		auto modelPathResolver = [sb](ecs::ModelHandle handle) -> std::string
 			{
