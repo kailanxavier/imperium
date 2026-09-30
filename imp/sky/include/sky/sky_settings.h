@@ -38,7 +38,7 @@ namespace imp::sky
 		math::Vec3f sunColourZenith{ 1.f, 0.82f, 0.55f };
 		float sunColourBlendDegrees = 30.f;
 		float sunIntensity = 50.f;
-		ElevationFade sunLightFade{ -1.f, 8.f };
+		ElevationFade sunLightFade{ 0.f, 8.f };
 
 		math::Vec3f moonColour{ 0.55f, 0.68f, 1.f };
 		float moonIntensity = 2.f;
@@ -54,7 +54,7 @@ namespace imp::sky
 		float moonSkyIntensityScale = 0.25f;
 		ElevationFade twilightFade{ -18.f, 2.f };
 		ElevationFade starFade{ -14.f, -4.f };
-		float starIntensity = 1.f;
+		float starIntensity = 0.3f;
 		SkyScattering scattering;
 	};
 }

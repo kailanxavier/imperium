@@ -362,7 +362,7 @@ void main()
         // TODO: There main have been an oversight during the deferred lighting pass,
         // so we need to look into why we have duplicate work running here in mesh.frag 
         // and exactly the same code in deferred_lighting.frag.
-        float shadowFactor = isPoint ? 1.0 : mix(1.0, sunShadowFactor, lightData.mainShadowStrength);
+        float shadowFactor = isPoint ? 1.0 : sunShadowFactor;
         result += (diffuse + specular) * radiance * NdotL * shadowFactor;
     }
 

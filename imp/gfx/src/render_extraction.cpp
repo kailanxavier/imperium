@@ -38,7 +38,7 @@ namespace imp::gfx
 				}
 
 				const math::Mat4f worldMatrix = world.transforms.worldMatrix(owners[i]);
-				gfx::GPULight gpuLight = out.lights[count++];
+				gfx::GPULight& gpuLight = out.lights[count++];
 
 				gpuLight.positionOrDirWS = math::Vec4f{ translationOf(worldMatrix), 1.f };
 				gpuLight.colourIntensity = math::Vec4f{ colours[i], intensities[i] };

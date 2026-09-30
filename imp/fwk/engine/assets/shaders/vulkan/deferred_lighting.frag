@@ -356,7 +356,7 @@ void main()
         vec3 kD = (vec3(1.0) - F) * (1.0 - metallic);
         vec3 diffuse = kD * albedo / PI;
 
-        float shadowFactor = isPoint ? 1.0 : mix(1.0, sunShadowFactor, lightData.mainShadowStrength);
+        float shadowFactor = isPoint ? 1.0 : sunShadowFactor;
         result += (diffuse + specular) * radiance * NdotL * shadowFactor;
     }
 

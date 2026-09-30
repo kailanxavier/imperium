@@ -77,6 +77,14 @@ namespace imp::sky
 					 finiteOr(f.endDegrees,   fallback.endDegrees) };
 		}
 
+		ElevationFade sanitiseLightFade(const ElevationFade& f, const ElevationFade& fallback)
+		{
+			ElevationFade out = sanitiseFade(f, fallback);
+			out.startDegrees = std::max(out.startDegrees, 0.f);
+			out.endDegrees = std::max(out.endDegrees, 0.f);
+			return out;
+		}
+
 		SkySettings& sanitise(SkySettings& s)
 		{
 			const SkySettings d{};
@@ -93,7 +101,7 @@ namespace imp::sky
 			s.sunColourZenith = sanitiseColour(s.sunColourZenith);
 			s.sunColourBlendDegrees = std::max(finiteOr(s.sunColourBlendDegrees, d.sunColourBlendDegrees), 0.f);
 			s.sunIntensity = std::max(finiteOr(s.sunIntensity, d.sunIntensity), 0.f);
-			s.sunLightFade = sanitiseFade(s.sunLightFade, d.sunLightFade);
+			s.sunLightFade = sanitiseLightFade(s.sunLightFade, d.sunLightFade);
 
 			s.moonColour = sanitiseColour(s.moonColour);
 			s.moonIntensity = std::max(finiteOr(s.moonIntensity, d.moonIntensity), 0.f);
@@ -104,7 +112,7 @@ namespace imp::sky
 
 			s.moonOrbitOffsetDegrees = finiteOr(s.moonOrbitOffsetDegrees, d.moonOrbitOffsetDegrees);
 			s.moonInclinationDegrees = clampf(finiteOr(s.moonInclinationDegrees, d.moonInclinationDegrees), -90.f, 90.f);
-			s.moonLightFade = sanitiseFade(s.moonLightFade, d.moonLightFade);
+			s.moonLightFade = sanitiseLightFade(s.moonLightFade, d.moonLightFade);
 
 			s.mainLightHysteresis = clampf(finiteOr(s.mainLightHysteresis, d.mainLightHysteresis), 0.f, 4.f);
 			s.mainLightSwapSeconds = std::max(finiteOr(s.mainLightSwapSeconds, d.mainLightSwapSeconds), 0.f);
