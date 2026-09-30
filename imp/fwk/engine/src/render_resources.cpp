@@ -629,6 +629,14 @@ namespace imp::engine
 		for (auto& buf : m_screenParamsUBOs)
 			buf = ctx.gfx.createBuffer(screenParamsDesc);
 
+		gfx::BufferDesc skyParamsDesc{};
+		skyParamsDesc.size = sizeof(gfx::SkyUBO);
+		skyParamsDesc.usage = gfx::BufferUsage::Uniform;
+		skyParamsDesc.memoryAccess = gfx::MemoryAccess::HostVisible;
+		m_skyUBOs.resize(gfx::kMaxFramesInFlight);
+		for (auto& buf : m_skyUBOs)
+			buf = ctx.gfx.createBuffer(skyParamsDesc);
+
 		gfx::BufferDesc blurParamsDesc{};
 		blurParamsDesc.size = sizeof(gfx::BlurParamsUBO);
 		blurParamsDesc.usage = gfx::BufferUsage::Uniform;
@@ -905,6 +913,7 @@ namespace imp::engine
 		for (auto& buf : m_instanceBuffers) buf.reset();
 		for (auto& buf : m_aoParamsUBOs) buf.reset();
 		for (auto& buf : m_screenParamsUBOs) buf.reset();
+		for (auto& buf : m_skyUBOs) buf.reset();
 		for (auto& buf : m_prevViewProjUBOs) buf.reset();
 		for (auto& buf : m_blurParamsUBOs) buf.reset();
 		for (auto& buf : m_ssgiParamsUBOs) buf.reset();

@@ -24,7 +24,7 @@ namespace imp::game
 			m_resources.hdrDepthFormat(), 
 			engine::RenderResources::kMsaaSampleCount };
 
-		m_lightRefs = { &m_scene.sunDirection(), &m_scene.cascadeConfig() };
+		m_lightRefs = { &m_scene.cascadeConfig() };
 
 		ctx.services.provide(m_camera);
 		ctx.services.provide(m_scene.modelRegistry());
@@ -87,7 +87,12 @@ namespace imp::game
 	void GameApp::onUpdate(AppContext& ctx, float deltaSeconds)
 	{
 		m_camera.update(ctx.input, deltaSeconds);
-		m_scene.update(ctx, m_camera);
+
+		m_currentSky = ctx.services.tryGet<sky::SkyState>();
+		if (!m_currentSky)
+			m_currentSky = &m_fallbackSky;
+
+		m_scene.update(ctx, m_camera, *m_currentSky);
 
 		m_resources.pollShaderHotReload(ctx, m_rendererManifest);
 		pollScriptHotReload(ctx);
@@ -115,6 +120,7 @@ namespace imp::game
 
 		SceneRenderParams params{};
 		params.camera = &m_camera;
+		params.sky = m_currentSky ? m_currentSky : &m_fallbackSky;
 		params.aspect = aspect;
 		params.currentFrame = ctx.gfx.currentFrameIndex();
 		params.enableFrustumCulling = m_enableFrustumCulling;

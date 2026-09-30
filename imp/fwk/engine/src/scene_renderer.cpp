@@ -23,6 +23,22 @@ namespace imp::engine
 {
 	namespace
 	{
+		gfx::SkyUBO buildSkyUBO(const sky::SkyState& s)
+		{
+			gfx::SkyUBO ubo;
+			ubo.sunDirAndIntensity = math::Vec4f{ -s.sun.direction, s.sunSkyIntensity };
+			ubo.sunColour = math::Vec4f{ s.sun.colour, 0.f };
+			ubo.moonDirAndIntensity = math::Vec4f{ -s.moon.direction, s.moonSkyIntensity };
+			ubo.moonColour = math::Vec4f{ s.moon.colour, 0.f };
+
+			const sky::SkyScattering& sc = s.scattering;
+			ubo.rayleighAndMieG = math::Vec4f{ sc.rayleighCoefficients, sc.mieAnisotropy };
+			ubo.scatterParams = math::Vec4f{ sc.mieCoefficient, sc.scatterScale,
+				math::toRadians(sc.sunAngularRadiusDegrees), math::toRadians(sc.moonAngularRadiusDegrees) };
+			ubo.groundAndStars = math::Vec4f{ sc.groundColour, s.starVisibility };
+			return ubo;
+		}
+
 		struct ShadowCascadePassData
 		{
 			gfx::RGTextureHandle target;
@@ -97,6 +113,7 @@ namespace imp::engine
 			std::array<gfx::RGTextureHandle, gfx::kCascadeCount> cascadeShadowMaps;
 			gfx::RGTextureHandle aoTexture;
 			gfx::RGBufferHandle screenParamsUBO;
+			gfx::RGBufferHandle skyUBO;
 
 			bool ddgiActive = false;
 			gfx::RGTextureHandle ddgiIrradianceAtlas;
@@ -925,13 +942,18 @@ namespace imp::engine
 				d.aoTexture = b.readTexture(aoTexture);
 				d.screenParamsUBO = b.readBuffer(b.importBuffer("ScreenParamsUBO", &resources.screenParamsUBO(params.currentFrame)));
 
+				const gfx::SkyUBO skyParams = buildSkyUBO(*params.sky);
+				resources.skyUBO(params.currentFrame).update(&skyParams, sizeof(skyParams), 0);
+				d.skyUBO = b.readBuffer(b.importBuffer("SkyUBO", &resources.skyUBO(params.currentFrame)));
+
+
 				gfx::ScreenParamsUBO screenParams{};
-				screenParams.resolutionAndInv = { static_cast<float>( w ), static_cast<float>( h ),
-					1.f / static_cast<float>( w ), 1.f / static_cast<float>( h ) };
+				screenParams.resolutionAndInv = { static_cast<float>(w), static_cast<float>(h),
+					1.f / static_cast<float>(w), 1.f / static_cast<float>(h) };
 
 				screenParams.flags = {
 					gfx::ao::cvarEnabled ? 1.f : 0.f,
-					params.taaEnabled ? static_cast<float>(params.frameCounter % 64) : 0.f,
+					params.taaEnabled ? static_cast<float>( params.frameCounter % 64 ) : 0.f,
 					ssgiTexture.isValid() ? 1.f : 0.f,
 					0.f
 				};
@@ -1027,9 +1049,9 @@ namespace imp::engine
 				gfx::SkyPushConstants skyPC{};
 				skyPC.invViewProj = math::inverse(renderCtx.viewProj);
 				skyPC.cameraPositionWS = math::Vec4f{ d.params.camera->position(), 1.f };
-				skyPC.sunDirAndIntensity = math::Vec4f{ -d.scene->sunDirection(), 10.f };
 
 				rgCtx.cmd().bindPipeline(d.resources->skyPipeline());
+				rgCtx.cmd().bindUniformBuffer(rgCtx.buffer(d.skyUBO), 0);
 				rgCtx.cmd().pushConstants(&skyPC, sizeof(skyPC));
 				rgCtx.cmd().draw(3, 1);
 
@@ -1043,7 +1065,7 @@ namespace imp::engine
 		return data.hdrResolve;
 	}
 
-	gfx::RGTextureHandle addTaaResolvePass(gfx::RenderGraph &graph, RenderResources &resources, AppContext &ctx, const SceneRenderParams &params, const PrepassOutputs &prepass, gfx::RGTextureHandle hdrColour)
+	gfx::RGTextureHandle addTaaResolvePass(gfx::RenderGraph& graph, RenderResources& resources, AppContext& ctx, const SceneRenderParams& params, const PrepassOutputs& prepass, gfx::RGTextureHandle hdrColour)
 	{
 		if (!params.taaEnabled)
 			return hdrColour;
@@ -1081,7 +1103,7 @@ namespace imp::engine
 				d.feedbackMax = std::clamp(static_cast<float>( gfx::taa::cvarFeedbackMax ), 0.f, 0.999f);
 				d.feedbackMin = std::clamp(static_cast<float>( gfx::taa::cvarFeedbackMin ), 0.f, d.feedbackMax);
 				d.varianceGamma = std::max(0.f, static_cast<float>( gfx::taa::cvarVarianceGamma ));
-				d.rejectFeedback = std::clamp(static_cast<float>(gfx::taa::cvarRejectFeedback ), 0.f, 1.f);
+				d.rejectFeedback = std::clamp(static_cast<float>( gfx::taa::cvarRejectFeedback ), 0.f, 1.f);
 				d.historyValid = history.readValid;
 				d.resources = &resources;
 			},
@@ -1110,7 +1132,7 @@ namespace imp::engine
 	}
 
 
-	gfx::RGTextureHandle addOverlayPass(gfx::RenderGraph &graph, RenderResources &resources, AppContext &ctx, const SceneRenderParams &params, gfx::RGTextureHandle colourIn, gfx::RGTextureHandle depthIn, gfx::RGTextureHandle ddgiIrradianceHandle, gfx::RGTextureHandle ddgiDepthHandle, gfx::RGBufferHandle ddgiRayBuffer)
+	gfx::RGTextureHandle addOverlayPass(gfx::RenderGraph& graph, RenderResources& resources, AppContext& ctx, const SceneRenderParams& params, gfx::RGTextureHandle colourIn, gfx::RGTextureHandle depthIn, gfx::RGTextureHandle ddgiIrradianceHandle, gfx::RGTextureHandle ddgiDepthHandle, gfx::RGBufferHandle ddgiRayBuffer)
 	{
 		const auto& data = graph.addPass<OverlayPassData>("Overlay",
 			[&](gfx::RenderGraphBuilder& b, OverlayPassData& d)
@@ -1311,7 +1333,7 @@ namespace imp::engine
 
 				gfx::PrevViewProjUBO prevViewProjData{};
 				prevViewProjData.prevViewProj = resources.previousViewProj();
-				prevViewProjData.jitterNdc = math::Vec4f{params.jitterNdc.x, params.jitterNdc.y, 0.f, 0.f};
+				prevViewProjData.jitterNdc = math::Vec4f{ params.jitterNdc.x, params.jitterNdc.y, 0.f, 0.f };
 				d.prevViewProj = prevViewProjData.prevViewProj;
 				resources.prevViewProjUBO(params.currentFrame).update(&prevViewProjData, sizeof(prevViewProjData), 0);
 				d.prevViewProjBuffer = &resources.prevViewProjUBO(params.currentFrame);
@@ -1466,7 +1488,7 @@ namespace imp::engine
 		return data.blurredOut;
 	}
 
-	gfx::RGTextureHandle addSSGIPass(gfx::RenderGraph &graph, RenderResources &resources, AppContext &ctx, const PrepassOutputs &prepass, const SceneRenderParams &params)
+	gfx::RGTextureHandle addSSGIPass(gfx::RenderGraph& graph, RenderResources& resources, AppContext& ctx, const PrepassOutputs& prepass, const SceneRenderParams& params)
 	{
 		if (!gfx::gi::cvarSSGIEnabled || gfx::gi::cvarDDGIEnabled)
 			return {};
@@ -1484,12 +1506,12 @@ namespace imp::engine
 		cpuParams.view = params.camera->view();
 		cpuParams.params = {
 			gfx::gi::cvarRadius, gfx::gi::cvarIntensity,
-			static_cast<float>(gfx::gi::cvarSliceCount.ref()), static_cast<float>(gfx::gi::cvarStepCount.ref())
+			static_cast<float>( gfx::gi::cvarSliceCount.ref() ), static_cast<float>( gfx::gi::cvarStepCount.ref() )
 		};
 
 		cpuParams.params2 = {
 			gfx::gi::cvarThickness, gfx::gi::cvarMaxRadiance,
-			static_cast<float>(ctx.gfx.backBuffer().width()), static_cast<float>(ctx.gfx.backBuffer().height())
+			static_cast<float>( ctx.gfx.backBuffer().width() ), static_cast<float>( ctx.gfx.backBuffer().height() )
 		};
 
 		resources.ssgiParamsUBO(params.currentFrame).update(&cpuParams, sizeof(cpuParams), 0);

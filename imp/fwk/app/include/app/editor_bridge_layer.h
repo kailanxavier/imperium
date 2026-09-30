@@ -2,6 +2,7 @@
 
 #include <app/iapp.h>
 #include <fwk/layer.h>
+#include <fwk/service_registry.h>
 #include <core/types/int_types.h>
 #include <core/fs/vfs.h>
 #include <ecs/world.h>
@@ -39,6 +40,7 @@ namespace imp::app
 
 		ecs::World* m_world = nullptr;
 		fs::VirtualFileSystem* m_vfs = nullptr;
+		fwk::ServiceRegistry* m_services = nullptr;
 		fwk::Scene::ModelPathResolver m_modelPathResolver;
 		fwk::Scene::ModelLoader m_modelLoader;
 		u16 m_toolServerPort;

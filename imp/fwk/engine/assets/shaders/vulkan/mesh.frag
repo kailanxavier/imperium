@@ -31,7 +31,7 @@ layout(binding = 0) uniform LightUBO
     mat4 sunViewProj;
 
     vec3 sunDirection;
-    float shadowMapSize;
+    float mainShadowStrength;
 
     GPULight lights[MAX_LIGHTS];
 } lightData;
@@ -359,7 +359,10 @@ void main()
         vec3 kD = (vec3(1.0) - F) * (1.0 - metallic);
         vec3 diffuse = kD * albedo / PI;
 
-        float shadowFactor = isPoint ? 1.0 : sunShadowFactor;
+        // TODO: There main have been an oversight during the deferred lighting pass,
+        // so we need to look into why we have duplicate work running here in mesh.frag 
+        // and exactly the same code in deferred_lighting.frag.
+        float shadowFactor = isPoint ? 1.0 : mix(1.0, sunShadowFactor, lightData.mainShadowStrength);
         result += (diffuse + specular) * radiance * NdotL * shadowFactor;
     }
 

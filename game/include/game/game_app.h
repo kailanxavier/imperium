@@ -13,6 +13,8 @@
 
 #include <app/iapp.h>
 #include <app/render_target_formats.h>
+#include <sky/sky_state.h>
+#include <sky/sky_system.h>
 
 #include <memory>
 
@@ -55,5 +57,8 @@ namespace imp::game
 
 		app::RenderTargetFormats m_targetFormats{};
 		LightControlRefs m_lightRefs{};
+
+		sky::SkyState m_fallbackSky = sky::SkySystem{}.state();
+		const sky::SkyState* m_currentSky = nullptr;
 	};
 }

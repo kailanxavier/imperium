@@ -35,6 +35,7 @@ target_link_libraries(game
 	PRIVATE
 		game_lib
 		imp_app_editor_host
+		imp_app_sky
 		imp_app_debug
 		imp_protocol
 )

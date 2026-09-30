@@ -29,16 +29,6 @@ namespace imp::game
 		if (!m_environmentHandle.isValid())
 			return false;
 
-		const ecs::EntityId sunEntity = ctx.ecs.createEntity();
-		ecs::Transform sunTransform;
-		sunTransform.rotation = math::Quaternionf::fromAxisAngle(math::Vec3f::unitX(), math::toRadians(80.6f))
-			* math::Quaternionf::fromAxisAngle(math::Vec3f::unitY(), math::toRadians(21.1f));
-		m_sunDirection = math::normalise(math::rotate(sunTransform.rotation, math::Vec3f::forward()));
-		ctx.ecs.transforms.create(sunEntity, sunTransform);
-		ctx.ecs.lights.create(sunEntity, ecs::LightType::Directional, math::Vec3f{ 1.f, 0.82f, 0.55f }, 50.f);
-		m_sunEntity = sunEntity;
-		m_instances.push_back(sunEntity);
-
 		m_localLight = ctx.ecs.createEntity();
 		ecs::Transform pointTransform;
 		pointTransform.position = math::Vec3f{ 0.f, 5.f, 0.f };
@@ -88,53 +78,24 @@ namespace imp::game
 		return entity;
 	}
 
-	void GameScene::update(AppContext& ctx, const fwk::Camera& camera)
+	void GameScene::update(AppContext& ctx, const fwk::Camera& camera, const sky::SkyState& sky)
 	{
-		syncSunTransform(ctx);
+		m_mainLightDirection = math::normalise(sky.main.direction);
 		ctx.ecs.transforms.updateWorldMatricesParallel(ctx.jobs);
 
 		updateSunViewProj();
 		extractRenderables(ctx.ecs, m_modelRegistry, camera.position(), m_extraction);
 
 		m_extraction.lightData.sunViewProj = m_sunViewProj;
+		gfx::setMainLight(m_extraction.lightData, m_mainLightDirection, sky.main.colour,
+			sky.main.intensity, sky.main.shadowStrength);
 
 		updateDynamicTlas(ctx);
 	}
 
 	void GameScene::recomputeCascades(const fwk::Camera& camera, float aspect)
 	{
-		m_cascades = gfx::computeCascades(camera, aspect, m_sunDirection, m_cascadeConfig);
-	}
-
-	void GameScene::syncSunTransform(AppContext& ctx) const
-	{
-		using namespace imp::math;
-
-		const Vec3f from = Vec3f::forward();
-		const Vec3f to = normalise(m_sunDirection);
-
-		const float d = std::clamp(dot(from, to), -1.f, 1.f);
-		Quaternionf rotation;
-		if (d > 0.999999f)
-		{
-			rotation = Quaternionf::identity();
-		}
-		else if (d < -0.999999f)
-		{
-			Vec3f axis = cross(Vec3f::unitX(), from);
-			if (length(axis) < 0.0001f)
-				axis = cross(Vec3f::unitY(), from);
-			rotation = Quaternionf::fromAxisAngle(normalise(axis), toRadians(180.f));
-		}
-		else
-		{
-			const Vec3f axis = normalise(cross(from, to));
-			rotation = Quaternionf::fromAxisAngle(axis, std::acos(d));
-		}
-
-		ecs::Transform sunTransform = ctx.ecs.transforms.localTransform(m_sunEntity);
-		sunTransform.rotation = rotation;
-		ctx.ecs.transforms.setLocalTransform(m_sunEntity, sunTransform);
+		m_cascades = gfx::computeCascades(camera, aspect, m_mainLightDirection, m_cascadeConfig);
 	}
 
 	void GameScene::updateSunViewProj()
@@ -144,7 +105,7 @@ namespace imp::game
 		static CVarFloat cvarSceneRadius{ "shadow.sun_scene_radius", 80.f };
 		const float sceneRadius = cvarSceneRadius;
 
-		Vec3f sunDir = normalise(m_sunDirection);
+		Vec3f sunDir = normalise(m_mainLightDirection);
 		Vec3f up = std::abs(dot(sunDir, Vec3f::up())) > 0.99f ? Vec3f::unitX() : Vec3f::up();
 
 		const Vec3f sceneCentre = Vec3f::zero();

@@ -5,6 +5,8 @@
 #include <ecs/light_storage.h>
 #include <ecs/world.h>
 
+#include <sky/sky_system.h>
+
 #include <filesystem>
 #include <optional>
 #include <string>
@@ -40,9 +42,13 @@ namespace imp::fwk
 		using ModelLoader = std::function<ecs::ModelHandle(const std::string&)>;
 
 		std::vector<SceneEntity> entities;
+		std::optional<sky::SkySettings> environment;
 
-		[[nodiscard]] static Scene fromWorld(const ecs::World& world, const ModelPathResolver& resolveModelPath = {});
-		void applyToWorld(ecs::World& world, const ModelLoader& loadModel = {}) const;
+		[[nodiscard]] static Scene fromWorld(const ecs::World& world,
+			const ModelPathResolver& resolveModelPath = {}, const sky::SkySettings* environment = nullptr);
+
+		void applyToWorld(ecs::World& world, const ModelLoader& loadModel = {}, 
+			sky::SkySettings* outEnvironment = nullptr) const;
 
 		[[nodiscard]] std::string toJson() const;
 		[[nodiscard]] static std::optional<Scene> fromJson(const std::string& json);

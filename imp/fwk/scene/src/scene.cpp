@@ -45,11 +45,137 @@ namespace imp::fwk
 			if (s == "Directional") return ecs::LightType::Directional;
 			return std::nullopt;
 		}
+
+		json fadeToJson(const sky::ElevationFade& f)
+		{
+			return { { "start", f.startDegrees }, { "end", f.endDegrees } };
+		}
+
+		sky::ElevationFade fadeFromJson(const json& j, const sky::ElevationFade& fallback)
+		{
+			if (!j.is_object())
+				return fallback;
+			return { j.value("start", fallback.startDegrees), j.value("end", fallback.endDegrees) };
+		}
+
+		json skySettingsToJson(const sky::SkySettings& s)
+		{
+			json j;
+			j["cycleEnabled"] = s.cycleEnabled;
+			j["timeOfDayHours"] = s.timeOfDayHours;
+			j["dayLengthSeconds"] = s.dayLengthSeconds;
+			j["timeScale"] = s.timeScale;
+
+			j["latitude"] = s.latitude;
+			j["axialTilt"] = s.axialTilt;
+			j["dayOfYear"] = s.dayOfYear;
+			
+			j["sunColourHorizon"] = vec3ToJson(s.sunColourHorizon);
+			j["sunColourZenith"] = vec3ToJson(s.sunColourZenith);
+			j["sunColourBlendDegrees"] = s.sunColourBlendDegrees;
+			j["sunIntensity"] = s.sunIntensity;
+			j["sunLightFade"] = fadeToJson(s.sunLightFade);
+			
+			j["moonColour"] = vec3ToJson(s.moonColour);
+			j["moonIntensity"] = s.moonIntensity;
+			j["moonPhase"] = s.moonPhase;
+			j["moonOrbitOffsetDegrees"] = s.moonOrbitOffsetDegrees;
+			j["moonInclinationDegrees"] = s.moonInclinationDegrees;
+			j["moonLightFade"] = fadeToJson(s.moonLightFade);
+			
+			j["mainLightHysteresis"] = s.mainLightHysteresis;
+			j["mainLightSwapSeconds"] = s.mainLightSwapSeconds;
+			
+			j["skyIntensityScale"] = s.skyIntensityScale;
+			j["moonSkyIntensityScale"] = s.moonSkyIntensityScale;
+			j["twilightFade"] = fadeToJson(s.twilightFade);
+			j["starFade"] = fadeToJson(s.starFade);
+			j["starIntensity"] = s.starIntensity;
+			
+			const sky::SkyScattering& sc = s.scattering;
+			j["scattering"] = {
+				{ "rayleighCoefficients", vec3ToJson(sc.rayleighCoefficients) },
+				{ "mieCoefficient", sc.mieCoefficient },
+				{ "mieAnisotropy", sc.mieAnisotropy },
+				{ "scatterScale", sc.scatterScale },
+				{ "sunAngularRadiusDegrees", sc.sunAngularRadiusDegrees },
+				{ "moonAngularRadiusDegrees", sc.moonAngularRadiusDegrees },
+				{ "groundColour", vec3ToJson(sc.groundColour) },
+			};
+			return j;
+		}
+
+		sky::SkySettings skySettingsFromJson(const json& j)
+		{
+			sky::SkySettings s;
+
+			const auto colour = [&](const char* key, const math::Vec3f& fallback)
+				{
+					return j.contains(key) ? vec3FromJson(j[key], fallback) : fallback;
+				};
+
+			const auto fade = [&](const char* key, const sky::ElevationFade& fallback)
+				{
+					return j.contains(key) ? fadeFromJson(j[key], fallback) : fallback;
+				};
+
+			s.cycleEnabled = j.value("cycleEnabled", s.cycleEnabled);
+			s.timeOfDayHours = j.value("timeOfDayHours", s.timeOfDayHours);
+			s.dayLengthSeconds = j.value("dayLengthSeconds", s.dayLengthSeconds);
+			s.timeScale = j.value("timeScale", s.timeScale);
+
+			s.latitude = j.value("latitude", s.latitude);
+			s.axialTilt = j.value("axialTilt", s.axialTilt);
+			s.dayOfYear = j.value("dayOfYear", s.dayOfYear);
+
+			s.sunColourHorizon = colour("sunColourHorizon", s.sunColourHorizon);
+			s.sunColourZenith = colour("sunColourZenith", s.sunColourZenith);
+			s.sunColourBlendDegrees = j.value("sunColourBlendDegrees", s.sunColourBlendDegrees);
+			s.sunIntensity = j.value("sunIntensity", s.sunIntensity);
+			s.sunLightFade = fade("sunLightFade", s.sunLightFade);
+
+			s.moonColour = colour("moonColour", s.moonColour);
+			s.moonIntensity = j.value("moonIntensity", s.moonIntensity);
+			s.moonPhase = j.value("moonPhase", s.moonPhase);
+			s.moonOrbitOffsetDegrees = j.value("moonOrbitOffsetDegrees", s.moonOrbitOffsetDegrees);
+			s.moonInclinationDegrees = j.value("moonInclinationDegrees", s.moonInclinationDegrees);
+			s.moonLightFade = fade("moonLightFade", s.moonLightFade);
+
+			s.mainLightHysteresis = j.value("mainLightHysteresis", s.mainLightHysteresis);
+			s.mainLightSwapSeconds = j.value("mainLightSwapSeconds", s.mainLightSwapSeconds);
+
+			s.skyIntensityScale = j.value("skyIntensityScale", s.skyIntensityScale);
+			s.moonSkyIntensityScale = j.value("moonSkyIntensityScale", s.moonSkyIntensityScale);
+			s.twilightFade = fade("twilightFade", s.twilightFade);
+			s.starFade = fade("starFade", s.starFade);
+			s.starIntensity = j.value("starIntensity", s.starIntensity);
+
+			if (j.contains("scattering") && j["scattering"].is_object())
+			{
+				const json& sj = j["scattering"];
+				sky::SkyScattering& sc = s.scattering;
+
+				if (sj.contains("rayleighCoefficients"))
+					sc.rayleighCoefficients = vec3FromJson(sj["rayleighCoefficients"], sc.rayleighCoefficients);
+				sc.mieCoefficient = sj.value("mieCoefficient", sc.mieCoefficient);
+				sc.mieAnisotropy = sj.value("mieAnisotropy", sc.mieAnisotropy);
+				sc.scatterScale = sj.value("scatterScale", sc.scatterScale);
+				sc.sunAngularRadiusDegrees = sj.value("sunAngularRadiusDegrees", sc.sunAngularRadiusDegrees);
+				sc.moonAngularRadiusDegrees = sj.value("moonAngularRadiusDegrees", sc.moonAngularRadiusDegrees);
+				if (sj.contains("groundColour"))
+					sc.groundColour = vec3FromJson(sj["groundColour"], sc.groundColour);
+			}
+
+			return s;
+		}
 	}
 
-	Scene Scene::fromWorld(const ecs::World& world, const ModelPathResolver& resolveModelPath)
+	Scene Scene::fromWorld(const ecs::World& world, const ModelPathResolver& resolveModelPath, const sky::SkySettings* environment)
 	{
 		Scene scene;
+
+		if (environment)
+			scene.environment = *environment;
 
 		const auto& owners = world.transforms.m_owner;
 
@@ -107,8 +233,11 @@ namespace imp::fwk
 		return scene;
 	}
 
-	void Scene::applyToWorld(ecs::World& world, const ModelLoader& loadModel) const
+	void Scene::applyToWorld(ecs::World& world, const ModelLoader& loadModel, sky::SkySettings* outEnvironment) const
 	{
+		if (environment && outEnvironment)
+			*outEnvironment = *environment;
+
 		const std::vector<ecs::EntityId> existing = world.transforms.m_owner;
 		for (const auto& id : existing)
 			world.destroyEntity(id);
@@ -209,6 +338,9 @@ namespace imp::fwk
 			entitiesJson.push_back(std::move(ej));
 		}
 
+		if (environment)
+			root["environment"] = skySettingsToJson(*environment);
+
 		// Pretty print
 		return root.dump(2);
 	}
@@ -229,6 +361,18 @@ namespace imp::fwk
 			return std::nullopt;
 
 		Scene scene;
+
+		if (root.contains("environment") && root["environment"].is_object())
+		{
+			try
+			{
+				scene.environment = skySettingsFromJson(root["environment"]);
+			}
+			catch (const json::exception)
+			{
+				scene.environment.reset();
+			}
+		}
 
 		for (const auto& ej : root["entities"])
 		{

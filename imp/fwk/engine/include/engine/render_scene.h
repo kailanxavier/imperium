@@ -24,6 +24,5 @@ namespace imp::engine
 		virtual gfx::IBuffer* ddgiInstanceMaterials() const = 0;
 
 		virtual gfx::ModelRegistry& modelRegistry() = 0;
-		virtual const math::Vec3f& sunDirection() const = 0;
 	};
 }

@@ -11,6 +11,7 @@
 #include <gfx/cascade_shadow.h>
 #include <gfx/texture_cache.h>
 
+#include <sky/sky_state.h>
 
 #include <array>
 #include <vector>
@@ -26,7 +27,7 @@ namespace imp::game
 		~GameScene();
 
 		bool init(AppContext& ctx, const AssetManifest& assets);
-		void update(AppContext& ctx, const fwk::Camera& camera);
+		void update(AppContext& ctx, const fwk::Camera& camera, const sky::SkyState& sky);
 		void shutdown(AppContext& ctx);
 
 		ecs::EntityId spawnInstance(AppContext& ctx, const ecs::Transform& t, const gfx::ModelHandle& model);
@@ -42,18 +43,14 @@ namespace imp::game
 		gfx::ModelRegistry& modelRegistry() override { return m_modelRegistry; }
 
 		void recomputeCascades(const fwk::Camera& camera, float aspect);
-
-		math::Vec3f& sunDirection() { return m_sunDirection; }
-		const math::Vec3f& sunDirection() const override { return m_sunDirection; }
 		const math::Mat4f& sunViewProj() const { return m_sunViewProj; }
-
 		gfx::CascadeConfig& cascadeConfig() { return m_cascadeConfig; }
 
+		// TODO: Remove this
 		ecs::Transform& pointLightTransform() { return m_localLightTransform; }
 		const ecs::Transform& pointLightTransform() const { return m_localLightTransform; }
 
 	private:
-		void syncSunTransform(AppContext& ctx) const;
 		void updateSunViewProj();
 		void updateDynamicTlas(AppContext& ctx);
 
@@ -61,11 +58,10 @@ namespace imp::game
 		ecs::ModelHandle m_environmentHandle{};
 		ecs::ModelHandle m_environmentTestHandle{};
 
-		ecs::EntityId m_sunEntity{};
 		ecs::EntityId m_localLight{};
 		std::vector<ecs::EntityId> m_instances;
 
-		math::Vec3f m_sunDirection = math::Vec3f::zero();
+		math::Vec3f m_mainLightDirection = math::Vec3f{ 0.f, -1.f, 0.f };
 		math::Mat4f m_sunViewProj = math::Mat4f::identity();
 		ecs::Transform m_localLightTransform{};
 

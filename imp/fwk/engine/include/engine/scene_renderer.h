@@ -4,6 +4,7 @@
 #include <gfx/model_renderer.h>
 #include <gfx/cascade_shadow.h>
 #include <gfx/render_graph.h>
+#include <sky/sky_state.h>
 #include <array>
 
 #include "render_resources.h"
@@ -18,6 +19,7 @@ namespace imp::engine
 	struct SceneRenderParams
 	{
 		fwk::Camera* camera = nullptr;
+		const sky::SkyState* sky = nullptr;
 		float aspect = 1.f;
 		u32 currentFrame = 0;
 		bool enableFrustumCulling = true;

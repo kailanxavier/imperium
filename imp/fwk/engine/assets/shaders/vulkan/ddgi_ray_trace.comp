@@ -33,7 +33,7 @@ layout(binding = 2) uniform LightDataUBO
 	uint _pad0;
 	mat4 sunViewProj;
 	vec3 sunDirection;
-	float shadowMapSize;
+	float mainShadowStrength;
 	GPULight lights[MAX_LIGHTS];
 } lightData;
 

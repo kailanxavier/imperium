@@ -16,6 +16,7 @@ target_link_libraries(imp_engine
 		imp_app
 		imp_gfx
 		imp_cam
+		imp_sky
 	PRIVATE
 		imp_core
 )

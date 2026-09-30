@@ -13,24 +13,7 @@ namespace imp::game
 
     void LightControlLayer::onUpdate(AppContext& /*ctx*/, float /*deltaSeconds*/)
     {
-        math::Vec3f& sunDirection = *m_refs.sunDirection;
         gfx::CascadeConfig& shadowConfig = *m_refs.cascade;
-
-        float azimuth, elevation;
-        {
-            const math::Vec3f dir = math::normalise(sunDirection);
-            azimuth = std::atan2(dir.x, dir.z);
-            elevation = std::asin(dir.y);
-        }
-
-        ImGui::Begin("Sun Control");
-        ImGui::SliderAngle("Azimuth", &azimuth, -180.f, 180.f);
-        ImGui::SliderAngle("Elevation", &elevation, -89.f, 89.f);
-        ImGui::End();
-
-        sunDirection.x = std::cos(elevation) * std::sin(azimuth);
-        sunDirection.y = std::sin(elevation);
-        sunDirection.z = std::cos(elevation) * std::cos(azimuth);
 
         ImGui::Begin("CSM");
         ImGui::SliderFloat("Lambda", &shadowConfig.splitLambda, 0.f, 1.f);

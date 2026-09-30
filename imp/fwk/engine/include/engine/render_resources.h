@@ -75,6 +75,7 @@ namespace imp::engine
 
 		[[nodiscard]] gfx::IBuffer& aoParamsUBO(u32 frame) const { return *m_aoParamsUBOs[frame]; }
 		[[nodiscard]] gfx::IBuffer& screenParamsUBO(u32 frame) const { return *m_screenParamsUBOs[frame]; }
+		[[nodiscard]] gfx::IBuffer& skyUBO(u32 frame) const { return *m_skyUBOs[frame]; }
 		[[nodiscard]] gfx::IBuffer& blurParamsUBO(u32 frame) const { return *m_blurParamsUBOs[frame]; }
 		[[nodiscard]] gfx::IBuffer& ssgiParamsUBO(u32 frame) const { return *m_ssgiParamsUBOs[frame]; }
 		[[nodiscard]] gfx::IBuffer& ssgiBlurParamsUBO(u32 frame) const { return *m_ssgiBlurParamsUBOs[frame]; }
@@ -204,6 +205,7 @@ namespace imp::engine
 		std::vector<std::unique_ptr<gfx::IBuffer>> m_instanceBuffers;
 		std::vector<std::unique_ptr<gfx::IBuffer>> m_aoParamsUBOs;
 		std::vector<std::unique_ptr<gfx::IBuffer>> m_screenParamsUBOs;
+		std::vector<std::unique_ptr<gfx::IBuffer>> m_skyUBOs;
 		std::vector<std::unique_ptr<gfx::IBuffer>> m_blurParamsUBOs;
 		std::vector<std::unique_ptr<gfx::IBuffer>> m_ssgiParamsUBOs;
 		std::vector<std::unique_ptr<gfx::IBuffer>> m_ssgiBlurParamsUBOs;

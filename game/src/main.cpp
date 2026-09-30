@@ -3,6 +3,7 @@
 #include <app/telemetry_layer.h>
 #include <app/gizmo_layer.h>
 #include <app/editor_bridge_layer.h>
+#include <app/sky_layer.h>
 
 #include <game/game_app.h>
 #include <game/light_control_layer.h>
@@ -44,6 +45,7 @@ int main(int argc, char** argv)
 		app::Application application;
 		application.services().provide(launch);
 
+		application.layers().pushOverlay(std::make_unique<app::SkyLayer>());
 		application.layers().pushOverlay(std::make_unique<app::EditorBridgeLayer>());
 		application.layers().pushOverlay(std::make_unique<app::TelemetryLayer>());
 		application.layers().pushOverlay(std::make_unique<game::LightControlLayer>());

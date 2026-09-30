@@ -9,6 +9,7 @@
 #include <protocol/cvar_command.h>
 
 #include <gfx/model_registry.h>
+#include <sky/sky_system.h>
 #include <jobs/job_system.h>
 
 #include <filesystem>
@@ -31,6 +32,7 @@ namespace imp::app
 	{
 		m_world = &ctx.ecs;
 		m_vfs = &ctx.vfs;
+		m_services = &ctx.services;
 
 		gfx::ModelRegistry& models = ctx.services.require<gfx::ModelRegistry>();
 		gfx::IDevice& device = ctx.gfx;
@@ -71,6 +73,7 @@ namespace imp::app
 		m_modelLoader = {};
 		m_world = nullptr;
 		m_vfs = nullptr;
+		m_services = nullptr;
 	}
 
 	void EditorBridgeLayer::publishSnapshot()
@@ -429,7 +432,9 @@ namespace imp::app
 		}
 		else if (cmd.op == protocol::SceneCommandOp::Save)
 		{
-			const auto scene = fwk::Scene::fromWorld(*m_world, m_modelPathResolver);
+			const sky::SkySystem* skySystem = m_services ? m_services->tryGet<sky::SkySystem>() : nullptr;
+			const auto scene = fwk::Scene::fromWorld(*m_world, m_modelPathResolver, 
+				skySystem ? &skySystem->settings() : nullptr);
 			result.success = scene.saveToFile(*m_vfs, cmd.path);
 			if (!result.success)
 				result.error = "Failed to write scene file.";
@@ -438,7 +443,12 @@ namespace imp::app
 		{
 			if (auto scene = fwk::Scene::loadFromFile(*m_vfs, cmd.path))
 			{
-				scene->applyToWorld(*m_world, m_modelLoader);
+				sky::SkySystem* skySystem = m_services ? m_services->tryGet<sky::SkySystem>() : nullptr;
+				scene->applyToWorld(*m_world, m_modelLoader, skySystem ? &skySystem->settings() : nullptr);
+
+				if (skySystem && scene->environment)
+					skySystem->snap();
+
 				result.success = true;
 			}
 			else

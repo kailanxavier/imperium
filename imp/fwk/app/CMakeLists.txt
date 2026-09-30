@@ -37,6 +37,7 @@ target_include_directories(imp_app_editor_host
 target_link_libraries(imp_app_editor_host
 	PUBLIC
 		imp_app
+		imp_sky
 		imp_scene
 		imp_protocol
 	PRIVATE
@@ -64,5 +65,24 @@ target_link_libraries(imp_app_debug
 		imp_gfx
 		imp_cam
 		imp_input
+		imp_core
+)
+
+add_library(imp_app_sky STATIC
+	src/sky_layer.cpp
+)
+
+target_include_directories(imp_app_sky
+	PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
+	PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+target_link_libraries(imp_app_sky
+	PUBLIC
+		imp_app
+		imp_sky
+	PRIVATE
+		imp_gfx
+		imp_fwk
 		imp_core
 )

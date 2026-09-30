@@ -11,7 +11,6 @@ namespace imp::game
 
 	struct LightControlRefs
 	{
-		math::Vec3f* sunDirection = nullptr;
 		gfx::CascadeConfig* cascade = nullptr;
 	};
 
