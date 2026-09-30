@@ -18,13 +18,25 @@ namespace imp::gfx
 	{
 		math::Mat4f invViewProj;
 		math::Vec4f cameraPositionWS;
-		math::Vec4f sunDirAndIntensity;
 	};
 
 	static_assert( sizeof(SkyPushConstants) <= 128
 		&& "SkyPushConstants must stay within the guaranteed 128-byte push constant range" );
 
+	struct SkyUBO
+	{
+		math::Vec4f sunDirAndIntensity{ 0.f, 1.f, 0.f, 0.f };
+		math::Vec4f sunColour{ 1.f, 1.f, 1.f, 0.f };
+		math::Vec4f moonDirAndIntensity{ 0.f, -1.f, 0.f, 0.f };
+		math::Vec4f moonColour{ 1.f, 1.f, 1.f, 0.f };
+		math::Vec4f rayleighAndMieG{ 12.f, 8.f, 22.f, 0.82f };
+		math::Vec4f scatterParams{ 55.f, 0.0008f, 0.037f, 0.031f };
+		math::Vec4f groundAndStars{ 0.055f, 0.004f, 0.003f, 0.f }; // ground colour (3) and star visibility (1)
+	};
+	static_assert( sizeof(SkyUBO) % 16 == 0 && "SkyUBO layout must stay std140 friendly" );
+
 	constexpr u32 kMaxLights = 16;
+	constexpr u32 kMainLightSlot = 0;
 
 	struct GPULight
 	{
@@ -44,10 +56,7 @@ namespace imp::gfx
 		math::Mat4f sunViewProj = math::Mat4f::identity();
 
 		math::Vec3f sunDirection = math::Vec3f::zero();
-
-		// No longer used. Keeping this here to avoid
-		// having to repad LightUBO.
-		float shadowMapSize = 0.f;
+		float mainShadowStrength = 1.f; // 0..1
 
 		GPULight lights[kMaxLights];
 	};
@@ -61,4 +70,15 @@ namespace imp::gfx
 		math::Vec4f shadowMapSizes;
 	};
 	static_assert( sizeof(CascadeUBO) % 16 == 0 && "CascadeUBO layout must stay std140 consistent" );
+
+	inline void setMainLight(LightUBO& ubo, const math::Vec3f& direction, const math::Vec3f& colour,
+		float intensity, float shadowStrength)
+	{
+		ubo.sunDirection = direction;
+		ubo.mainShadowStrength = shadowStrength;
+
+		GPULight& light = ubo.lights[kMainLightSlot];
+		light.positionOrDirWS = math::Vec4f{ direction, 0.f };
+		light.colourIntensity = math::Vec4f{ colour, intensity };
+	}
 }

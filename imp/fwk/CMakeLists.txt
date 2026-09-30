@@ -5,4 +5,4 @@ add_subdirectory(ecs)
 add_subdirectory(fwk)
 add_subdirectory(input)
 add_subdirectory(scene)
-
+add_subdirectory(engine)

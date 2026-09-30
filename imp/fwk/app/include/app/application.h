@@ -57,6 +57,8 @@ namespace imp::app
 		[[nodiscard]] gfx::IDevice& device() const noexcept { return *m_device; }
 		[[nodiscard]] fs::VirtualFileSystem& vfs() noexcept { return m_vfs; }
 		[[nodiscard]] std::unique_ptr<IApp>& app() noexcept { return m_app; }
+		[[nodiscard]] fwk::ServiceRegistry& services() noexcept { return m_services; }
+		[[nodiscard]] AppContext& context() noexcept { return *m_ctx; }
 
 	private:
 		void mainLoopFrame();
@@ -65,6 +67,7 @@ namespace imp::app
 		std::unique_ptr<gfx::IDevice> m_device;
 		fs::VirtualFileSystem m_vfs;
 		fwk::LayerStack m_layers;
+		fwk::ServiceRegistry m_services;
 		jobs::JobSystem m_jobs;
 		ecs::World m_world;
 		memory::HeapAllocator m_gfxAllocator{ "GfxAllocator" };

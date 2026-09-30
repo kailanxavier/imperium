@@ -25,7 +25,7 @@ setvar IMP_ENGINE_ROOT "$ROOT/imp"
 setvar IMP_TOOLS "$ROOT/tools"
 setvar IMP_BUILD_DEB "$ROOT/build/mac-debug/engine"
 setvar IMP_BUILD_REL "$ROOT/build/mac-release/engine"
-setvar IMP_PROJ "$ROOT/sandbox"
+setvar IMP_PROJ "$ROOT/game"
 
 echo
 echo "Environment variables have been set."

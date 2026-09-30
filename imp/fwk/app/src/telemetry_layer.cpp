@@ -6,28 +6,29 @@
 
 namespace imp::app
 {
-	TelemetryLayer::TelemetryLayer(
-		memory::HeapAllocator& gfxAllocator, u16 toolServerPort, std::chrono::milliseconds publishInterval)
+	TelemetryLayer::TelemetryLayer(u16 toolServerPort, std::chrono::milliseconds publishInterval)
 		: ILayer("Telemetry")
-		, m_gfxAllocator(gfxAllocator)
 		, m_toolServerPort(toolServerPort)
 		, m_publishInterval(publishInterval)
 		, m_lastPublish(std::chrono::steady_clock::now())
 	{
 	}
 
-	void TelemetryLayer::onAttach()
+	void TelemetryLayer::onAttach(AppContext& ctx)
 	{
-		//protocol::ToolServer::instance().start(m_toolServerPort);
+		m_gfxAllocator = &ctx.gfxAllocator;
 	}
 
-	void TelemetryLayer::onDetach()
+	void TelemetryLayer::onDetach(AppContext& /*ctx*/)
 	{
-		//protocol::ToolServer::instance().stop();
+		m_gfxAllocator = nullptr;
 	}
 
-	void TelemetryLayer::onUpdate(float /*deltaSeconds*/)
+	void TelemetryLayer::onUpdate(AppContext& /*ctx*/, float /*deltaSeconds*/)
 	{
+		if (!m_gfxAllocator)
+			return;
+
 		const auto now = std::chrono::steady_clock::now();
 
 		if (now - m_lastPublish < m_publishInterval)
@@ -36,10 +37,10 @@ namespace imp::app
 		if (!protocol::ToolServer::instance().hasSubscribers(protocol::MessageType::MemoryTelemetry))
 			return;
 
-		const auto snap = m_gfxAllocator.statsSnapshot();
+		const auto snap = m_gfxAllocator->statsSnapshot();
 
 		protocol::AllocatorStatsPayload payload;
-		payload.name = std::string(m_gfxAllocator.name());
+		payload.name = std::string(m_gfxAllocator->name());
 		payload.totalAllocated = snap.totalAllocated;
 		payload.totalFreed = snap.totalFreed;
 		payload.currentUsed = snap.currentUsed;

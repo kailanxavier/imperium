@@ -115,11 +115,17 @@ namespace imp::app
 		m_app = std::move(app);
 
 		m_ctx = std::make_unique<AppContext>(AppContext{
-			m_window, *m_device, m_window.input(), m_layers, m_vfs,
-			m_world, m_jobs, m_gfxAllocator});
+			m_window, *m_device, m_window.input(), 
+			m_layers, m_services, m_vfs, 
+			m_world, m_jobs, m_gfxAllocator
+			});
+
+		m_app->onRegisterServices(*m_ctx);
+		m_layers.attachPending(*m_ctx);
 
 		if (!m_app->onInit(*m_ctx))
 		{
+			m_layers.clear();
 			m_jobs.shutdown();
 			m_device->shutdown();
 			m_device.reset();
@@ -132,7 +138,16 @@ namespace imp::app
 		ImGui::CreateContext();
 		ImGui::StyleColorsClassic();
 
-		ImGui_ImplGlfw_InitForVulkan(m_window.getNativeHandle(), true);
+		switch (m_device->api())
+		{
+		case gfx::GraphicsApi::Vulkan:
+			ImGui_ImplGlfw_InitForVulkan(m_window.getNativeHandle(), true);
+			break;
+		case gfx::GraphicsApi::D3D12:
+		case gfx::GraphicsApi::D3D11:
+			ImGui_ImplGlfw_InitForOther(m_window.getNativeHandle(), true);
+			break;
+		}
 		m_device->initImGui(); 
 
 		m_initialised = true;

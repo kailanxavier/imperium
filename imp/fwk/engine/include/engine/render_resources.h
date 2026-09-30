@@ -1,0 +1,258 @@
+#pragma once
+#include <app/iapp.h>
+#include <engine/renderer_manifest.h>
+#include <gfx/cascade_shadow.h>
+#include <gfx/ddgi_volume.h>
+#include <gfx/thermal_volume.h>
+#include <core/types/int_types.h>
+#include <core/math/math.h>
+#include <memory>
+#include <vector>
+
+namespace imp::gfx
+{
+	class IShader;
+	class IPipeline;
+	class ISampler;
+	class IBuffer;
+	class IRenderTarget;
+	class ITexture;
+	class RenderGraphResourcePool;
+	class ShaderHotReloadWatcher;
+}
+
+namespace imp::engine
+{
+	using imp::app::AppContext;
+
+	class RenderResources
+	{
+	public:
+		RenderResources();
+		~RenderResources();
+
+		bool init(AppContext& ctx, const RendererManifest& assets, const gfx::CascadeConfig& cascadeConfig);
+		void shutdown();
+
+		void ensureInstanceBufferCapacity(AppContext& ctx, u32 instanceCount);
+		bool reloadShaders(AppContext& ctx, const RendererManifest& assets);
+
+		bool pollShaderHotReload(AppContext& ctx, const RendererManifest& assets);
+
+		// We're retiring MSAA completely in favour of a more performant
+		// deferred rendering solution, paired with TAA for anti-aliasing.
+		// That means this value should always be set to	 gfx::SampleCount::One.
+		static constexpr gfx::SampleCount kMsaaSampleCount = gfx::SampleCount::One;
+
+		gfx::IPipeline& meshPipeline() const { return *m_pipeline; }
+		gfx::IPipeline& blendPipeline() const { return *m_blendPipeline; }
+		gfx::IPipeline& shadowPipeline() const { return *m_shadowPipeline; }
+		gfx::IPipeline& skyPipeline() const { return *m_skyPipeline; }
+		gfx::IPipeline& tonemapPipeline() const { return *m_tonemapPipeline; }
+
+		gfx::ISampler& sampler() const { return *m_sampler; }
+		gfx::ISampler& shadowSampler() const { return *m_shadowSampler; }
+		gfx::ISampler& ddgiSampler() const { return *m_ddgiSampler; }
+
+		gfx::ISampler& taaSampler() const { return *m_taaSampler; }
+
+		[[nodiscard]] gfx::TextureFormat hdrColourFormat() const { return m_hdrColourFormat; }
+		[[nodiscard]] gfx::TextureFormat hdrDepthFormat() const { return m_hdrDepthFormat; }
+
+		[[nodiscard]] gfx::IBuffer& cascadeUBO(u32 frame) const { return *m_cascadeUBOs[frame]; }
+		[[nodiscard]] gfx::IBuffer& lightUBO(u32 frame) const { return *m_lightUBOs[frame]; }
+		[[nodiscard]] gfx::IBuffer& instanceBuffer(u32 frame) const { return *m_instanceBuffers[frame]; }
+		[[nodiscard]] bool hasInstanceBuffers() const { return !m_instanceBuffers.empty(); }
+
+		gfx::IPipeline& prepassPipeline() { return *m_prepassPipeline; }
+		gfx::IPipeline& gtaoPipeline() { return *m_gtaoPipeline; }
+		gfx::IPipeline& blurPipeline() { return *m_blurPipeline; }
+		gfx::IPipeline& gbufferDebugPipeline() { return *m_gbufferDebugPipeline; }
+		gfx::IPipeline& deferredLightingPipeline() { return *m_deferredLightingPipeline; }
+		gfx::IPipeline& taaResolvePipeline() { return *m_taaResolvePipeline; }
+		gfx::IPipeline& ssgiPipeline() { return *m_ssgiPipeline; }
+		gfx::IPipeline& ssgiBlurPipeline() { return *m_ssgiBlurPipeline; }
+
+		[[nodiscard]] gfx::IBuffer& aoParamsUBO(u32 frame) const { return *m_aoParamsUBOs[frame]; }
+		[[nodiscard]] gfx::IBuffer& screenParamsUBO(u32 frame) const { return *m_screenParamsUBOs[frame]; }
+		[[nodiscard]] gfx::IBuffer& skyUBO(u32 frame) const { return *m_skyUBOs[frame]; }
+		[[nodiscard]] gfx::IBuffer& blurParamsUBO(u32 frame) const { return *m_blurParamsUBOs[frame]; }
+		[[nodiscard]] gfx::IBuffer& ssgiParamsUBO(u32 frame) const { return *m_ssgiParamsUBOs[frame]; }
+		[[nodiscard]] gfx::IBuffer& ssgiBlurParamsUBO(u32 frame) const { return *m_ssgiBlurParamsUBOs[frame]; }
+		[[nodiscard]] gfx::IBuffer& prevViewProjUBO(u32 frame) const { return *m_prevViewProjUBOs[frame]; }
+		[[nodiscard]] const math::Mat4f& previousViewProj() const { return m_previousViewProj; }
+		void setPreviousViewProj(const math::Mat4f& viewProj) { m_previousViewProj = viewProj; }
+
+		[[nodiscard]] gfx::RenderGraphResourcePool& graphPool() const { return *m_graphPool; }
+		[[nodiscard]] u32 nextFrameCounter() { return m_frameCounter++; }
+
+		struct TaaHistoryTargets
+		{
+			gfx::IRenderTarget* read = nullptr;
+			gfx::IRenderTarget* write = nullptr;
+
+			bool readValid = false;
+		};
+
+		bool acquireTaaHistory(AppContext& ctx, u32 width, u32 height, u32 frameCounter, TaaHistoryTargets& out);
+
+		[[nodiscard]] gfx::IRenderTarget* peekTaaHistoryColour() const { return m_taaHistory[m_taaReadIndex].get(); }
+		[[nodiscard]] bool taaHistoryValid() const { return m_taaHasHistory; }
+
+		[[nodiscard]] gfx::DDGIVolume& ddgiVolume() { return m_ddgiVolume; }
+		[[nodiscard]] gfx::IPipeline* ddgiProbeUpdatePipeline() const { return m_ddgiProbeUpdatePipeline.get(); }
+		[[nodiscard]] gfx::IPipeline* ddgiRayTracePipeline() const { return m_ddgiRayTracePipeline.get(); }
+		[[nodiscard]] gfx::IPipeline* ddgiClassifyPipeline() const { return m_ddgiClassifyPipeline.get(); };
+
+		[[nodiscard]] gfx::IPipeline* ddgiDebugProbesPipeline() const { return m_ddgiDebugProbesPipeline.get(); }
+		[[nodiscard]] gfx::IPipeline* ddgiDebugRaysPipeline() const { return m_ddgiDebugRaysPipeline.get(); }
+
+		[[nodiscard]] gfx::ITexture& ddgiFallbackTexture() const { return *m_ddgiFallbackTexture; }
+		[[nodiscard]] gfx::IBuffer& ddgiProbeStateFallbackBuffer() const { return *m_ddgiProbeStateFallbackBuffer; };
+		[[nodiscard]] gfx::IBuffer& ddgiVolumeUBO(u32 frame) const { return *m_ddgiVolumeUBOs[frame]; }
+
+		gfx::IPipeline& bloomDownsamplePipeline() const { return *m_bloomDownsamplePipeline; }
+		gfx::IPipeline& bloomUpsamplePipeline() const { return *m_bloomUpsamplePipeline; }
+		[[nodiscard]] gfx::ITexture& bloomFallbackTexture() const { return *m_bloomFallbackTexture; }
+
+		[[nodiscard]] gfx::ThermalVolume& thermalVolume() { return m_thermalVolume; }
+		[[nodiscard]] gfx::IPipeline* thermalUpdateDdgiPipeline() const { return m_thermalUpdateDdgiPipeline.get(); }
+		[[nodiscard]] gfx::IPipeline* thermalUpdateFallbackPipeline() const { return m_thermalUpdateFallbackPipeline.get(); }
+		[[nodiscard]] gfx::IBuffer& thermalVolumeUBO(u32 frame) const { return *m_thermalVolumeUBOs[frame]; }
+		[[nodiscard]] gfx::IBuffer& thermalFallbackBuffer() const { return *m_thermalFallbackBuffer; }
+
+	private:
+		struct ShaderPipelineSet
+		{
+			std::unique_ptr<gfx::IShader> meshVertShader, meshFragShader;
+			std::unique_ptr<gfx::IShader> shadowVertShader, shadowFragShader;
+			std::unique_ptr<gfx::IShader> skyVertShader, skyFragShader;
+			std::unique_ptr<gfx::IShader> tonemapVertShader, tonemapFragShader;
+			std::unique_ptr<gfx::IShader> prepassVertShader, prepassFragShader;
+			std::unique_ptr<gfx::IShader> fullscreenVertShader;
+			std::unique_ptr<gfx::IShader> gtaoFragShader;
+			std::unique_ptr<gfx::IShader> blurFragShader;
+			std::unique_ptr<gfx::IShader> ssgiFragShader;
+			std::unique_ptr<gfx::IShader> ssgiBlurFragShader;
+			std::unique_ptr<gfx::IShader> gbufferDebugFragShader;
+			std::unique_ptr<gfx::IShader> deferredLightingFragShader;
+			std::unique_ptr<gfx::IShader> taaResolveFragShader;
+			std::unique_ptr<gfx::IShader> bloomDownsampleFragShader, bloomUpsampleFragShader;
+
+			std::unique_ptr<gfx::IShader> ddgiDebugProbesVertShader, ddgiDebugProbesFragShader;
+			std::unique_ptr<gfx::IShader> ddgiDebugRaysVertShader, ddgiDebugRaysFragShader;
+
+			std::unique_ptr<gfx::IPipeline> pipeline;
+			std::unique_ptr<gfx::IPipeline> blendPipeline;
+			std::unique_ptr<gfx::IPipeline> shadowPipeline;
+			std::unique_ptr<gfx::IPipeline> skyPipeline;
+			std::unique_ptr<gfx::IPipeline> tonemapPipeline;
+			std::unique_ptr<gfx::IPipeline> prepassPipeline;
+			std::unique_ptr<gfx::IPipeline> gtaoPipeline;
+			std::unique_ptr<gfx::IPipeline> blurPipeline;
+			std::unique_ptr<gfx::IPipeline> ssgiPipeline;
+			std::unique_ptr<gfx::IPipeline> ssgiBlurPipeline;
+			std::unique_ptr<gfx::IPipeline> gbufferDebugPipeline;
+			std::unique_ptr<gfx::IPipeline> deferredLightingPipeline;
+			std::unique_ptr<gfx::IPipeline> taaResolvePipeline;
+			std::unique_ptr<gfx::IPipeline> bloomDownsamplePipeline, bloomUpsamplePipeline;
+
+			std::unique_ptr<gfx::IPipeline> ddgiDebugProbesPipeline;
+			std::unique_ptr<gfx::IPipeline> ddgiDebugRaysPipeline;
+		};
+
+		bool buildShaderPipelineSet(AppContext& ctx, const RendererManifest& assets, ShaderPipelineSet& out) const;
+		void adoptShaderPipelineSet(ShaderPipelineSet&& set);
+
+		std::unique_ptr<gfx::IShader> m_meshVertShader, m_meshFragShader;
+		std::unique_ptr<gfx::IShader> m_shadowVertShader, m_shadowFragShader;
+		std::unique_ptr<gfx::IShader> m_tonemapVertShader, m_tonemapFragShader;
+		std::unique_ptr<gfx::IShader> m_skyVertShader, m_skyFragShader;
+		std::unique_ptr<gfx::IShader> m_prepassVertShader, m_prepassFragShader;
+		std::unique_ptr<gfx::IShader> m_fullscreenVertShader;
+		std::unique_ptr<gfx::IShader> m_gtaoFragShader;
+		std::unique_ptr<gfx::IShader> m_blurFragShader;
+		std::unique_ptr<gfx::IShader> m_ssgiFragShader;
+		std::unique_ptr<gfx::IShader> m_ssgiBlurFragShader;
+		std::unique_ptr<gfx::IShader> m_gbufferDebugFragShader;
+		std::unique_ptr<gfx::IShader> m_deferredLightingFragShader;
+		std::unique_ptr<gfx::IShader> m_taaResolveFragShader;
+
+		std::unique_ptr<gfx::IPipeline> m_pipeline;
+		std::unique_ptr<gfx::IPipeline> m_blendPipeline;
+		std::unique_ptr<gfx::IPipeline> m_shadowPipeline;
+		std::unique_ptr<gfx::IPipeline> m_skyPipeline;
+		std::unique_ptr<gfx::IPipeline> m_tonemapPipeline;
+		std::unique_ptr<gfx::IPipeline> m_prepassPipeline;
+		std::unique_ptr<gfx::IPipeline> m_gtaoPipeline;
+		std::unique_ptr<gfx::IPipeline> m_blurPipeline;
+		std::unique_ptr<gfx::IPipeline> m_ssgiPipeline;
+		std::unique_ptr<gfx::IPipeline> m_ssgiBlurPipeline;
+		std::unique_ptr<gfx::IPipeline> m_gbufferDebugPipeline;
+		std::unique_ptr<gfx::IPipeline> m_deferredLightingPipeline;
+		std::unique_ptr<gfx::IPipeline> m_taaResolvePipeline;
+
+		std::unique_ptr<gfx::ISampler> m_sampler;
+		std::unique_ptr<gfx::ISampler> m_shadowSampler;
+		std::unique_ptr<gfx::ISampler> m_ddgiSampler;
+		std::unique_ptr<gfx::ISampler> m_taaSampler;
+
+		gfx::TextureFormat m_hdrColourFormat = gfx::TextureFormat::RGBA16Float;
+		gfx::TextureFormat m_hdrDepthFormat = gfx::TextureFormat::Depth32Float;
+
+		std::vector<std::unique_ptr<gfx::IBuffer>> m_cascadeUBOs;
+		std::vector<std::unique_ptr<gfx::IBuffer>> m_lightUBOs;
+		std::vector<std::unique_ptr<gfx::IBuffer>> m_instanceBuffers;
+		std::vector<std::unique_ptr<gfx::IBuffer>> m_aoParamsUBOs;
+		std::vector<std::unique_ptr<gfx::IBuffer>> m_screenParamsUBOs;
+		std::vector<std::unique_ptr<gfx::IBuffer>> m_skyUBOs;
+		std::vector<std::unique_ptr<gfx::IBuffer>> m_blurParamsUBOs;
+		std::vector<std::unique_ptr<gfx::IBuffer>> m_ssgiParamsUBOs;
+		std::vector<std::unique_ptr<gfx::IBuffer>> m_ssgiBlurParamsUBOs;
+		std::vector<std::unique_ptr<gfx::IBuffer>> m_prevViewProjUBOs;
+		math::Mat4f m_previousViewProj;
+		u32 m_instanceCapacity = 16;
+
+		std::unique_ptr<gfx::RenderGraphResourcePool> m_graphPool;
+		std::unique_ptr<gfx::ShaderHotReloadWatcher> m_shaderWatcher;
+
+		u32 m_frameCounter = 0;
+
+		std::unique_ptr<gfx::IRenderTarget> m_taaHistory[2];
+		u32 m_taaReadIndex = 0;
+		u32 m_taaWidth = 0, m_taaHeight = 0;
+		bool m_taaHasHistory = false;
+		u32 m_taaLastFrame = 0;
+
+		gfx::DDGIVolume m_ddgiVolume;
+		std::unique_ptr<gfx::IShader> m_ddgiProbeUpdateShader;
+		std::unique_ptr<gfx::IPipeline> m_ddgiProbeUpdatePipeline;
+
+		std::unique_ptr<gfx::IShader> m_ddgiRayTraceShader;
+		std::unique_ptr<gfx::IPipeline> m_ddgiRayTracePipeline;
+
+		std::unique_ptr<gfx::IShader> m_ddgiClassifyShader;
+		std::unique_ptr<gfx::IPipeline> m_ddgiClassifyPipeline;
+
+		std::unique_ptr<gfx::ITexture> m_ddgiFallbackTexture;
+		std::unique_ptr<gfx::IBuffer> m_ddgiProbeStateFallbackBuffer;
+		std::vector<std::unique_ptr<gfx::IBuffer>> m_ddgiVolumeUBOs;
+
+		std::unique_ptr<gfx::IShader> m_bloomDownsampleFragShader, m_bloomUpsampleFragShader;
+		std::unique_ptr<gfx::IPipeline> m_bloomDownsamplePipeline, m_bloomUpsamplePipeline;
+		std::unique_ptr<gfx::ITexture> m_bloomFallbackTexture;
+
+		// probe debug
+		std::unique_ptr<gfx::IShader> m_ddgiDebugProbesVertShader, m_ddgiDebugProbesFragShader;
+		std::unique_ptr<gfx::IPipeline> m_ddgiDebugProbesPipeline;
+		// this too
+		std::unique_ptr<gfx::IShader> m_ddgiDebugRaysVertShader, m_ddgiDebugRaysFragShader;
+		std::unique_ptr<gfx::IPipeline> m_ddgiDebugRaysPipeline;
+
+		gfx::ThermalVolume m_thermalVolume;
+		std::unique_ptr<gfx::IShader> m_thermalUpdateDdgiShader, m_thermalUpdateFallbackShader;
+		std::unique_ptr<gfx::IPipeline> m_thermalUpdateDdgiPipeline, m_thermalUpdateFallbackPipeline;
+		std::vector<std::unique_ptr<gfx::IBuffer>> m_thermalVolumeUBOs;
+		std::unique_ptr<gfx::IBuffer> m_thermalFallbackBuffer;
+	};
+}

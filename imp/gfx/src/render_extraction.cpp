@@ -1,7 +1,9 @@
 #include <gfx/render_extraction.h>
-#include <ecs/world.h>
 #include <gfx/model_registry.h>
+#include <ecs/world.h>
+#include <core/log/log.h>
 #include <algorithm>
+
 
 namespace imp::gfx
 {
@@ -14,32 +16,40 @@ namespace imp::gfx
 
 		void extractLights(const ecs::World& world, gfx::LightUBO& out)
 		{
+			gfx::GPULight& mainSlot = out.lights[gfx::kMainLightSlot];
+			mainSlot.positionOrDirWS = math::Vec4f{ 0.f, -1.f, 0.f, 0.f };
+			mainSlot.colourIntensity = math::Vec4f{ 1.f, 1.f, 1.f, 0.f };
+
 			const ecs::LightStorage& lights = world.lights;
 			const std::vector<ecs::EntityId>& owners = lights.owners();
 			const std::vector<ecs::LightType>& types = lights.types();
 			const std::vector<math::Vec3f>& colours = lights.colours();
 			const std::vector<float>& intensities = lights.intensities();
 
-			const u32 count = std::min<u32>( static_cast<u32>( owners.size() ), gfx::kMaxLights );
-			out.lightCount = count;
+			u32 count = gfx::kMainLightSlot + 1;
+			bool skippedDirectional = false;
 
-			for (u32 i = 0; i < count; ++i)
+			for (size_t i{ 0 }; i < owners.size() && count < gfx::kMaxLights; ++i)
 			{
-				const ecs::EntityId owner = owners[i];
-				const math::Mat4f worldMatrix = world.transforms.worldMatrix(owner);
-				gfx::GPULight& gpuLight = out.lights[i];
-
 				if (types[i] == ecs::LightType::Directional)
 				{
-					const math::Vec3f worldDir = math::rotate(world.transforms.localTransform(owner).rotation, math::Vec3f::forward());
-					gpuLight.positionOrDirWS = math::Vec4f{ worldDir, 0.f };
-				}
-				else
-				{
-					gpuLight.positionOrDirWS = math::Vec4f{ translationOf(worldMatrix), 1.f };
+					skippedDirectional = true;
+					continue;
 				}
 
+				const math::Mat4f worldMatrix = world.transforms.worldMatrix(owners[i]);
+				gfx::GPULight& gpuLight = out.lights[count++];
+
+				gpuLight.positionOrDirWS = math::Vec4f{ translationOf(worldMatrix), 1.f };
 				gpuLight.colourIntensity = math::Vec4f{ colours[i], intensities[i] };
+			}
+
+			out.lightCount = count;
+			static bool warned = false;
+			if (skippedDirectional && !warned)
+			{
+				warned = true;
+				LOG_WARN("Renderer", "Ignoring directional light entities. The sky owns the main direction light.");
 			}
 		}
 
@@ -89,7 +99,7 @@ namespace imp::gfx
 				out.batches.push_back(ModelBatch{ range.model, firstInstance, instanceCount });
 		}
 
-		std::sort(out.blendInstances.begin(), out.blendInstances.end(), 
+		std::sort(out.blendInstances.begin(), out.blendInstances.end(),
 			[](const BlendInstance& a, const BlendInstance& b) { return a.cameraDistanceSq > b.cameraDistanceSq; });
 
 		out.lightData.cameraPositionWS = math::Vec4f{ cameraPositionWS, 0.f };
