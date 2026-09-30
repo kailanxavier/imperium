@@ -32,7 +32,7 @@ namespace imp::sky
 
 		float latitude = 45.f;
 		float axialTilt = 23.44f;
-		float dayOfYear = 241.f;
+		float dayOfYear = 212.f;
 
 		math::Vec3f sunColourHorizon{ 1.f, 0.42f, 0.16f };
 		math::Vec3f sunColourZenith{ 1.f, 0.82f, 0.55f };
