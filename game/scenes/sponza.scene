@@ -1,0 +1,160 @@
+{
+  "entities": [
+    {
+      "id": 0,
+      "light": {
+        "colour": [
+          1.0,
+          0.6000000238418579,
+          0.30000001192092896
+        ],
+        "intensity": 0.0,
+        "kind": "Point"
+      },
+      "parent": -1,
+      "transform": {
+        "position": [
+          0.0,
+          5.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": 1,
+      "parent": -1,
+      "renderable": {
+        "model": "assets/models/environment_test.glb",
+        "visible": true
+      },
+      "transform": {
+        "position": [
+          0.0,
+          0.0,
+          15.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "id": 2,
+      "parent": -1,
+      "renderable": {
+        "model": "assets/models/khr-sponza.glb",
+        "visible": true
+      },
+      "script": {
+        "path": "assets/scripts/sponza.lua",
+        "wantsTick": true
+      },
+      "transform": {
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    }
+  ],
+  "environment": {
+    "axialTilt": 23.440000534057617,
+    "cycleEnabled": true,
+    "dayLengthSeconds": 1200.0,
+    "dayOfYear": 212.0,
+    "latitude": 45.0,
+    "mainLightHysteresis": 0.25,
+    "mainLightSwapSeconds": 1.5,
+    "moonColour": [
+      0.550000011920929,
+      0.6800000071525574,
+      1.0
+    ],
+    "moonInclinationDegrees": 5.0,
+    "moonIntensity": 2.0,
+    "moonLightFade": {
+      "end": 10.0,
+      "start": 0.0
+    },
+    "moonOrbitOffsetDegrees": 0.0,
+    "moonPhase": 0.5,
+    "moonSkyIntensityScale": 0.25,
+    "scattering": {
+      "groundColour": [
+        0.054999999701976776,
+        0.004000000189989805,
+        0.003000000026077032
+      ],
+      "mieAnisotropy": 0.8199999928474426,
+      "mieCoefficient": 55.0,
+      "moonAngularRadiusDegrees": 1.7999999523162842,
+      "rayleighCoefficients": [
+        12.0,
+        8.0,
+        22.0
+      ],
+      "scatterScale": 0.0007999999797903001,
+      "sunAngularRadiusDegrees": 2.130000114440918
+    },
+    "skyIntensityScale": 0.20000000298023224,
+    "starFade": {
+      "end": -4.0,
+      "start": -14.0
+    },
+    "starIntensity": 0.30000001192092896,
+    "sunColourBlendDegrees": 30.0,
+    "sunColourHorizon": [
+      1.0,
+      0.41999998688697815,
+      0.1599999964237213
+    ],
+    "sunColourZenith": [
+      1.0,
+      0.8199999928474426,
+      0.550000011920929
+    ],
+    "sunIntensity": 50.0,
+    "sunLightFade": {
+      "end": 8.0,
+      "start": 0.0
+    },
+    "timeOfDayHours": 16.23906135559082,
+    "timeScale": 1.0,
+    "twilightFade": {
+      "end": 2.0,
+      "start": -18.0
+    }
+  },
+  "version": 1
+}

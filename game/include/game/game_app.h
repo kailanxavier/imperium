@@ -8,7 +8,6 @@
 #include <camera/camera.h>
 #include <engine/deferred_renderer.h>
 #include <game/asset_manifest.h>
-#include <game/game_scene.h>
 #include <game/light_control_layer.h>
 
 #include <app/iapp.h>
@@ -18,6 +17,7 @@
 #include <sky/sky_system.h>
 
 #include <memory>
+#include <string>
 
 namespace imp::game
 {
@@ -35,14 +35,13 @@ namespace imp::game
 
 	private:
 		void pollScriptHotReload(AppContext& ctx);
+		[[nodiscard]] std::string startupScenePath(AppContext& ctx) const;
 
 		fwk::Camera m_camera;
 		AssetManifest m_assets;
 
 		gfx::ModelRegistry m_modelRegistry;
 		engine::DeferredRenderer m_renderer;
-
-		GameScene m_scene;
 
 		std::unique_ptr<script::ScriptSystem> m_scriptSystem;
 		std::unique_ptr<fs::DirectoryWatcher> m_scriptSourceWatcher;

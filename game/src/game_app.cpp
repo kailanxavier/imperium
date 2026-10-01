@@ -1,9 +1,13 @@
 #include <game/game_app.h>
+#include <game/game_scene.h>
+
+#include <app/launch_options.h>
 #include <core/log/log.h>
 
 #include <fstream>
 #include <filesystem>
 #include <memory>
+#include <optional>
 
 namespace imp::game
 {
@@ -13,6 +17,19 @@ namespace imp::game
 		{
 			return engine::RenderContext{ ctx.gfx, ctx.vfs, ctx.jobs, &ctx.layers };
 		}
+	}
+
+	std::string GameApp::startupScenePath(AppContext& ctx) const
+	{
+		const app::LaunchOptions* launch = ctx.services.tryGet<app::LaunchOptions>();
+		if (launch && launch->has("scene"))
+		{
+			if (std::optional<std::string> path = launch->get("scene"); path && !path->empty())
+				return *path;
+			LOG_WARN("Game", "-scene needs a path.");
+		}
+
+		return m_assets.startupScene;
 	}
 
 	void GameApp::onRegisterServices(AppContext& ctx)
@@ -42,8 +59,7 @@ namespace imp::game
 		if (!m_renderer.init(renderCtx, rendererDesc))
 			return false;
 
-		if (!m_scene.init(ctx, m_modelRegistry, m_assets))
-			return false;
+		loadStartupScene(ctx, m_modelRegistry, startupScenePath(ctx));
 
 		m_scriptSystem = std::make_unique<script::ScriptSystem>(ctx.vfs);
 
@@ -111,7 +127,7 @@ namespace imp::game
 
 	void GameApp::onShutdown(AppContext& ctx)
 	{
-		m_scene.shutdown(ctx);
+		unloadScene(ctx);
 		m_renderer.shutdown();
 
 		m_modelRegistry.shutdown();

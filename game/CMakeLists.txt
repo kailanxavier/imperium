@@ -14,6 +14,7 @@ target_link_libraries(game_lib
 		imp_app 
 		imp_engine 
 		imp_script 
+		imp_scene
 		imp_fwk 
 		imp_cam 
 		imp_input 
@@ -40,6 +41,12 @@ target_link_libraries(game
 		imp_protocol
 )
 
+target_compile_definitions(game
+	PRIVATE 
+		IMP_SCENE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/scenes/"
+)
+
 imp_set_runtime_dir(game game)
 IMP_ENGINE_DEPLOY_SHADERS(game)
 IMP_COPY_ASSETS(game)
+IMP_COPY_SCENES(game)

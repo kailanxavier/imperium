@@ -1,63 +1,72 @@
 #include <game/game_scene.h>
 #include <core/log/log.h>
 
+#include <ecs/world.h>
+#include <scene/scene.h>
+#include <sky/sky_system.h>
+
+#include <filesystem>
+#include <optional>
+#include <vector>
+
 namespace imp::game
 {
-	bool GameScene::init(AppContext& ctx, gfx::ModelRegistry& models, const AssetManifest& assets)
+	namespace
 	{
-		m_environmentHandle = models.load(ctx.gfx, assets.environmentModel, ctx.jobs, &ctx.vfs);
-		if (!m_environmentHandle.isValid())
-			LOG_ERROR("Game", "Failed to load environment model");
+		// TODO: We need to give the scene the ability to store colliders
+		const math::Vec3f kDefaultColliderHalfExtents{ 0.5f, 0.5f, 0.5f };
 
-		m_environmentTestHandle = models.load(ctx.gfx, assets.environmentTestModel, ctx.jobs, &ctx.vfs);
-		if (!m_environmentTestHandle.isValid())
-			LOG_ERROR("Game", "Failed to load environment test model");
-
-		if (!m_environmentHandle.isValid())
-			return false;
-
-		m_localLight = ctx.ecs.createEntity();
-		ecs::Transform pointTransform;
-		pointTransform.position = math::Vec3f{ 0.f, 5.f, 0.f };
-		ctx.ecs.transforms.create(m_localLight, pointTransform);
-		ctx.ecs.colliders.createAABB(m_localLight, math::Vec3f{ -1.f, -1.f, -1.f }, math::Vec3f{ 1.f, 1.f, 1.f });
-		ctx.ecs.lights.create(m_localLight, ecs::LightType::Point, math::Vec3f{ 1.f, 0.6f, 0.3f }, 0.f);
-		m_instances.push_back(m_localLight);
-
+		void addPickColliders(ecs::World& world)
 		{
-			ecs::Transform t;
-			t.position = math::Vec3f{ 0.f, 0.f, 15.f };
-			spawnInstance(ctx, t, m_environmentTestHandle);
+			for (const ecs::EntityId id : world.transforms.m_owner)
+			{
+				if (world.colliders.contains(id))
+					continue;
+
+				if (!world.renderables.contains(id) && !world.lights.contains(id))
+					continue;
+
+				world.colliders.createAABB(id, -kDefaultColliderHalfExtents, kDefaultColliderHalfExtents);
+			}
+		}
+	}
+
+	bool loadStartupScene(AppContext& ctx, gfx::ModelRegistry& models, const std::string& path)
+	{
+		std::optional<fwk::Scene> scene = fwk::Scene::loadFromFile(ctx.vfs, path);
+		if (!scene && std::filesystem::exists(path))
+			scene = fwk::Scene::loadFromFile(std::filesystem::path(path));
+
+		if (!scene)
+		{
+			LOG_ERROR("Game", "Could not load startup scene '{}'. World will be empty.", path);
+			return false;
 		}
 
-		const ecs::EntityId entity = ctx.ecs.createEntity();
-		ecs::Transform t;
-		t.position = math::Vec3f{ 0.f, 0.f, 0.f };
-		ctx.ecs.transforms.create(entity, t);
-		ctx.ecs.renderables.create(entity, m_environmentHandle);
-		ctx.ecs.scripts.create(entity, "assets/scripts/sponza.lua", true);
-		ctx.ecs.colliders.createAABB(entity, math::Vec3f{ -1.f, -1.f, -1.f }, math::Vec3f{ 1.f, 1.f, 1.f });
-		m_instances.push_back(entity);
+		const fwk::Scene::ModelLoader loadModel = [&](const std::string& modelPath) -> ecs::ModelHandle
+			{
+				const ecs::ModelHandle handle = models.load(ctx.gfx, modelPath, ctx.jobs, &ctx.vfs);
+				if (!handle.isValid())
+					LOG_ERROR("Game", "Startup scene '{}': failed to load model '{}'", path, modelPath);
+				return handle;
+			};
 
+		sky::SkySystem* skySystem = ctx.services.tryGet<sky::SkySystem>();
+		scene->applyToWorld(ctx.ecs, loadModel, skySystem ? &skySystem->settings() : nullptr);
+
+		if (skySystem && scene->environment)
+			skySystem->snap();
+
+		addPickColliders(ctx.ecs);
+
+		LOG_INFO("Game", "Loaded startup scene '{}' ({} entities)", path, scene->entities.size());
 		return true;
 	}
 
-	void GameScene::shutdown(AppContext& ctx)
+	void unloadScene(AppContext& ctx)
 	{
-		for (ecs::EntityId instance : m_instances)
-			ctx.ecs.destroyEntity(instance);
-
-		m_instances.clear();
-	}
-
-	ecs::EntityId GameScene::spawnInstance(AppContext& ctx, const ecs::Transform& t, const gfx::ModelHandle& model)
-	{
-		ecs::EntitySpawnDesc desc;
-		desc.transform = t;
-		desc.model = model;
-
-		const ecs::EntityId entity = ctx.ecs.spawnEntity(desc);
-		m_instances.push_back(entity);
-		return entity;
+		const std::vector<ecs::EntityId> entities = ctx.ecs.transforms.m_owner;
+		for (const ecs::EntityId id : entities)
+			ctx.ecs.destroyEntity(id);
 	}
 }
