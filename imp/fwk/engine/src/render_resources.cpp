@@ -1,7 +1,7 @@
 #include <core/log/log.h>
 #include <core/config/cvar.h>
 
-#include <engine/render_resources.h>
+#include "detail/render_resources.h"
 #include <engine/engine_assets.h>
 
 #include <gfx/model.h>
@@ -24,7 +24,7 @@ namespace imp::engine
 	RenderResources::RenderResources() = default;
 	RenderResources::~RenderResources() = default;
 
-	bool RenderResources::buildShaderPipelineSet(AppContext& ctx, const RendererManifest& assets, ShaderPipelineSet& out) const
+	bool RenderResources::buildShaderPipelineSet(RenderContext& ctx, const RendererManifest& assets, ShaderPipelineSet& out) const
 	{
 		gfx::ShaderDesc meshVertDesc;
 		meshVertDesc.stage = gfx::ShaderStage::Vertex;
@@ -529,7 +529,7 @@ namespace imp::engine
 		m_ddgiDebugRaysPipeline = std::move(set.ddgiDebugRaysPipeline);
 	}
 
-	bool RenderResources::reloadShaders(AppContext& ctx, const RendererManifest& assets)
+	bool RenderResources::reloadShaders(RenderContext& ctx, const RendererManifest& assets)
 	{
 		ShaderPipelineSet fresh;
 		if (!buildShaderPipelineSet(ctx, assets, fresh))
@@ -545,7 +545,7 @@ namespace imp::engine
 		return true;
 	}
 
-	bool RenderResources::pollShaderHotReload(AppContext& ctx, const RendererManifest& assets)
+	bool RenderResources::pollShaderHotReload(RenderContext& ctx, const RendererManifest& assets)
 	{
 		if (!m_shaderWatcher || !m_shaderWatcher->isValid())
 			return false;
@@ -556,7 +556,7 @@ namespace imp::engine
 		return reloadShaders(ctx, assets);
 	}
 
-	bool RenderResources::init(AppContext& ctx, const RendererManifest& assets, const gfx::CascadeConfig& cascadeConfig)
+	bool RenderResources::init(RenderContext& ctx, const RendererManifest& assets, const gfx::CascadeConfig& cascadeConfig)
 	{
 		if (!mountEngineAssets(ctx.vfs))
 			return false;
@@ -923,7 +923,7 @@ namespace imp::engine
 		m_graphPool.reset();
 	}
 
-	bool RenderResources::acquireTaaHistory(AppContext &ctx, u32 width, u32 height, u32 frameCounter, TaaHistoryTargets &out)
+	bool RenderResources::acquireTaaHistory(RenderContext &ctx, u32 width, u32 height, u32 frameCounter, TaaHistoryTargets &out)
 	{
 		if (width == 0 || height == 0)
 			return false;
@@ -970,7 +970,7 @@ namespace imp::engine
 	}
 
 
-	void RenderResources::ensureInstanceBufferCapacity(AppContext& ctx, u32 instanceCount)
+	void RenderResources::ensureInstanceBufferCapacity(RenderContext& ctx, u32 instanceCount)
 	{
 		if (!m_instanceBuffers.empty() && instanceCount <= m_instanceCapacity)
 			return;

@@ -18,7 +18,7 @@ namespace imp::gfx
 	class ModelRegistry
 	{
 	public:
-		ModelRegistry() = default;
+		ModelRegistry();
 		~ModelRegistry();
 
 		ModelHandle load(IDevice& device, const std::string& path, jobs::JobSystem& jobSystem, 
