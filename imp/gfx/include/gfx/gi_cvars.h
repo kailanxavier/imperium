@@ -26,7 +26,7 @@ namespace imp::gfx::gi
 
 	inline CVarInt cvarProbesPerFrame{ "gi.ddgi.probes_per_frame", 512 };
 
-	inline CVarBool cvarShowProbes{ "gi.ddgi.debug_show_probes", true };
+	inline CVarBool cvarShowProbes{ "gi.ddgi.debug_show_probes", false };
 	inline CVarFloat cvarDebugProbeRadius{ "gi.ddgi.debug_probe_radius", 0.15f };
 	inline CVarBool cvarDebugShowInactiveProbes{ "gi.ddgi.debug_show_inactive_probes", true };
 
