@@ -11,9 +11,26 @@
 #include <core/log/log.h>
 #include <core/platform/exe_path.h>
 
+#include <filesystem>
 #include <memory>
 
 using namespace imp;
+
+namespace
+{
+	std::filesystem::path resolveScenesDir()
+	{
+#if !defined(NDEBUG) && defined(IMP_SCENE_SOURCE_DIR)
+		const std::filesystem::path sourceDir = IMP_SCENE_SOURCE_DIR;
+		if (std::filesystem::is_directory(sourceDir))
+			return sourceDir;
+
+		LOG_WARN("Game", "Scene source dir '{}' not found.", sourceDir.string());
+#endif
+		return platform::executableDir() / "scenes";
+	}
+
+}
 
 int main(int argc, char** argv)
 {
@@ -38,7 +55,7 @@ int main(int argc, char** argv)
 	const auto shadersPath = ( platform::executableDir() / "assets" ).string();
 	desc.vfsMounts.push_back(app::VfsMountDesc{ "assets/", shadersPath, 0, true, true });
 
-	const auto scenesPath = ( platform::executableDir() / "scenes" ).string();
+	const auto scenesPath = resolveScenesDir().string();
 	desc.vfsMounts.push_back(app::VfsMountDesc{ "scenes/", scenesPath, 0, true, true });
 
 	{
