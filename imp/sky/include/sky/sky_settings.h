@@ -26,7 +26,7 @@ namespace imp::sky
 	struct SkySettings
 	{
 		bool cycleEnabled = true;
-		float timeOfDayHours = 13.f; // 00 to 24
+		float timeOfDayHours = 16.f; // 00 to 24
 		float dayLengthSeconds = 1200.f; // Default 20 irl mins per in game day
 		float timeScale = 1.f;
 

@@ -1,5 +1,5 @@
 #pragma once
-#include <app/iapp.h>
+#include <engine/render_context.h>
 #include <engine/renderer_manifest.h>
 #include <gfx/cascade_shadow.h>
 #include <gfx/ddgi_volume.h>
@@ -23,21 +23,19 @@ namespace imp::gfx
 
 namespace imp::engine
 {
-	using imp::app::AppContext;
-
 	class RenderResources
 	{
 	public:
 		RenderResources();
 		~RenderResources();
 
-		bool init(AppContext& ctx, const RendererManifest& assets, const gfx::CascadeConfig& cascadeConfig);
+		bool init(RenderContext& ctx, const RendererManifest& assets, const gfx::CascadeConfig& cascadeConfig);
 		void shutdown();
 
-		void ensureInstanceBufferCapacity(AppContext& ctx, u32 instanceCount);
-		bool reloadShaders(AppContext& ctx, const RendererManifest& assets);
+		void ensureInstanceBufferCapacity(RenderContext& ctx, u32 instanceCount);
+		bool reloadShaders(RenderContext& ctx, const RendererManifest& assets);
 
-		bool pollShaderHotReload(AppContext& ctx, const RendererManifest& assets);
+		bool pollShaderHotReload(RenderContext& ctx, const RendererManifest& assets);
 
 		// We're retiring MSAA completely in favour of a more performant
 		// deferred rendering solution, paired with TAA for anti-aliasing.
@@ -94,7 +92,7 @@ namespace imp::engine
 			bool readValid = false;
 		};
 
-		bool acquireTaaHistory(AppContext& ctx, u32 width, u32 height, u32 frameCounter, TaaHistoryTargets& out);
+		bool acquireTaaHistory(RenderContext& ctx, u32 width, u32 height, u32 frameCounter, TaaHistoryTargets& out);
 
 		[[nodiscard]] gfx::IRenderTarget* peekTaaHistoryColour() const { return m_taaHistory[m_taaReadIndex].get(); }
 		[[nodiscard]] bool taaHistoryValid() const { return m_taaHasHistory; }
@@ -161,7 +159,7 @@ namespace imp::engine
 			std::unique_ptr<gfx::IPipeline> ddgiDebugRaysPipeline;
 		};
 
-		bool buildShaderPipelineSet(AppContext& ctx, const RendererManifest& assets, ShaderPipelineSet& out) const;
+		bool buildShaderPipelineSet(RenderContext& ctx, const RendererManifest& assets, ShaderPipelineSet& out) const;
 		void adoptShaderPipelineSet(ShaderPipelineSet&& set);
 
 		std::unique_ptr<gfx::IShader> m_meshVertShader, m_meshFragShader;

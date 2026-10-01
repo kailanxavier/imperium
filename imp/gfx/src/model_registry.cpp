@@ -9,9 +9,10 @@
 
 namespace imp::gfx
 {
-	ModelRegistry::~ModelRegistry() {}
+	ModelRegistry::ModelRegistry() = default;
+	ModelRegistry::~ModelRegistry() = default;
 
-	ModelHandle ModelRegistry::load(IDevice& device, const std::string& path, jobs::JobSystem& jobSystem, 
+	ModelHandle ModelRegistry::load(IDevice& device, const std::string& path, jobs::JobSystem& jobSystem,
 		const fs::VirtualFileSystem* vfs)
 	{
 		if (!m_textureCache)

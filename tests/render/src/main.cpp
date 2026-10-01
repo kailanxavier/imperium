@@ -17,7 +17,7 @@ namespace
 {
     constexpr u32 kWidth = 3840;
     constexpr u32 kHeight = 2160;
-    constexpr int kFramesToRender = 30;
+    constexpr int kFramesToRender = 600;
     constexpr u8 kPerPixelThreshold = 2;
     constexpr double kMaxAllowedMeanError = 0.5;
 
@@ -81,7 +81,7 @@ int main(int argc, char** argv)
         log::Logger::get().shutdown();
         return 2;
     }
-    gameApp->setReadbackTarget(readbackTarget.get());
+    gameApp->renderer().addOutput(readbackTarget.get());
 
     app::AppContext ctx = application.context();
 
@@ -120,13 +120,13 @@ int main(int argc, char** argv)
     if (!application.device().readbackTexture(*readbackTarget, actual.pixels))
     {
         LOG_FATAL("RenderSmokeTest", "readbackTexture() failed");
-        gameApp->setReadbackTarget(nullptr);
+        gameApp->renderer().removeOutput(readbackTarget.get());
         application.shutdown();
         log::Logger::get().shutdown();
         return 2;
     }
 
-    gameApp->setReadbackTarget(nullptr);
+    gameApp->renderer().removeOutput(readbackTarget.get());
 
     if (backBufferFormat == gfx::TextureFormat::BGRA8Srgb)
     {

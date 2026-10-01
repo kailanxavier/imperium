@@ -1,8 +1,10 @@
 set(IMP_ENGINE_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}" CACHE INTERNAL "")
 
 add_library(imp_engine STATIC
+	src/deferred_renderer.cpp
+	src/render_passes.cpp
 	src/render_resources.cpp
-	src/scene_renderer.cpp
+	src/render_scene.cpp
 	src/engine_assets.cpp
 )
 
@@ -13,12 +15,14 @@ target_include_directories(imp_engine
 
 target_link_libraries(imp_engine
 	PUBLIC
-		imp_app
+		imp_core
 		imp_gfx
 		imp_cam
 		imp_sky
 	PRIVATE
-		imp_core
+		imp_ecs
+		imp_jobs
+		imp_fwk
 )
 
 target_compile_definitions(imp_engine 
