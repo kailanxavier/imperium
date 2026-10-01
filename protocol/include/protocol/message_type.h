@@ -20,6 +20,7 @@ namespace imp::protocol
         AssetCommandResult,
         CVarCommand,
         CVarCommandResult,
+        ViewportAttach,
     };
 
     enum class MessageMask : u32
@@ -39,6 +40,7 @@ namespace imp::protocol
         AssetCommandResult = 1u << 11,
         CVarCommand = 1u << 12,
         CVarCommandResult = 1u << 13,
+        ViewportAttach = 1u << 14,
     };
 
     [[nodiscard]] constexpr MessageMask maskFor(MessageType type)

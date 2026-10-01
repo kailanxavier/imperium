@@ -4,6 +4,7 @@
 #include <gfx/gizmo_renderer.h>
 
 #include <chrono>
+#include <thread>
 
 namespace imp::app
 {
@@ -205,7 +206,10 @@ namespace imp::app
 		m_window.pollEvents();
 
 		if (m_window.isMinimised())
+		{
+			std::this_thread::sleep_for(std::chrono::milliseconds(10));
 			return;
+		}
 
 		const auto now = std::chrono::steady_clock::now();
 		const float deltaSeconds = std::chrono::duration<float>(now - m_lastFrameTime).count();

@@ -20,6 +20,8 @@ namespace imp::protocol
         bool start(u16 port);
         void stop();
 
+        [[nodiscard]] u16 port() const { return m_boundPort.load(std::memory_order_relaxed); }
+
         // Engine thread side, called before doing any (possibly expensive)
         // serialisation work - skip entirely if nobody's listening
         [[nodiscard]] bool hasSubscribers(MessageType type) const;
@@ -35,7 +37,7 @@ namespace imp::protocol
         ToolServer() = default;
         void networkThreadLoop(u16 port);
 
-        static constexpr size_t kTypeCount = 14;
+        static constexpr size_t kTypeCount = 15;
         static size_t typeIndex(MessageType type) { return static_cast<size_t>(type) - 1; }
 
         struct TelemetryChannel
@@ -47,6 +49,7 @@ namespace imp::protocol
         std::thread m_thread;
         std::atomic<bool> m_running{ false };
         std::atomic<bool> m_listening{ false };
+        std::atomic<u16> m_boundPort{ 0 };
         std::atomic<u32> m_subscriberCounts[kTypeCount]{};
         TelemetryChannel m_channels[kTypeCount];
 

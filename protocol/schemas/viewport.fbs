@@ -1,0 +1,11 @@
+namespace imp.protocol.viewport;
+
+table ViewportAttach
+{
+    native_handle: uint64;
+    width: uint32;
+    height: uint32;
+    process_id: uint32;
+}
+
+root_type ViewportAttach;

@@ -27,6 +27,7 @@ target_sources(imp_app PRIVATE
 
 add_library(imp_app_editor_host STATIC
 	src/editor_bridge_layer.cpp
+	src/editor_process.cpp
 )
 
 target_include_directories(imp_app_editor_host
@@ -42,6 +43,7 @@ target_link_libraries(imp_app_editor_host
 		imp_protocol
 	PRIVATE
 		imp_gfx
+		imp_fwk
 		imp_jobs
 		imp_core
 )

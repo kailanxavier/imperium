@@ -52,6 +52,14 @@ int main(int argc, char** argv)
 	desc.vsync = true;
 	launch.applyTo(desc);
 
+	app::EditorHostDesc editorHost{};
+	editorHost.launchEditor = launch.editor;
+	editorHost.embedViewport = launch.editor && !launch.useOwnWindow;
+#ifdef IMP_EDITOR_PATH
+	editorHost.editorPathHint = IMP_EDITOR_PATH;
+#endif
+	desc.window.startVisible = !editorHost.embedViewport;
+
 	const auto shadersPath = ( platform::executableDir() / "assets" ).string();
 	desc.vfsMounts.push_back(app::VfsMountDesc{ "assets/", shadersPath, 0, true, true });
 
@@ -63,7 +71,7 @@ int main(int argc, char** argv)
 		application.services().provide(launch);
 
 		application.layers().pushOverlay(std::make_unique<app::SkyLayer>());
-		application.layers().pushOverlay(std::make_unique<app::EditorBridgeLayer>());
+		application.layers().pushOverlay(std::make_unique<app::EditorBridgeLayer>(editorHost));
 		application.layers().pushOverlay(std::make_unique<app::TelemetryLayer>());
 		application.layers().pushOverlay(std::make_unique<game::LightControlLayer>());
 
