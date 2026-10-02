@@ -34,6 +34,9 @@ namespace imp::gfx
         IRenderTarget* depthTarget = nullptr;
         IRenderTarget* resolveTarget = nullptr;
 
+        static constexpr u32 kWholeTarget = 0xFFFFFFFFu;
+        u32 depthArrayLayer = kWholeTarget;
+
         bool clearDepth = true;
         float clearDepthValue = 1.f;
 

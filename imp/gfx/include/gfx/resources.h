@@ -140,6 +140,7 @@ namespace imp::gfx
         u32 height = 0;
         u32 mipLevels = 1;
         u32 arrayLayers = 1;
+        bool cubeCompatible = false;
         TextureFormat format = TextureFormat::RGBA8Unorm;
         TextureUsage usage = TextureUsage::Sampled;
         SampleCount sampleCount = SampleCount::One;

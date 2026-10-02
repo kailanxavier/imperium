@@ -53,6 +53,17 @@ namespace imp::gfx::vulkan
 		imageInfo.arrayLayers = info.arrayLayers;
 		m_arrayLayers = info.arrayLayers;
 
+		if (info.cubeCompatible)
+		{
+			if (info.arrayLayers != 6)
+			{
+				LOG_ERROR("Vulkan", "VulkanTexture::create(): cube textures need exactly 6 array layers (got {})", info.arrayLayers);
+				return false;
+			}
+			imageInfo.flags |= VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
+			m_isCube = true;
+		}
+
 		VmaAllocationCreateInfo allocInfo{};
 		allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
 
@@ -79,7 +90,7 @@ namespace imp::gfx::vulkan
 			VkImageViewCreateInfo arrayViewInfo{};
 			arrayViewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
 			arrayViewInfo.image = m_image;
-			arrayViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
+			arrayViewInfo.viewType = m_isCube ? VK_IMAGE_VIEW_TYPE_CUBE : VK_IMAGE_VIEW_TYPE_2D_ARRAY;
 			arrayViewInfo.format = m_vkFormat;
 			arrayViewInfo.subresourceRange.aspectMask = aspectMask;
 			arrayViewInfo.subresourceRange.baseMipLevel = 0;

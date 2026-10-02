@@ -5,18 +5,19 @@
       "light": {
         "colour": [
           1.0,
-          0.6000000238418579,
-          0.30000001192092896
+          1.0,
+          1.0
         ],
-        "intensity": 0.0,
+        "intensity": 2.0,
         "kind": "Point"
       },
+      "name": "PLight_1",
       "parent": -1,
       "transform": {
         "position": [
-          0.0,
-          5.0,
-          0.0
+          -3.2963356971740723,
+          2.155590534210205,
+          -0.2749059796333313
         ],
         "rotation": [
           0.0,
@@ -149,7 +150,7 @@
       "end": 8.0,
       "start": 0.0
     },
-    "timeOfDayHours": 16.23906135559082,
+    "timeOfDayHours": 21.811723709106445,
     "timeScale": 1.0,
     "twilightFade": {
       "end": 2.0,

@@ -1079,6 +1079,8 @@ namespace imp::gfx::vulkan
 		info.sampleCount = toVkSampleCount(desc.sampleCount);
 		info.transient = ( desc.sampleCount != gfx::SampleCount::One )
 			&& !gfx::hasFlag(desc.usage, gfx::TextureUsage::Sampled);
+		info.arrayLayers = desc.arrayLayers;
+		info.cubeCompatible = desc.cubeCompatible;
 		info.allocationCallbacks = allocationCallbacks();
 
 		auto texture = std::make_shared<VulkanTexture>();

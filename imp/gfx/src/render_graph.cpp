@@ -224,6 +224,7 @@ namespace imp::gfx
 					desc.depthTarget = &renderTargetOf(pass.depth.resourceIndex);
 					desc.clearDepth = ( pass.depth.loadOp == RGLoadOp::Clear );
 					desc.clearDepthValue = pass.depth.clearDepth;
+					desc.depthArrayLayer = pass.depth.arrayLayer;
 				}
 
 				if (pass.resolve.role == RGAttachmentRole::Resolve)

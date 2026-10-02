@@ -109,6 +109,7 @@ namespace imp::gfx::vulkan
 		u32 m_colourTargetCount = 0;
 
 		VulkanRenderTarget* m_depthTarget = nullptr;
+		u32 m_depthArrayLayer = gfx::RenderPassDesc::kWholeTarget;
 		VulkanRenderTarget* m_resolveTarget = nullptr;
 
 		VulkanDescriptorAllocator* m_descriptorAllocator = nullptr;

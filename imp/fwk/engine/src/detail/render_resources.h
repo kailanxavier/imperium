@@ -50,6 +50,8 @@ namespace imp::engine
 
 		gfx::ISampler& sampler() const { return *m_sampler; }
 		gfx::ISampler& shadowSampler() const { return *m_shadowSampler; }
+		gfx::ISampler& pointShadowSampler() const { return *m_pointShadowSampler; }
+		gfx::ITexture& pointShadowFallbackCube() const { return *m_pointShadowFallbackCube->asTexture(); }
 		gfx::ISampler& ddgiSampler() const { return *m_ddgiSampler; }
 
 		gfx::ISampler& taaSampler() const { return *m_taaSampler; }
@@ -58,6 +60,7 @@ namespace imp::engine
 		[[nodiscard]] gfx::TextureFormat hdrDepthFormat() const { return m_hdrDepthFormat; }
 
 		[[nodiscard]] gfx::IBuffer& cascadeUBO(u32 frame) const { return *m_cascadeUBOs[frame]; }
+		[[nodiscard]] gfx::IBuffer& pointShadowUBO(u32 frame) const { return *m_pointShadowUBOs[frame]; }
 		[[nodiscard]] gfx::IBuffer& lightUBO(u32 frame) const { return *m_lightUBOs[frame]; }
 		[[nodiscard]] gfx::IBuffer& instanceBuffer(u32 frame) const { return *m_instanceBuffers[frame]; }
 		[[nodiscard]] bool hasInstanceBuffers() const { return !m_instanceBuffers.empty(); }
@@ -192,6 +195,8 @@ namespace imp::engine
 
 		std::unique_ptr<gfx::ISampler> m_sampler;
 		std::unique_ptr<gfx::ISampler> m_shadowSampler;
+		std::unique_ptr<gfx::ISampler> m_pointShadowSampler;
+		std::unique_ptr<gfx::IRenderTarget> m_pointShadowFallbackCube;
 		std::unique_ptr<gfx::ISampler> m_ddgiSampler;
 		std::unique_ptr<gfx::ISampler> m_taaSampler;
 
@@ -199,6 +204,7 @@ namespace imp::engine
 		gfx::TextureFormat m_hdrDepthFormat = gfx::TextureFormat::Depth32Float;
 
 		std::vector<std::unique_ptr<gfx::IBuffer>> m_cascadeUBOs;
+		std::vector<std::unique_ptr<gfx::IBuffer>> m_pointShadowUBOs;
 		std::vector<std::unique_ptr<gfx::IBuffer>> m_lightUBOs;
 		std::vector<std::unique_ptr<gfx::IBuffer>> m_instanceBuffers;
 		std::vector<std::unique_ptr<gfx::IBuffer>> m_aoParamsUBOs;

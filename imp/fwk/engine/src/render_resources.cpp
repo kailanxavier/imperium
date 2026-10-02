@@ -6,6 +6,7 @@
 
 #include <gfx/model.h>
 #include <gfx/lighting.h>
+#include <gfx/point_shadow.h>
 #include <gfx/config.h>
 #include <gfx/render_graph_resource_pool.h>
 #include <gfx/ao.h>
@@ -370,7 +371,7 @@ namespace imp::engine
 		ssgiPipelineDesc.hasInstanceBinding = false;
 		out.ssgiPipeline = ctx.gfx.createPipeline(ssgiPipelineDesc);
 
-		gfx::PipelineDesc ssgiBlurPipelineDesc{ssgiPipelineDesc};
+		gfx::PipelineDesc ssgiBlurPipelineDesc{ ssgiPipelineDesc };
 		ssgiBlurPipelineDesc.fragmentShader = out.ssgiBlurFragShader.get();
 		out.ssgiBlurPipeline = ctx.gfx.createPipeline(ssgiBlurPipelineDesc);
 
@@ -583,6 +584,13 @@ namespace imp::engine
 		shadowSamplerDesc.addressModeV = gfx::AddressMode::ClampToEdge;
 		m_shadowSampler = ctx.gfx.createSampler(shadowSamplerDesc);
 
+		gfx::SamplerDesc pointShadowSamplerDesc{};
+		pointShadowSamplerDesc.minFilter = gfx::FilterMode::Nearest;
+		pointShadowSamplerDesc.magFilter = gfx::FilterMode::Nearest;
+		pointShadowSamplerDesc.addressModeU = gfx::AddressMode::ClampToEdge;
+		pointShadowSamplerDesc.addressModeV = gfx::AddressMode::ClampToEdge;
+		m_pointShadowSampler = ctx.gfx.createSampler(pointShadowSamplerDesc);
+
 		gfx::SamplerDesc ddgiSamplerDesc{};
 		ddgiSamplerDesc.minFilter = gfx::FilterMode::Linear;
 		ddgiSamplerDesc.magFilter = gfx::FilterMode::Linear;
@@ -604,6 +612,29 @@ namespace imp::engine
 		m_cascadeUBOs.resize(gfx::kMaxFramesInFlight);
 		for (auto& buf : m_cascadeUBOs)
 			buf = ctx.gfx.createBuffer(cascadeUboDesc);
+
+		gfx::BufferDesc pointShadowUboDesc{};
+		pointShadowUboDesc.size = sizeof(gfx::PointShadowUBO);
+		pointShadowUboDesc.usage = gfx::BufferUsage::Uniform;
+		pointShadowUboDesc.memoryAccess = gfx::MemoryAccess::HostVisible;
+		m_pointShadowUBOs.resize(gfx::kMaxFramesInFlight);
+		for (auto& buf : m_pointShadowUBOs)
+			buf = ctx.gfx.createBuffer(pointShadowUboDesc);
+
+		{
+			gfx::TextureDesc fallbackCubeDesc{};
+			fallbackCubeDesc.width = 1;
+			fallbackCubeDesc.height = 1;
+			fallbackCubeDesc.arrayLayers = gfx::kPointShadowFaceCount;
+			fallbackCubeDesc.cubeCompatible = true;
+			fallbackCubeDesc.format = gfx::TextureFormat::Depth32Float;
+			fallbackCubeDesc.sampleCount = gfx::SampleCount::One;
+			fallbackCubeDesc.usage = gfx::TextureUsage::DepthStencil | gfx::TextureUsage::Sampled;
+			fallbackCubeDesc.debugName = "PointShadowFallbackCube";
+			m_pointShadowFallbackCube = ctx.gfx.createRenderTarget(fallbackCubeDesc);
+			if (!m_pointShadowFallbackCube)
+				LOG_ERROR("Engine", "Could not create the point shadow fallback cubemap.");
+		}
 
 		gfx::BufferDesc lightUboDesc{};
 		lightUboDesc.size = sizeof(gfx::LightUBO);
@@ -859,6 +890,8 @@ namespace imp::engine
 		m_meshVertShader.reset();
 		m_shadowPipeline.reset();
 		m_shadowSampler.reset();
+		m_pointShadowSampler.reset();
+		m_pointShadowFallbackCube.reset();
 		m_shadowFragShader.reset();
 		m_shadowVertShader.reset();
 		m_skyFragShader.reset();
@@ -909,6 +942,7 @@ namespace imp::engine
 		m_ddgiDebugRaysFragShader.reset();
 
 		for (auto& buf : m_cascadeUBOs) buf.reset();
+		for (auto& buf : m_pointShadowUBOs) buf.reset();
 		for (auto& buf : m_lightUBOs) buf.reset();
 		for (auto& buf : m_instanceBuffers) buf.reset();
 		for (auto& buf : m_aoParamsUBOs) buf.reset();
@@ -923,7 +957,7 @@ namespace imp::engine
 		m_graphPool.reset();
 	}
 
-	bool RenderResources::acquireTaaHistory(RenderContext &ctx, u32 width, u32 height, u32 frameCounter, TaaHistoryTargets &out)
+	bool RenderResources::acquireTaaHistory(RenderContext& ctx, u32 width, u32 height, u32 frameCounter, TaaHistoryTargets& out)
 	{
 		if (width == 0 || height == 0)
 			return false;
@@ -957,7 +991,7 @@ namespace imp::engine
 			m_taaHasHistory = false;
 		}
 
-		const bool readValid = m_taaHasHistory && (m_taaLastFrame + 1 == frameCounter);
+		const bool readValid = m_taaHasHistory && ( m_taaLastFrame + 1 == frameCounter );
 		out.read = m_taaHistory[m_taaReadIndex].get();
 		out.write = m_taaHistory[1 - m_taaReadIndex].get();
 		out.readValid = readValid;

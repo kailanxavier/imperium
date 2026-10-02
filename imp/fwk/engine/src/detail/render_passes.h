@@ -38,6 +38,15 @@ namespace imp::engine
 	ShadowCascadePasses addShadowCascadePasses(gfx::RenderGraph& graph, RenderResources& resources,
 		RenderScene& scene, const SceneRenderParams& params);
 
+	struct PointShadowPasses
+	{
+		gfx::RGTextureHandle cube;
+		bool active = false;
+	};
+
+	PointShadowPasses addPointShadowPasses(gfx::RenderGraph& graph, RenderResources& resources, 
+		RenderScene& scene, const SceneRenderParams& params);
+
 	struct PrepassOutputs
 	{
 		gfx::RGTextureHandle normalTarget;
@@ -68,7 +77,7 @@ namespace imp::engine
 		RenderContext& ctx, const PrepassOutputs& prepass, gfx::RGTextureHandle rawSSGI);
 
 	gfx::RGTextureHandle addDeferredLightingPass(gfx::RenderGraph& graph, RenderResources& resources, RenderContext& ctx,
-		const SceneRenderParams& params, const PrepassOutputs& prepass, const ShadowCascadePasses& shadowPasses,
+		const SceneRenderParams& params, const PrepassOutputs& prepass, const ShadowCascadePasses& shadowPasses, const PointShadowPasses& pointShadowPasses,
 		gfx::RGTextureHandle aoTexture, gfx::RGTextureHandle ddgiIrradianceHandle, gfx::RGTextureHandle ddgiDepthHandle,
 		gfx::RGBufferHandle thermalHeatBufferHandle, gfx::RGTextureHandle ssgiTexture);
 

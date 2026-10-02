@@ -24,6 +24,7 @@ namespace imp::gfx
 			h = hashCombine(h, static_cast<u64>( desc.height ));
 			h = hashCombine(h, static_cast<u64>( desc.mipLevels ));
 			h = hashCombine(h, static_cast<u64>( desc.arrayLayers ));
+			h = hashCombine(h, static_cast<u64>( desc.cubeCompatible ));
 			h = hashCombine(h, static_cast<u64>( desc.format ));
 			h = hashCombine(h, static_cast<u64>( desc.usage ));
 			h = hashCombine(h, static_cast<u64>( desc.sampleCount ));

@@ -162,6 +162,7 @@ namespace imp::engine
 		}
 
 		const ShadowCascadePasses shadowPasses = addShadowCascadePasses(graph, resources, scene, params);
+		const PointShadowPasses pointShadowPasses = addPointShadowPasses(graph, resources, scene, params);
 
 		gfx::RGTextureHandle ddgiIrradianceHandle{};
 		gfx::RGTextureHandle ddgiDepthHandle{};
@@ -178,7 +179,7 @@ namespace imp::engine
 			thermalBuffer = addThermalUpdatePass(graph, resources, scene, ctx, params, ddgiRayBuffer);
 
 		const gfx::RGTextureHandle hdrColour = addDeferredLightingPass(graph, resources, ctx, params, prepass,
-			shadowPasses, aoTexture, ddgiIrradianceHandle, ddgiDepthHandle, thermalBuffer, ssgiTexture);
+			shadowPasses, pointShadowPasses, aoTexture, ddgiIrradianceHandle, ddgiDepthHandle, thermalBuffer, ssgiTexture);
 
 		const gfx::RGTextureHandle hdrLit = addHdrPass(graph, resources, scene, ctx, params, shadowPasses,
 			prepass.depthTarget, hdrColour, aoTexture, ddgiIrradianceHandle, ddgiDepthHandle, thermalBuffer, ssgiTexture);

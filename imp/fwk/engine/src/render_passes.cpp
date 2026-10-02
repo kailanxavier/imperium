@@ -4,6 +4,8 @@
 #include <fwk/layer.h>
 #include <gfx/render_extraction.h>
 #include <gfx/lighting.h>
+#include <gfx/point_shadow.h>
+#include <gfx/point_shadow_cvars.h>
 #include <cstdio>
 #include <gfx/ao.h>
 #include <gfx/ao_cvars.h>
@@ -53,6 +55,16 @@ namespace imp::engine
 			RenderScene* scene = nullptr;
 		};
 
+		struct PointShadowFacePassData
+		{
+			gfx::IBuffer* instanceBuffer = nullptr;
+			math::Mat4f viewProj;
+			gfx::CullVolume cullVolume;
+
+			RenderResources* resources = nullptr;
+			RenderScene* scene = nullptr;
+		};
+
 		struct DeferredLightingPassData
 		{
 			gfx::RGTextureHandle normalIn;
@@ -63,6 +75,9 @@ namespace imp::engine
 			gfx::RGBufferHandle lightUBO;
 			gfx::RGBufferHandle cascadeUBO;
 			std::array<gfx::RGTextureHandle, gfx::kCascadeCount> cascadeShadowMaps;
+			gfx::RGBufferHandle pointShadowUBO;
+			bool pointShadowActive = false;
+			gfx::RGTextureHandle pointShadowCube;
 			gfx::RGTextureHandle aoTexture;
 			gfx::RGBufferHandle screenParamsUBO;
 
@@ -786,7 +801,96 @@ namespace imp::engine
 		return out;
 	}
 
-	gfx::RGTextureHandle addDeferredLightingPass(gfx::RenderGraph& graph, RenderResources& resources, RenderContext& ctx, const SceneRenderParams& params, const PrepassOutputs& prepass, const ShadowCascadePasses& shadowPasses, gfx::RGTextureHandle aoTexture, gfx::RGTextureHandle ddgiIrradianceHandle, gfx::RGTextureHandle ddgiDepthHandle, gfx::RGBufferHandle thermalHeatBufferHandle, gfx::RGTextureHandle ssgiTexture)
+	PointShadowPasses addPointShadowPasses(gfx::RenderGraph& graph, RenderResources& resources, RenderScene& scene, const SceneRenderParams& params)
+	{
+		PointShadowPasses out{};
+		gfx::PointShadowUBO ubo{};
+
+		u32 casterSlot = gfx::kNoPointShadowLight;
+		const gfx::LightUBO& lightData = scene.extraction().lightData;
+		if (gfx::pointshadow::cvarEnabled)
+		{
+			for (u32 i = gfx::kMainLightSlot + 1; i < lightData.lightCount; ++i)
+			{
+				if (lightData.lights[i].positionOrDirWS.w > 0.5f)
+				{
+					casterSlot = i;
+					break;
+				}
+			}
+		}
+
+		if (casterSlot != gfx::kNoPointShadowLight)
+		{
+			const math::Vec3f lightPosition = lightData.lights[casterSlot].positionOrDirWS.xyz();
+			const u32 resolution = static_cast<u32>( std::clamp<i32>(static_cast<i32>(gfx::pointshadow::cvarResolution), 64, 4096) );
+			const float nearPlane = std::max(static_cast<float>(gfx::pointshadow::cvarNearPlane), 0.001f);
+			const float farPlane = std::max(static_cast<float>(gfx::pointshadow::cvarFarPlane), nearPlane + 0.1f);
+			ubo.positionAndFar = math::Vec4f{ lightPosition, farPlane };
+			ubo.nearBiasNormalFilter = math::Vec4f{ nearPlane, 
+				static_cast<float>(gfx::pointshadow::cvarDepthBias),
+				static_cast<float>(gfx::pointshadow::cvarNormalOffset),
+				static_cast<float>(gfx::pointshadow::cvarFilterRadius) };
+
+			ubo.lightIndex = casterSlot;
+			ubo.enabled = 1u;
+			ubo.resolution = static_cast<float>(resolution);
+
+			const auto faceViewProj = gfx::computePointShadowViewProj(lightPosition, nearPlane, farPlane);
+
+			gfx::RGTextureHandle cube{};
+			for (u32 face = 0; face < gfx::kPointShadowFaceCount; ++face)
+			{
+				char name[32];
+				std::snprintf(name, sizeof(name), "Point Shadow Face %u", face);
+				graph.addPass<PointShadowFacePassData>(name,
+					[&, face](gfx::RenderGraphBuilder& b, PointShadowFacePassData& d)
+					{
+						if (face == 0)
+						{
+							gfx::TextureDesc cubeDesc{};
+							cubeDesc.width = resolution;
+							cubeDesc.height = resolution;
+							cubeDesc.arrayLayers = gfx::kPointShadowFaceCount;
+							cubeDesc.cubeCompatible = true;
+							cubeDesc.format = gfx::TextureFormat::Depth32Float;
+							cubeDesc.sampleCount = gfx::SampleCount::One;
+							cubeDesc.usage = gfx::TextureUsage::DepthStencil | gfx::TextureUsage::Sampled;
+							cube = b.createTexture("PointShadowCube", cubeDesc);
+						}
+						cube = b.writeDepthLayer(cube, face, gfx::RGLoadOp::Clear, 1.f);
+						d.instanceBuffer = &resources.instanceBuffer(params.currentFrame);
+						d.viewProj = faceViewProj[face];
+						d.cullVolume.frustumPlanes = gfx::extractFrustumPlanes(faceViewProj[face]);
+						d.cullVolume.useFrustum = true;
+						d.resources = &resources;
+						d.scene = &scene;
+					},
+					[](const PointShadowFacePassData& d, gfx::RenderGraphContext& rgCtx)
+					{
+						gfx::ModelRenderContext shadowRenderCtx{};
+						shadowRenderCtx.cmd = &rgCtx.cmd();
+						shadowRenderCtx.modelRegistry = &d.scene->modelRegistry();
+						shadowRenderCtx.sampler = &d.resources->sampler();
+						shadowRenderCtx.lightBuffer = nullptr;
+						shadowRenderCtx.instanceBuffer = d.instanceBuffer;
+						shadowRenderCtx.viewProj = d.viewProj;
+						shadowRenderCtx.cullVolume = &d.cullVolume;
+						
+						rgCtx.cmd().bindPipeline(d.resources->shadowPipeline());
+						drawModelBatches(shadowRenderCtx, d.scene->extraction());
+					});
+			}
+
+			out.cube = cube;
+			out.active = true;
+		}
+
+		resources.pointShadowUBO(params.currentFrame).update(&ubo, sizeof(ubo), 0);
+		return out;
+	}
+
+	gfx::RGTextureHandle addDeferredLightingPass(gfx::RenderGraph& graph, RenderResources& resources, RenderContext& ctx, const SceneRenderParams& params, const PrepassOutputs& prepass, const ShadowCascadePasses& shadowPasses, const PointShadowPasses& pointShadowPasses, gfx::RGTextureHandle aoTexture, gfx::RGTextureHandle ddgiIrradianceHandle, gfx::RGTextureHandle ddgiDepthHandle, gfx::RGBufferHandle thermalHeatBufferHandle, gfx::RGTextureHandle ssgiTexture)
 	{
 		const auto& data = graph.addPass<DeferredLightingPassData>("DeferredLighting",
 			[&](gfx::RenderGraphBuilder& b, DeferredLightingPassData& d)
@@ -811,6 +915,11 @@ namespace imp::engine
 
 				for (u32 i = 0; i < gfx::kCascadeCount; ++i)
 					d.cascadeShadowMaps[i] = b.readTexture(shadowPasses.cascadeDepthTargets[i]);
+
+				d.pointShadowUBO = b.readBuffer(b.importBuffer("PointShadowUBO", &resources.pointShadowUBO(params.currentFrame)));
+				d.pointShadowActive = pointShadowPasses.active;
+				if (d.pointShadowActive)
+					d.pointShadowCube = b.readTexture(pointShadowPasses.cube);
 
 				d.aoTexture = b.readTexture(aoTexture);
 				d.screenParamsUBO = b.readBuffer(b.importBuffer("ScreenParamsUBO", &resources.screenParamsUBO(params.currentFrame)));
@@ -884,6 +993,12 @@ namespace imp::engine
 				rgCtx.cmd().bindUniformBuffer(rgCtx.buffer(d.cascadeUBO), 7);
 				rgCtx.cmd().bindTexture(rgCtx.texture(d.aoTexture), d.resources->sampler(), 8);
 				rgCtx.cmd().bindUniformBuffer(rgCtx.buffer(d.screenParamsUBO), 9);
+
+				rgCtx.cmd().bindUniformBuffer(rgCtx.buffer(d.pointShadowUBO), 20);
+				if (d.pointShadowActive)
+					rgCtx.cmd().bindTexture(rgCtx.texture(d.pointShadowCube), d.resources->pointShadowSampler(), 21);
+				else
+					rgCtx.cmd().bindTexture(d.resources->pointShadowFallbackCube(), d.resources->pointShadowSampler(), 21);
 
 				if (d.ddgiActive)
 				{
@@ -1133,7 +1248,6 @@ namespace imp::engine
 		return data.resolvedOut;
 	}
 
-
 	gfx::RGTextureHandle addOverlayPass(gfx::RenderGraph& graph, RenderResources& resources, RenderContext& ctx, const SceneRenderParams& params, gfx::RGTextureHandle colourIn, gfx::RGTextureHandle depthIn, gfx::RGTextureHandle ddgiIrradianceHandle, gfx::RGTextureHandle ddgiDepthHandle, gfx::RGBufferHandle ddgiRayBuffer)
 	{
 		const auto& data = graph.addPass<OverlayPassData>("Overlay",
@@ -1251,7 +1365,6 @@ namespace imp::engine
 
 		return data.colour;
 	}
-
 
 	void addTonemapPass(gfx::RenderGraph& graph, RenderResources& resources, gfx::RGTextureHandle hdrResolve, gfx::RGTextureHandle bloomTexture, gfx::IRenderTarget& target, const char* passName)
 	{

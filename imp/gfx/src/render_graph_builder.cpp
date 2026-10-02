@@ -137,6 +137,26 @@ namespace imp::gfx
 		return out;
 	}
 
+	RGTextureHandle RenderGraphBuilder::writeDepthLayer(RGTextureHandle handle, u32 layer, RGLoadOp loadOp, float clearDepth)
+	{
+		const u32 previousWriter = m_graph->m_resources[handle.index].lastWritePass;
+		if (previousWriter != ~0u && previousWriter != m_passIndex)
+			m_graph->m_edges.emplace_back(previousWriter, m_passIndex);
+
+		const u32 newVersion = m_graph->recordWrite(m_passIndex, handle.index);
+
+		RGPass& pass = m_graph->m_passes[m_passIndex];
+		pass.depth.role = RGAttachmentRole::Depth;
+		pass.depth.resourceIndex = handle.index;
+		pass.depth.loadOp = loadOp;
+		pass.depth.clearDepth = clearDepth;
+		pass.depth.arrayLayer = layer;
+
+		RGTextureHandle out = handle;
+		out.version = newVersion;
+		return out;
+	}
+
 	RGTextureHandle RenderGraphBuilder::writeResolve(RGTextureHandle handle, RGTextureHandle msaaColourSource)
 	{
 		m_graph->recordRead(m_passIndex, msaaColourSource.index);

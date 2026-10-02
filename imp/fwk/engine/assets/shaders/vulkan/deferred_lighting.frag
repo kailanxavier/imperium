@@ -1,5 +1,6 @@
 #version 450
 #include "include/shadow_sampling.glsl"
+#include "include/point_shadow_sampling.glsl"
 
 #define SHADOW_DEBUG_MODE 0
 
@@ -81,6 +82,17 @@ layout(std430, binding = 15) readonly buffer DDGIProbeStates
 };
 
 layout(binding = 19) uniform sampler2D ssgiTexture;
+
+layout(binding = 20) uniform PointShadowUBO
+{
+    vec4 positionAndFar;
+    vec4 nearBiasNormalFilter;
+    uint lightIndex;
+    uint enabled;
+    float resolution;
+    float _pad0;
+} pointShadow;
+layout(binding = 21) uniform samplerCube pointShadowMap;
 
 layout(push_constant) uniform PushConstants
 {
@@ -356,7 +368,19 @@ void main()
         vec3 kD = (vec3(1.0) - F) * (1.0 - metallic);
         vec3 diffuse = kD * albedo / PI;
 
-        float shadowFactor = isPoint ? 1.0 : sunShadowFactor;
+        float shadowFactor = sunShadowFactor;
+        if (isPoint)
+        {
+            shadowFactor = 1.0;
+            if (pointShadow.enabled != 0u && i == pointShadow.lightIndex)
+            {
+                shadowFactor = computePointShadowFactor(pointShadowMap, 
+                    pointShadow.positionAndFar.xyz, pointShadow.nearBiasNormalFilter.x, pointShadow.positionAndFar.w,
+                    pointShadow.nearBiasNormalFilter.y, pointShadow.nearBiasNormalFilter.z,
+                    pointShadow.nearBiasNormalFilter.w, pointShadow.resolution,
+                    inPositionWS, N, noisePos);
+            }
+        }
         result += (diffuse + specular) * radiance * NdotL * shadowFactor;
     }
 

@@ -24,6 +24,7 @@ namespace imp::gfx
 		ClearColour clearColour{};
 		float clearDepth = 1.f;
 		u32 resolveSourceIndex = ~0u;
+		u32 arrayLayer = RenderPassDesc::kWholeTarget;
 	};
 
 	struct RGResourceDesc

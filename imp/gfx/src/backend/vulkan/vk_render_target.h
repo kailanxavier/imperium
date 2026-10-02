@@ -39,6 +39,7 @@ namespace imp::gfx::vulkan
 		[[nodiscard]] virtual bool isSampledOwned() const;
 		[[nodiscard]] virtual VkImage image() const;
 		[[nodiscard]] virtual VkImageView imageView() const;
+		[[nodiscard]] virtual VkImageView layerView(u32 layer) const;
 		[[nodiscard]] virtual VkFormat vkFormat() const;
 		[[nodiscard]] virtual VulkanRenderTargetKind kind() const { return m_kind; }
 

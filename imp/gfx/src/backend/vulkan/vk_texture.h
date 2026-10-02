@@ -22,6 +22,7 @@ namespace imp::gfx::vulkan
 		bool transient = false;
 		u32 mipLevels = 1;
 		u32 arrayLayers = 1;
+		bool cubeCompatible = false;
 
 		const VkAllocationCallbacks* allocationCallbacks = nullptr;
 	};
@@ -56,6 +57,7 @@ namespace imp::gfx::vulkan
 		[[nodiscard]] VkImageView layerView(u32 layer) const { 
 			return layer < m_layerViews.size() ? m_layerViews[layer] : m_imageView; }
 		[[nodiscard]] u32 arrayLayers() const { return m_arrayLayers; }
+		[[nodiscard]] bool isCube() const { return m_isCube; }
 
 	private:
 		VmaAllocator m_allocator = VK_NULL_HANDLE;
@@ -74,6 +76,7 @@ namespace imp::gfx::vulkan
 
 		u32 m_mipLevels = 1;
 		u32 m_arrayLayers = 1;
+		bool m_isCube = false;
 		VkImageView m_arrayView = VK_NULL_HANDLE;
 		std::vector<VkImageView> m_layerViews;
 	};

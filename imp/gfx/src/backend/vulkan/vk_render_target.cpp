@@ -101,6 +101,14 @@ namespace imp::gfx::vulkan
 			: m_swapchain->depthImageView();
 	}
 
+	VkImageView VulkanRenderTarget::layerView(u32 layer) const
+	{
+		if (m_kind == VulkanRenderTargetKind::OwnedTexture && m_ownedTexture->arrayLayers() > 1)
+			return m_ownedTexture->layerView(layer);
+
+		return imageView();
+	}
+
 	VkFormat VulkanRenderTarget::vkFormat() const
 	{
 		if (m_kind == VulkanRenderTargetKind::OwnedTexture) 

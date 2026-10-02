@@ -36,6 +36,7 @@ namespace imp::gfx::vulkan
 		m_colourTargetCount = 0;
 
 		m_depthTarget = nullptr;
+		m_depthArrayLayer = gfx::RenderPassDesc::kWholeTarget;
 		m_resolveTarget = nullptr;
 
 		m_descriptorAllocator = descriptorAllocator;
@@ -85,6 +86,11 @@ namespace imp::gfx::vulkan
 				VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT);
 		}
 
+		const bool depthSingleLayer = desc.depthArrayLayer != gfx::RenderPassDesc::kWholeTarget;
+		const u32 depthLayer = depthTarget
+			? depthTarget->layer() + ( depthSingleLayer ? desc.depthArrayLayer : 0u )
+			: 0u;
+
 		if (depthTarget)
 		{
 			VkAccessFlags2 dstAccess = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
@@ -95,7 +101,7 @@ namespace imp::gfx::vulkan
 			transitionImage(depthTarget->image(), VK_IMAGE_ASPECT_DEPTH_BIT,
 				VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
 				VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
-				dstAccess, isSwapchainImage, depthTarget->layer());
+				dstAccess, isSwapchainImage, depthLayer);
 		}
 
 		// BE CAREFUL WITH THIS. I DON'T LIKE HOW SMALL IT IS *******************
@@ -130,7 +136,9 @@ namespace imp::gfx::vulkan
 		if (depthTarget)
 		{
 			depthAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-			depthAttachment.imageView = depthTarget->imageView();
+			depthAttachment.imageView = depthSingleLayer
+				? depthTarget->layerView(desc.depthArrayLayer)
+				: depthTarget->imageView();
 			depthAttachment.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
 			depthAttachment.loadOp = desc.clearDepth ? VK_ATTACHMENT_LOAD_OP_CLEAR : VK_ATTACHMENT_LOAD_OP_LOAD;
 			const bool depthWillBeSampled = depthTarget->isSampledOwned();
@@ -178,6 +186,7 @@ namespace imp::gfx::vulkan
 
 		m_colourTargetCount = colourTargetCount;
 		m_depthTarget = depthTarget;
+		m_depthArrayLayer = desc.depthArrayLayer;
 		m_resolveTarget = resolveTarget;
 	}
 
@@ -210,10 +219,11 @@ namespace imp::gfx::vulkan
 			transitionImage(m_depthTarget->image(), VK_IMAGE_ASPECT_DEPTH_BIT,
 				VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 				VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT,
-				false, m_depthTarget->layer());
+				false, m_depthTarget->layer() + ( m_depthArrayLayer != gfx::RenderPassDesc::kWholeTarget ? m_depthArrayLayer : 0u ));
 		}
 
 		m_depthTarget = nullptr;
+		m_depthArrayLayer = gfx::RenderPassDesc::kWholeTarget;
 
 		for (u32 i = 0; i < m_colourTargetCount; ++i)
 			m_colourTargets[i] = nullptr;

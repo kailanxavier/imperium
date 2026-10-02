@@ -71,6 +71,18 @@ namespace imp::gfx
 	};
 	static_assert( sizeof(CascadeUBO) % 16 == 0 && "CascadeUBO layout must stay std140 consistent" );
 
+	constexpr u32 kNoPointShadowLight = 0xFFFFFFFFu;
+	struct PointShadowUBO
+	{
+		math::Vec4f positionAndFar{ 0.f, 0.f, 0.f, 1.f };
+		math::Vec4f nearBiasNormalFilter{ 0.05f, 0.02f, 1.5f, 1.5f };
+		u32 lightIndex = kNoPointShadowLight;
+		u32 enabled = 0;
+		float resolution = 1024.f;
+		float _pad0 = 0.f;
+	};
+	static_assert( sizeof(PointShadowUBO) % 16 == 0 && "PointShadowUBO layout must stay std140 consistent" );
+
 	inline void setMainLight(LightUBO& ubo, const math::Vec3f& direction, const math::Vec3f& colour,
 		float intensity, float shadowStrength)
 	{
