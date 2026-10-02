@@ -7,6 +7,10 @@
 #include <protocol/asset_command.h>
 #include <protocol/script_status.h>
 #include <protocol/cvar_command.h>
+#include <protocol/viewport_attach.h>
+
+#include <fwk/window.h>
+#include <core/log/log.h>
 
 #include <gfx/model_registry.h>
 #include <sky/sky_system.h>
@@ -19,10 +23,10 @@
 namespace imp::app
 {
 	EditorBridgeLayer::EditorBridgeLayer(
-		u16 toolServerPort,
+		EditorHostDesc host,
 		std::chrono::milliseconds publishInterval)
 		: ILayer("EditorBridge")
-		, m_toolServerPort(toolServerPort)
+		, m_host(std::move(host))
 		, m_publishInterval(publishInterval)
 		, m_lastPublish(std::chrono::steady_clock::now())
 	{
@@ -51,11 +55,99 @@ namespace imp::app
 				return models.load(device, path, jobs, &vfs);
 			};
 
-		protocol::ToolServer::instance().start(m_toolServerPort);
+		const u16 requestedPort = m_host.launchEditor ? u16{ 0 } : m_host.toolServerPort;
+		auto& server = protocol::ToolServer::instance();
+		const bool listening = server.start(requestedPort);
+		if (listening)
+			LOG_INFO("Editor Bridge", "Tool server listening on port '{}'", server.port());
+		else
+			LOG_ERROR("Editor Bridge", "Tool server failed to start on port '{}'", requestedPort);
+
+		if (!m_host.launchEditor)
+			return;
+
+		const bool wantsEmbed = m_host.embedViewport;
+		if (!listening)
+		{
+			if (wantsEmbed)
+				abandonShip(ctx, "tool server is not running");
+			return;
+		}
+
+		const std::filesystem::path editorPath = resolveEditorPath(m_host.editorPathHint);
+		if (editorPath.empty() || !m_editor.launch(editorPath, server.port(), wantsEmbed))
+		{
+			if (wantsEmbed)
+				abandonShip(ctx, "the editor could not be launched");
+			return;
+		}
+
+		m_editorLaunchedAt = std::chrono::steady_clock::now();
+		m_embedding = wantsEmbed;
 	}
 
-	void EditorBridgeLayer::onUpdate(app::AppContext& /*ctx*/, float /*deltaSeconds*/)
+	void EditorBridgeLayer::abandonShip(AppContext& ctx, const char* reason)
 	{
+		LOG_WARN("Editor Bridge", "Not embedding in the editor ({})", reason);
+		m_embedding = false;
+		ctx.window.show();
+	}
+
+	void EditorBridgeLayer::watchEditorProcess(AppContext& ctx)
+	{
+		if (!m_editor.launched())
+			return;
+
+		if (m_embedding)
+		{
+			m_editorConnected = m_editorConnected || protocol::ToolServer::instance().hasSubscribers(
+				protocol::MessageType::ViewportAttach);
+
+			if (!m_editorConnected && std::chrono::steady_clock::now() - m_editorLaunchedAt > m_host.embedTimeout)
+			{
+				abandonShip(ctx, "the editor never connected");
+				return;
+			}
+		}
+
+		if (m_editor.running())
+			return;
+
+		if (!m_embedding)
+			return;
+
+		if (m_editorConnected)
+		{
+			LOG_INFO("Editor Bridge", "Editor closed, shutting down.");
+			ctx.window.requestClose();
+		}
+		else
+		{
+			abandonShip(ctx, "the editor exited before connecting");
+		}
+	}
+
+	void EditorBridgeLayer::publishViewport(AppContext& ctx)
+	{
+		auto& server = protocol::ToolServer::instance();
+		if (!server.hasSubscribers(protocol::MessageType::ViewportAttach))
+			return;
+
+		protocol::ViewportAttachPayload payload;
+		payload.nativeHandle = ctx.window.nativeWindowId();
+		payload.width = ctx.window.width();
+		payload.height = ctx.window.height();
+		payload.processId = currentProcessId();
+
+		if (payload.nativeHandle == 0)
+			return;
+
+		server.publish(protocol::MessageType::ViewportAttach, protocol::serialiseViewportAttach(payload));
+	}
+
+	void EditorBridgeLayer::onUpdate(app::AppContext& ctx, float /*deltaSeconds*/)
+	{
+		watchEditorProcess(ctx);
 		drainCommands();
 
 		const auto now = std::chrono::steady_clock::now();
@@ -63,6 +155,10 @@ namespace imp::app
 			return;
 
 		publishSnapshot();
+
+		if (m_embedding)
+			publishViewport(ctx);
+
 		m_lastPublish = now;
 	}
 

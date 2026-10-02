@@ -142,7 +142,8 @@ namespace imp::editor
 				static_cast<u32>( MessageMask::SceneCommandResult ) |
 				static_cast<u32>( MessageMask::AssetCommandResult ) |
 				static_cast<u32>( MessageMask::ScriptStatus ) |
-				static_cast<u32>( MessageMask::CVarCommandResult )
+				static_cast<u32>( MessageMask::CVarCommandResult ) |
+				static_cast<u32>( MessageMask::ViewportAttach )
 				));
 	}
 

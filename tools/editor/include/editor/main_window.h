@@ -20,13 +20,23 @@ namespace imp::editor
 	class AssetModel;
 	class AssetBrowserPanel;
 	class CVarPanel;
+	class ViewportPanel;
+
+	struct MainWindowOptions
+	{
+		quint16 port = 47810;
+		bool embedded = false;
+	};
 
 	class MainWindow final : public QMainWindow
 	{
 		Q_OBJECT
 
 	public:
-		explicit MainWindow(QWidget* parent = nullptr);
+		explicit MainWindow(MainWindowOptions options = {}, QWidget* parent = nullptr);
+
+	protected:
+		void closeEvent(QCloseEvent* event) override;
 
 	private slots:
 		void onConnectClicked();
@@ -65,6 +75,9 @@ namespace imp::editor
 		AssetModel* m_assetModel = nullptr;
 		AssetBrowserPanel* m_assetBrowser = nullptr;
 		CVarPanel* m_cvarPanel = nullptr;
+		ViewportPanel* m_viewport = nullptr;
+
+		MainWindowOptions m_options;
 
 		QLineEdit* m_hostEdit = nullptr;
 		QSpinBox* m_portSpin = nullptr;

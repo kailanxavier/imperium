@@ -6,6 +6,7 @@
 #include <editor/asset_model.h>
 #include <editor/asset_browser_panel.h>
 #include <editor/cvar_panel.h>
+#include <editor/viewport_panel.h>
 
 #include <protocol/message_type.h>
 #include <protocol/world_snapshot.h>
@@ -13,6 +14,7 @@
 #include <protocol/asset_command.h>
 #include <protocol/script_status.h>
 #include <protocol/cvar_command.h>
+#include <protocol/viewport_attach.h>
 
 #include <QDockWidget>
 #include <QHBoxLayout>
@@ -25,6 +27,7 @@
 #include <QVBoxLayout>
 #include <QWidget>
 #include <QFileDialog>
+#include <QCloseEvent>
 
 namespace imp::editor
 {
@@ -61,12 +64,13 @@ namespace imp::editor
 			case protocol::MessageType::AssetCommandResult: return "AssetCommandResult";
 			case protocol::MessageType::CVarCommand: return "CVarCommand";
 			case protocol::MessageType::CVarCommandResult: return "CVarCommandResult";
+			case protocol::MessageType::ViewportAttach: return "ViewportAttach";
 			}
 			return "Unknown";
 		}
 	}
 
-	MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
+	MainWindow::MainWindow(MainWindowOptions options, QWidget* parent) : QMainWindow(parent), m_options(options)
 	{
 		setWindowTitle("impEditor");
 
@@ -105,12 +109,17 @@ namespace imp::editor
 		connect(m_hierarchy, &HierarchyPanel::destroyRequested, this, &MainWindow::onDestroyRequested);
 		splitter->addWidget(m_hierarchy);
 
+		m_viewport = new ViewportPanel(this);
+		m_viewport->setVisible(m_options.embedded);
+		splitter->addWidget(m_viewport);
+
 		m_inspector = new InspectorPanel(this);
 		connect(m_inspector, &InspectorPanel::commandRequested, this, &MainWindow::onCommandRequested);
 		splitter->addWidget(m_inspector);
 
-		splitter->setStretchFactor(0, 1);
-		splitter->setStretchFactor(1, 2);
+		splitter->setStretchFactor(0, 1); // hierarchy
+		splitter->setStretchFactor(1, 12); // viewport
+		splitter->setStretchFactor(2, 2); // inspector
 
 		rootLayout->addWidget(splitter, 1);
 
@@ -135,7 +144,7 @@ namespace imp::editor
 		connectionLayout->addWidget(new QLabel("Port:", this));
 		m_portSpin = new QSpinBox(this);
 		m_portSpin->setRange(1, 65535);
-		m_portSpin->setValue(47810);
+		m_portSpin->setValue(m_options.port);
 		connectionLayout->addWidget(m_portSpin);
 
 		m_connectButton = new QPushButton("Connect", this);
@@ -226,7 +235,15 @@ namespace imp::editor
 		else
 		{
 			m_cvarPanel->setConnected(false);
+			if (m_viewport->isAttached())
+				m_viewport->detach("Game disconnected.");
 		}
+	}
+
+	void MainWindow::closeEvent(QCloseEvent* event)
+	{
+		m_viewport->detach({});
+		QMainWindow::closeEvent(event);
 	}
 
 	void MainWindow::updateConnectionUi()
@@ -326,6 +343,18 @@ namespace imp::editor
 		{
 			if (auto status = protocol::deserialiseScriptStatus(payload))
 				m_assetBrowser->addScriptStatus(*status);
+		}
+		else if (type == protocol::MessageType::ViewportAttach)
+		{
+			if (auto attach = protocol::deserialiseViewportAttach(payload))
+			{
+				m_viewport->setVisible(true);
+				m_viewport->attach(*attach);
+			}
+			else
+			{
+				m_logView->appendPlainText("[WARNING] Failed to parse ViewportAttach frame.");
+			}
 		}
 		else if (type == protocol::MessageType::CVarCommandResult)
 		{

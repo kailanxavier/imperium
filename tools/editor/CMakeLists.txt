@@ -12,6 +12,7 @@ add_executable(imp_editor
 	src/asset_model.cpp
 	src/asset_browser_panel.cpp
 	src/cvar_panel.cpp
+	src/viewport_panel.cpp
 
 	include/editor/main_window.h
     include/editor/engine_connection.h
@@ -23,6 +24,7 @@ add_executable(imp_editor
 	include/editor/asset_browser_panel.h
 	include/editor/cvar_panel.h
 	include/editor/mime_types.h
+	include/editor/viewport_panel.h
 )
 
 IMP_SET_RUNTIME_DIR(imp_editor tools/editor)
@@ -35,7 +37,7 @@ target_include_directories(imp_editor
 target_link_libraries(imp_editor
 	PRIVATE 
 		imp_protocol 
-		imp_core 
+		imp_core
 		Qt6::Widgets
 )
 

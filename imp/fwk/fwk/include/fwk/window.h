@@ -33,6 +33,9 @@ namespace imp::fwk
 		void destroy();
 		void pollEvents();
 
+		void show();
+		void requestClose() { m_shouldClose = true; }
+
 		[[nodiscard]] bool shouldClose() const { return m_shouldClose; }
 		[[nodiscard]] u32 width() const { return m_width; }
 		[[nodiscard]] u32 height() const { return m_height; }
@@ -45,11 +48,14 @@ namespace imp::fwk
 		void setResizeCallback(ResizeCallback cb) { m_onResize = std::move(cb); }
 
 		[[nodiscard]] GLFWwindow* getNativeHandle() const { return m_handle; }
+		[[nodiscard]] u64 nativeWindowId() const;
 
 	private:
 		static void framebufferSizeCallback(GLFWwindow* w, int width, int height);
 		static void windowCloseCallback(GLFWwindow* w);
 		void handleResize(u32 width, u32 height);
+
+		void claimFocusIfEmbedded();
 
 		static void keyCallback(GLFWwindow* w, int key, int scancode, int action, int mods);
 		static void mouseButtonCallback(GLFWwindow* w, int button, int action, int mods);

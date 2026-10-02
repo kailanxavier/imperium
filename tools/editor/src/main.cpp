@@ -1,6 +1,7 @@
 #include <editor/main_window.h>
 
 #include <QApplication>
+#include <QCommandLineParser>
 
 static QPalette createPalette()
 {
@@ -40,7 +41,20 @@ int main(int argc, char** argv)
 	app.setOrganizationName("Strawberry Thief");
 	app.setPalette(impPalette);
 
-	imp::editor::MainWindow window;
+	QCommandLineParser parser;
+	const QCommandLineOption portOption("port", "Which port of the tool server to connect to", "port", "47810");
+	const QCommandLineOption embeddedOption("embedded", "Embed game window in the editor's viewport panel.");
+	parser.addOption(portOption);
+	parser.addOption(embeddedOption);
+	parser.parse(app.arguments());
+
+	imp::editor::MainWindowOptions options;
+	bool portOk = false;
+	if (const int port = parser.value(portOption).toInt(&portOk); portOk && port > 0 && port <= 65535)
+		options.port = static_cast<quint16>( port );
+	options.embedded = parser.isSet(embeddedOption);
+
+	imp::editor::MainWindow window(options);
 	window.show();
 
 	return app.exec();

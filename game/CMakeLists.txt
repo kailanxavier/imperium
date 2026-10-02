@@ -46,6 +46,15 @@ target_compile_definitions(game
 		IMP_SCENE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/scenes/"
 )
 
+if (TARGET imp_editor)
+	target_compile_definitions(game
+		PRIVATE
+			IMP_EDITOR_PATH="$<TARGET_FILE:imp_editor>"
+	)
+
+	add_dependencies(game imp_editor)
+endif()
+
 imp_set_runtime_dir(game game)
 IMP_ENGINE_DEPLOY_SHADERS(game)
 IMP_COPY_ASSETS(game)

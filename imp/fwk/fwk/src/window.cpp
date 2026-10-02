@@ -4,6 +4,20 @@
 #include <GLFW/glfw3.h>
 #include <core/log/log.h>
 
+#ifdef _WIN32
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+
+#define GLFW_EXPOSE_NATIVE_WIN32
+#include <GLFW/glfw3native.h>
+
+#include <Windows.h>
+#endif
+
 namespace imp::fwk
 {
 	int Window::s_glfwRefCount = 0;
@@ -39,6 +53,7 @@ namespace imp::fwk
 
 		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 		glfwWindowHint(GLFW_RESIZABLE, resizable ? GLFW_TRUE : GLFW_FALSE);
+		glfwWindowHint(GLFW_VISIBLE, desc.startVisible ? GLFW_TRUE : GLFW_FALSE);
 
 		m_handle = glfwCreateWindow(
 			static_cast<int>( desc.width ), 
@@ -100,6 +115,34 @@ namespace imp::fwk
 		glfwPollEvents();
 	}
 
+	void Window::show()
+	{
+		if (m_handle)
+			glfwShowWindow(m_handle);
+	}
+
+	u64 Window::nativeWindowId() const
+	{
+#ifdef _WIN32
+		if (m_handle)
+			return static_cast<u64>( reinterpret_cast<uintptr_t>( glfwGetWin32Window(m_handle) ) );
+#endif
+		return 0;
+	}
+
+	void Window::claimFocusIfEmbedded()
+	{
+#ifdef _WIN32
+		HWND hWnd = glfwGetWin32Window(m_handle);
+		if (!hWnd)
+			return;
+
+		const bool isChild = ( GetWindowLongPtrW(hWnd, GWL_STYLE) & WS_CHILD ) != 0;
+		if (isChild && GetFocus() != hWnd)
+			SetFocus(hWnd);
+#endif
+	}
+
 	void Window::framebufferSizeCallback(GLFWwindow* w, int width, int height)
 	{
 		auto* self = static_cast<Window*>( glfwGetWindowUserPointer(w) );
@@ -134,8 +177,13 @@ namespace imp::fwk
 	void Window::mouseButtonCallback(GLFWwindow* w, int button, int action, int mods)
 	{
 		auto* self = static_cast<Window*>( glfwGetWindowUserPointer(w) );
-		if (self)
-			self->m_input.onMouseButtonEvent(button, action);
+		if (!self)
+			return;
+
+		if (action == GLFW_PRESS)
+			self->claimFocusIfEmbedded();
+
+		self->m_input.onMouseButtonEvent(button, action);
 	}
 
 	void Window::cursorPosCallback(GLFWwindow* w, double x, double y)

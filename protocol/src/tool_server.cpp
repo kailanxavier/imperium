@@ -37,6 +37,7 @@ namespace imp::protocol
             m_thread.join();
 
         m_listening.store(false);
+        m_boundPort.store(0, std::memory_order_relaxed);
 
         for (auto& count : m_subscriberCounts)
             count.store(0, std::memory_order_relaxed);
@@ -100,6 +101,7 @@ namespace imp::protocol
             return;
         }
 
+        m_boundPort.store(listener.localPort(), std::memory_order_relaxed);
         m_listening.store(true, std::memory_order_relaxed);
 
         std::vector<Connection> connections;

@@ -49,6 +49,19 @@ namespace imp::protocol
         return ::listen(static_cast<SocketType>(m_handle), SOMAXCONN) == 0;
     }
 
+    u16 TCPListener::localPort() const
+    {
+        if (m_handle == kInvalidSocket) 
+            return 0;
+
+        sockaddr_in addr{};
+        LengthType size = sizeof(addr);
+        if (::getsockname(static_cast<SocketType>( m_handle ), reinterpret_cast<sockaddr*>( &addr ), &size) < 0)
+            return 0;
+
+        return ntohs(addr.sin_port);
+    }
+
     TCPSocket TCPListener::accept() const
     {
         if (m_handle == kInvalidSocket) return TCPSocket{};

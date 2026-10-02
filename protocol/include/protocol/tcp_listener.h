@@ -13,6 +13,8 @@ namespace imp::protocol
         bool bind(u16 port);
         [[nodiscard]] bool listen() const;
 
+        [[nodiscard]] u16 localPort() const;
+
         // Returns a valid TCPSocket if a new tool is connected, invalid otherwise
         [[nodiscard]] TCPSocket accept() const;
 
