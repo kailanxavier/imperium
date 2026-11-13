@@ -1,6 +1,8 @@
 #version 460
 #extension GL_EXT_ray_query : require
 
+#include "include/spot_light.glsl"
+
 layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
 
 layout(binding = 0) uniform accelerationStructureEXT tlas;
@@ -21,6 +23,8 @@ struct GPULight
 {
 	vec4 positionOrDirWS;
 	vec4 colourIntensity;
+	vec4 spotDirectionRange;
+	vec4 spotCone;
 };
 
 layout(binding = 2) uniform LightDataUBO
@@ -161,20 +165,30 @@ void main()
 		for (uint i = 0u; i < lightData.lightCount; ++i)
 		{
 			const GPULight light = lightData.lights[i];
-			const bool isPoint = light.positionOrDirWS.w > 0.5;
+			const bool isPositional = light.positionOrDirWS.w > 0.5;
+			const bool isSpot = light.positionOrDirWS.w > 1.5;
 
-			const vec3 toLight = isPoint ? light.positionOrDirWS.xyz - hitPos : -light.positionOrDirWS.xyz;
+			const vec3 toLight = isPositional ? light.positionOrDirWS.xyz - hitPos : -light.positionOrDirWS.xyz;
 			const vec3 L = normalize(toLight);
 
 			const float NdotL = max(dot(hitNormal, L), 0.0);
 			if (NdotL <= 0.0)
 				continue;
 
-			const float shadowTMax = isPoint ? length(toLight) : pc.maxRayDistance;
+			float attenuation = 1.0;
+			if (isSpot)
+			{
+				attenuation = spotConeFactor(L, light.spotDirectionRange.xyz, light.spotCone.xy)
+					* spotRangeFactor(length(toLight), light.spotDirectionRange.w);
+				if (attenuation <= 0.0)
+					continue; // we're outside the cone
+			}
+
+			const float shadowTMax = isPositional ? length(toLight) : pc.maxRayDistance;
 			if (isOccluded(hitPos + hitNormal * pc.viewBias, L, shadowTMax))
 				continue;
 
-			const vec3 lightRadiance = light.colourIntensity.rgb * light.colourIntensity.w;
+			const vec3 lightRadiance = light.colourIntensity.rgb * light.colourIntensity.w * attenuation;
 			direct += albedo * lightRadiance * NdotL;
 		}
 

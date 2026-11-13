@@ -812,7 +812,7 @@ namespace imp::engine
 		{
 			for (u32 i = gfx::kMainLightSlot + 1; i < lightData.lightCount; ++i)
 			{
-				if (lightData.lights[i].positionOrDirWS.w > 0.5f)
+				if (gfx::isPositionalLight(lightData.lights[i]))
 				{
 					casterSlot = i;
 					break;

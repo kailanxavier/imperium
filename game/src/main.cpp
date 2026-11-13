@@ -73,7 +73,7 @@ int main(int argc, char** argv)
 		application.layers().pushOverlay(std::make_unique<app::SkyLayer>());
 		application.layers().pushOverlay(std::make_unique<app::EditorBridgeLayer>(editorHost));
 		application.layers().pushOverlay(std::make_unique<app::TelemetryLayer>());
-		application.layers().pushOverlay(std::make_unique<game::LightControlLayer>());
+		//application.layers().pushOverlay(std::make_unique<game::LightControlLayer>());
 
 		if (!application.initialise(desc, std::make_unique<game::GameApp>()))
 		{

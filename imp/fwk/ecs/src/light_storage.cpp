@@ -11,6 +11,7 @@ namespace imp::ecs
 		m_type.push_back(type);
 		m_colour.push_back(colour);
 		m_intensity.push_back(intensity);
+		m_spots.push_back(SpotParams{});
 
 		if (entity.index >= m_sparse.size())
 			m_sparse.resize(static_cast<size_t>( entity.index ) + 1, kInvalidDense);
@@ -60,11 +61,25 @@ namespace imp::ecs
 		if (idx != kInvalidDense) m_intensity[idx] = intensity;
 	}
 
+	void LightStorage::setSpotParams(EntityId entity, const SpotParams& params)
+	{
+		const u32 idx = denseIndexOf(entity);
+		assert(idx != kInvalidDense && "LightStorage::setSpotParams: entity not present");
+		if (idx != kInvalidDense) m_spots[idx] = params;
+	}
+
 	LightType LightStorage::type(EntityId entity) const
 	{
 		const u32 idx = denseIndexOf(entity);
 		assert(idx != kInvalidDense && "LightStorage::type: entity not present");
 		return ( idx == kInvalidDense ) ? LightType::Directional : m_type[idx];
+	}
+
+	SpotParams LightStorage::spotParams(EntityId entity) const
+	{
+		const u32 idx = denseIndexOf(entity);
+		assert(idx != kInvalidDense && "LightStorage::spotParams: entity not present");
+		return ( idx == kInvalidDense ) ? SpotParams{} : m_spots[idx];
 	}
 
 	math::Vec3f LightStorage::colour(EntityId entity) const
@@ -98,12 +113,14 @@ namespace imp::ecs
 			m_type[idx] = m_type[last];
 			m_colour[idx] = m_colour[last];
 			m_intensity[idx] = m_intensity[last];
+			m_spots[idx] = m_spots[last];
 			m_sparse[m_owner[idx].index] = idx;
 		}
 		m_owner.pop_back();
 		m_type.pop_back();
 		m_colour.pop_back();
 		m_intensity.pop_back();
+		m_spots.pop_back();
 	}
 
 }

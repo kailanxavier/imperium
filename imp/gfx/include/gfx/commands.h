@@ -15,7 +15,7 @@ namespace imp::gfx
         float r = 42.f / 255.f;
         float g = 3.f / 255.f;
         float b = 14.f / 255.f;
-        float a = 1.f;
+        float a = 0.f;
     };
 
     struct RenderPassColourAttachment

@@ -8,7 +8,7 @@
 
 namespace imp::protocol
 {
-	enum class LightKindPayload : u8 { Directional = 0, Point };
+	enum class LightKindPayload : u8 { Directional = 0, Point, Spot };
 
 	struct TransformComponentPayload
 	{

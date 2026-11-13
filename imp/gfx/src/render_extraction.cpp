@@ -14,6 +14,23 @@ namespace imp::gfx
 			return math::Vec3f{ worldMatrix.col[3][0], worldMatrix.col[3][1], worldMatrix.col[3][2] };
 		}
 
+		void packSpotLight(const ecs::SpotParams& spot, const math::Mat4f& worldMatrix, gfx::GPULight& out)
+		{
+			constexpr float kDegToRad = math::kPif / 180.f;
+			constexpr float kMinCosGap = 1e-4f;
+
+			math::Vec3f axis = math::transformDirection(worldMatrix, math::Vec3f::forward());
+			axis = ( math::lengthSq(axis) > 1e-8f ) ? math::normalise(axis) : math::Vec3f::forward();
+
+			const float outerDeg = std::clamp(spot.outerConeDegrees, 1.f, 89.f);
+			const float innerDeg = std::clamp(spot.innerConeDegrees, 0.f, outerDeg);
+			const float cosOuter = std::cos(outerDeg * kDegToRad);
+			const float cosInner = std::cos(innerDeg * kDegToRad);
+
+			out.spotDirectionRange = math::Vec4f{ axis, std::max(spot.range, 0.f) };
+			out.spotCone = math::Vec4f{ cosOuter, 1.f / std::max(cosInner - cosOuter, kMinCosGap), 0.f, 0.f };
+		}
+
 		void extractLights(const ecs::World& world, gfx::LightUBO& out)
 		{
 			gfx::GPULight& mainSlot = out.lights[gfx::kMainLightSlot];
@@ -25,6 +42,7 @@ namespace imp::gfx
 			const std::vector<ecs::LightType>& types = lights.types();
 			const std::vector<math::Vec3f>& colours = lights.colours();
 			const std::vector<float>& intensities = lights.intensities();
+			const std::vector<ecs::SpotParams>& spots = lights.spots();
 
 			u32 count = gfx::kMainLightSlot + 1;
 			bool skippedDirectional = false;
@@ -40,8 +58,15 @@ namespace imp::gfx
 				const math::Mat4f worldMatrix = world.transforms.worldMatrix(owners[i]);
 				gfx::GPULight& gpuLight = out.lights[count++];
 
-				gpuLight.positionOrDirWS = math::Vec4f{ translationOf(worldMatrix), 1.f };
+				const bool isSpot = types[i] == ecs::LightType::Spot;
+
+				gpuLight.positionOrDirWS = math::Vec4f{ translationOf(worldMatrix),
+					isSpot ? gfx::kGPULightSpot : gfx::kGPULightPoint };
+
 				gpuLight.colourIntensity = math::Vec4f{ colours[i], intensities[i] };
+
+				if (isSpot)
+					packSpotLight(spots[i], worldMatrix, gpuLight);
 			}
 
 			out.lightCount = count;

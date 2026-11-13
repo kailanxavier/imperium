@@ -30,6 +30,7 @@ namespace imp::fwk
 		std::optional<ecs::LightType> lightKind;
 		math::Vec3f lightColour;
 		float lightIntensity = 0.f;
+		ecs::SpotParams lightSpot;
 
 		std::optional<std::string> scriptPath;
 		bool scriptWantsTick = false;

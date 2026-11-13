@@ -38,12 +38,23 @@ namespace imp::gfx
 	constexpr u32 kMaxLights = 16;
 	constexpr u32 kMainLightSlot = 0;
 
+	constexpr float kGPULightDirectional = 0.f;
+	constexpr float kGPULightPoint = 1.f;
+	constexpr float kGPULightSpot = 2.f;
+
 	struct GPULight
 	{
-		math::Vec4f positionOrDirWS{ 0.f, 0.f, 0.f, 0.f };
+		math::Vec4f positionOrDirWS{ 0.f, 0.f, 0.f, kGPULightDirectional };
 		math::Vec4f colourIntensity{ 1.f, 1.f, 1.f, 1.f };
+		math::Vec4f spotDirectionRange{ 0.f, -1.f, 0.f, 0.f };
+		math::Vec4f spotCone{ 0.f, 0.f, 0.f, 0.f };
 	};
-	static_assert( sizeof(GPULight) == 32 && "GPULight must stay std140 friendly" );
+	static_assert( sizeof(GPULight) == 64 && "GPULight must stay std140 friendly" );
+
+	[[nodiscard]] inline bool isPositionalLight(const GPULight& light) noexcept
+	{
+		return light.positionOrDirWS.w > 0.5f;
+	}
 
 	struct LightUBO
 	{

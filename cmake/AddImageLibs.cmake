@@ -116,6 +116,13 @@ if (IMP_USE_VENDORED_ZLIB)
 
     # Compatibility variables for projects that use the old FindZLIB interface.
     get_target_property(_imp_zlib_ng_src_dir zlibstatic SOURCE_DIR)
+    get_target_property(_imp_zlib_ng_binary_dir zlibstatic BINARY_DIR)
+
+    if (NOT _imp_zlib_ng_src_dir OR NOT _imp_zlib_ng_binary_dir)
+        message(FATAL_ERROR
+            "Could not determine zlib-ng source and binary directories."
+        )
+    endif()
 
     set(ZLIB_INCLUDE_DIR
         "${_imp_zlib_ng_src_dir}"
@@ -130,9 +137,8 @@ if (IMP_USE_VENDORED_ZLIB)
     set(ZLIB_FOUND TRUE CACHE BOOL "" FORCE)
 
     message(STATUS "Using vendored zlib-ng")
-    message(STATUS "  ZLIB::ZLIB target: $<TARGET_EXISTS:ZLIB::ZLIB>")
-    message(STATUS "  ZLIB_INCLUDE_DIR: ${ZLIB_INCLUDE_DIR}")
-    message(STATUS "  ZLIB_LIBRARY: ${ZLIB_LIBRARY}")
+    message(STATUS "  ZLIB source directory: ${_imp_zlib_ng_src_dir}")
+    message(STATUS "  ZLIB generated headers: ${_imp_zlib_ng_binary_dir}")
 
 else()
 

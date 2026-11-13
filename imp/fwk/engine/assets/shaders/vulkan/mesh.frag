@@ -1,5 +1,6 @@
 #version 450
 #include "include/shadow_sampling.glsl"
+#include "include/spot_light.glsl"
 
 #define SHADOW_DEBUG_MODE 0
 
@@ -18,6 +19,8 @@ struct GPULight
 {
     vec4 positionOrDirWS;
     vec4 colourIntensity;
+    vec4 spotDirectionRange;
+    vec4 spotCone;
 };
 
 layout(binding = 0) uniform LightUBO
@@ -337,10 +340,12 @@ void main()
     for (uint i = 0u; i < lightData.lightCount; ++i)
     {
         GPULight light = lightData.lights[i];
-        bool isPoint = light.positionOrDirWS.w > 0.5;
+        bool isPositional = light.positionOrDirWS.w > 0.5;
+        bool isSpot = light.positionOrDirWS.w > 1.5;
 
-        vec3 L = isPoint
-            ? normalize(light.positionOrDirWS.xyz - inPositionWS)
+        vec3 toLight = light.positionOrDirWS.xyz - inPositionWS;
+        vec3 L = isPositional
+            ? normalize(toLight)
             : normalize(-light.positionOrDirWS.xyz);
         vec3 H = normalize(V + L);
 
@@ -348,7 +353,15 @@ void main()
         if (NdotL <= 0.0)
             continue;
 
-        vec3 radiance = light.colourIntensity.rgb * light.colourIntensity.w;
+        float attenuation = 1.0;
+        if (isSpot)
+        {
+            attenuation = spotConeFactor(L, light.spotDirectionRange.xyz, light.spotCone.xy)
+                * spotRangeFactor(length(toLight), light.spotDirectionRange.w);
+            if (attenuation <= 0.0)
+                continue;
+        }
+        vec3 radiance = light.colourIntensity.rgb * light.colourIntensity.w * attenuation;
 
         float D = distributionGGX(N, H, roughness);
         float G = geometrySmith(N, V, L, roughness);
@@ -362,7 +375,8 @@ void main()
         // TODO: There main have been an oversight during the deferred lighting pass,
         // so we need to look into why we have duplicate work running here in mesh.frag 
         // and exactly the same code in deferred_lighting.frag.
-        float shadowFactor = isPoint ? 1.0 : sunShadowFactor;
+        // This is so true... I have to stop "maintaining" the same code in two different places...
+        float shadowFactor = isPositional ? 1.0 : sunShadowFactor;
         result += (diffuse + specular) * radiance * NdotL * shadowFactor;
     }
 

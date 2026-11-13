@@ -36,12 +36,19 @@ namespace imp::fwk
 
 		const char* lightKindToString(ecs::LightType kind)
 		{
-			return ( kind == ecs::LightType::Point ) ? "Point" : "Directional";
+			switch (kind)
+			{
+			case ecs::LightType::Point: return "Point";
+			case ecs::LightType::Spot: return "Spot";
+			case ecs::LightType::Directional: break;
+			}
+			return "Directional";
 		}
 
 		std::optional<ecs::LightType> lightKindFromString(const std::string& s)
 		{
 			if (s == "Point") return ecs::LightType::Point;
+			if (s == "Spot") return ecs::LightType::Spot;
 			if (s == "Directional") return ecs::LightType::Directional;
 			return std::nullopt;
 		}
@@ -219,6 +226,7 @@ namespace imp::fwk
 				e.lightKind = world.lights.type(id);
 				e.lightColour = world.lights.colour(id);
 				e.lightIntensity = world.lights.intensity(id);
+				e.lightSpot = world.lights.spotParams(id);
 			}
 
 			if (world.scripts.contains(id))
@@ -265,7 +273,11 @@ namespace imp::fwk
 			}
 
 			if (e.lightKind)
+			{
 				world.lights.create(id, *e.lightKind, e.lightColour, e.lightIntensity);
+				if (*e.lightKind == ecs::LightType::Spot)
+					world.lights.setSpotParams(id, e.lightSpot);
+			}
 
 			if (e.scriptPath)
 				world.scripts.create(id, *e.scriptPath, e.scriptWantsTick);
@@ -325,6 +337,15 @@ namespace imp::fwk
 					{ "colour", vec3ToJson(e.lightColour) },
 					{ "intensity", e.lightIntensity },
 				};
+
+				if (*e.lightKind == ecs::LightType::Spot)
+				{
+					ej["light"]["spot"] = {
+						{ "innerConeDegrees", e.lightSpot.innerConeDegrees },
+						{ "outerConeDegrees", e.lightSpot.outerConeDegrees },
+						{ "range", e.lightSpot.range },
+					};
+				}
 			}
 
 			if (e.scriptPath)
@@ -417,6 +438,14 @@ namespace imp::fwk
 					? vec3FromJson(lj["colour"], math::Vec3f::one())
 					: math::Vec3f::one();
 				e.lightIntensity = lj.value("intensity", 0.f);
+
+				if (lj.contains("spot") && lj["spot"].is_object())
+				{
+					const auto& spj = lj["spot"];
+					e.lightSpot.innerConeDegrees = spj.value("innerConeDegrees", e.lightSpot.innerConeDegrees);
+					e.lightSpot.outerConeDegrees = spj.value("outerConeDegrees", e.lightSpot.outerConeDegrees);
+					e.lightSpot.range = spj.value("range", e.lightSpot.range);
+				}
 			}
 
 			if (ej.contains("script"))
